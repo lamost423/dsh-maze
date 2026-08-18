@@ -47,6 +47,8 @@ describe('snapshotToMazeData', () => {
     expect(lane.main.some(n => n.tools.some(t => t.e === null))).toBe(true)
     // tool-less settled step renders as the answer node
     expect(lane.main[lane.main.length - 1]!.v).toBe('answer')
+    // one user message -> every node belongs to turn 1
+    expect(new Set([...lane.main, ...lane.detours].map(n => n.turn))).toEqual(new Set([1]))
   })
 
   it('reports the latest model carried by a request header', () => {

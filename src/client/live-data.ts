@@ -24,6 +24,10 @@ export interface MazeTool {
 /** One maze node (main step or detour branch). */
 export interface MazeNode {
   step: number
+  /** 1-based conversation turn; the page breaks the main path between turns. */
+  turn?: number
+  /** True for the single in-flight step; excluded from the page's redraw signature. */
+  live?: boolean
   s: number
   e: number
   tools: MazeTool[]
@@ -89,13 +93,14 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   let cur: MazeNode | null = null
   const pending: PendingTool[] = []
   let nextStep = 0
+  let turn = 0
 
   // Verdicts are recomputed after the full scan: at push time the step's
   // tool-results have not been paired yet (they arrive as later nodes).
   const pushStep = (s: number, e: number, tools: MazeTool[], rz: number, rzTxt: string): MazeNode => {
     nextStep += 1
     const node: MazeNode = {
-      step: nextStep, s, e, tools, rz, rzTxt: rzTxt.replace(/\s+/g, ' ').trim().slice(0, 240),
+      step: nextStep, turn: Math.max(turn, 1), s, e, tools, rz, rzTxt: rzTxt.replace(/\s+/g, ' ').trim().slice(0, 240),
       v: 'ok',
     }
     rows.push(node)
@@ -103,7 +108,9 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   }
 
   for (const n of nodes) {
-    if (n.kind === 'assistant') {
+    if (n.kind === 'user') {
+      turn += 1
+    } else if (n.kind === 'assistant') {
       const s = rel(n.timing?.stepStartTime ?? n.time)
       const tools: MazeTool[] = []
       let rz = 0
@@ -152,7 +159,10 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok' })
       }
     }
-    if (rz > 0 || tools.length > 0) liveRow = cur = pushStep(now, now + 0.1, tools, rz, rzTxt)
+    if (rz > 0 || tools.length > 0) {
+      liveRow = cur = pushStep(now, now + 0.1, tools, rz, rzTxt)
+      liveRow.live = true
+    }
   }
 
   if (rows.length === 0) return null

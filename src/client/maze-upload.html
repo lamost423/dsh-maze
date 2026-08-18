@@ -199,7 +199,7 @@ function buildLane(text){
     const tm = (tOf(e) - t0) / 1000
     if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
-      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, s: tm, e: tm, events: [], rz: 0, rzTxt: '' }
+      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '' }
       rows.push(cur)
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
@@ -261,11 +261,11 @@ function buildData(fileTexts){
     let lastMain = null
     for (const r of rows){
       const v = r.events.length === 0 ? 'answer' : stepVerdict(r.events)
-      const node = { step: r.step, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, v }
+      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, v }
       if (v === 'ok' || v === 'answer'){
         main.push(node); lastMain = node
       } else {
-        detours.push({ step: r.step, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, v, attach: lastMain ? lastMain.step : 0 })
+        detours.push({ step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, v, attach: lastMain ? lastMain.step : 0 })
       }
     }
     if (main.length === 0) throw new Error('没有可解析的有效步骤（step/start 事件缺失？）')
@@ -546,7 +546,8 @@ function build(){
     const title = el('text', { x: X0 + 4, y: lay.regionTop + 20, class: 'lane-name', fill: isFlash ? '#1d4ed8' : '#6d28d9' })
     title.textContent = `${laneName(lane)}   ${lane.model ?? '(未知模型)'}`
     const info = el('text', { x: X0 + AXIS_W - 4, y: lay.regionTop + 20, 'text-anchor': 'end', class: 'lane-info' })
-    info.textContent = `${lane.stats.steps} 步（主干 ${lane.stats.main} / 支路 ${lane.stats.detours}）· ${lane.stats.tools} 次工具调用 · reasoning ${lane.stats.rz.toLocaleString()} tok · 总耗时 ${fmtT(lane.stats.T)}`
+    const laneTurns = new Set([...lane.main, ...lane.detours].map(n => n.turn).filter(v => v != null)).size
+    info.textContent = `${laneTurns > 1 ? laneTurns + ' 轮 · ' : ''}${lane.stats.steps} 步（主干 ${lane.stats.main} / 支路 ${lane.stats.detours}）· ${lane.stats.tools} 次工具调用 · reasoning ${lane.stats.rz.toLocaleString()} tok · 总耗时 ${fmtT(lane.stats.T)}`
     svg.appendChild(title); svg.appendChild(info)
 
     // explore-phase background band
@@ -564,9 +565,23 @@ function build(){
     const main = lane.main
     main.forEach((n, i) => {
       if (i > 0){
-        const p = el('path', { d: `M ${x(main[i - 1].e)} ${lay.mainY} L ${x(n.e)} ${lay.mainY}`, fill: 'none', stroke: mainC, 'stroke-width': 3, 'stroke-linecap': 'round' })
-        svg.appendChild(p)
-        pathEls.push({ el: p, s: main[i - 1].e, e: n.e, base: '' })
+        const prev = main[i - 1]
+        // A new conversation turn is a fresh journey: break the main line and
+        // mark the boundary instead of pretending one continuous task.
+        if (prev.turn != null && n.turn != null && prev.turn !== n.turn){
+          const bx = x(Math.max(prev.e, (prev.e + n.s) / 2))
+          const sep = el('line', { x1: bx, y1: lay.regionTop + 34, x2: bx, y2: lay.regionBottom - 12, stroke: '#94a3b8', 'stroke-dasharray': '5 5', 'stroke-width': 1.3 })
+          svg.appendChild(sep)
+          pathEls.push({ el: sep, s: prev.e, e: prev.e + 0.5, base: '5 5' })
+          const tl = el('text', { x: bx + 6, y: lay.regionTop + 48, class: 'tick big', fill: '#64748b' })
+          tl.textContent = '第 ' + n.turn + ' 轮'
+          svg.appendChild(tl)
+          markEls.push({ el: tl, s: prev.e, e: prev.e + 1 })
+        } else {
+          const p = el('path', { d: `M ${x(prev.e)} ${lay.mainY} L ${x(n.e)} ${lay.mainY}`, fill: 'none', stroke: mainC, 'stroke-width': 3, 'stroke-linecap': 'round' })
+          svg.appendChild(p)
+          pathEls.push({ el: p, s: prev.e, e: n.e, base: '' })
+        }
       }
       const node = drawNode(lane, n, lay.mainY, true, i)
       nodeEls.push({ el: node.g, s: n.e - 4, e: n.e })
@@ -947,12 +962,37 @@ async function handleFiles(files){
 
 /* ===== Live mode: parent frame pushes rendered maze data via postMessage ===== */
 let liveMode = false
+let liveSig = null
+
+/**
+ * Structural signature of a live payload: settled nodes' identity/verdict and
+ * arrived tool-result counts. Deliberately excludes the in-flight step's
+ * timings and reasoning volume so streaming chunks don't force a full SVG
+ * rebuild — the maze only redraws when something structural actually changed.
+ */
+function mazeSignature(data){
+  const parts = []
+  for (const l of data.lanes){
+    parts.push('m' + l.main.length, 'd' + l.detours.length)
+    for (const arr of [l.main, l.detours]){
+      for (const n of arr){
+        if (n.live){ parts.push('L' + n.tools.length); continue }
+        parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length)
+      }
+    }
+  }
+  return parts.join('|')
+}
+
 window.addEventListener('message', e => {
   if (!e.data || e.data.kind !== 'trace-maze') return
   liveMode = true
   drop.style.display = 'none'
   filesBox.style.display = 'none'
   document.body.classList.add('live')
+  const sig = mazeSignature(e.data.data)
+  if (sig === liveSig) return
+  liveSig = sig
   renderData(e.data.data, { follow: true })
 })
 
