@@ -40,7 +40,7 @@
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.1.0/dsh-trace-compare-0.1.0.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.1.1/dsh-trace-compare-0.1.1.tgz
 dsh web
 ```
 

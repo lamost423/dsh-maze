@@ -7,6 +7,7 @@ type TraceCompareViewState = {
 
 type TraceCompareViewActions = {
   toggle: (draft: TraceCompareViewState) => void
+  close: (draft: TraceCompareViewState) => void
 }
 
 /**
@@ -18,6 +19,7 @@ export function createTraceCompareViewStore(): EngineStoreHandle<TraceCompareVie
     init: (): TraceCompareViewState => ({ open: false }),
     actions: {
       toggle: (draft) => { draft.open = !draft.open },
+      close: (draft) => { draft.open = false },
     },
   })
 }
