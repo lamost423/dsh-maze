@@ -1,0 +1,20 @@
+.trigger{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  border:0;
+  background:transparent;
+  color:var(--dsh-sidebar-text, #46536a);
+  font:inherit;
+  font-size:13px;
+  padding:7px 10px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:background .15s;
+}
+.trigger:hover{ background:rgba(37,99,235,.08) }
+.trigger[aria-pressed='true']{ color:#1d4ed8; background:rgba(37,99,235,.12) }
+.rail{ width:auto; justify-content:center; padding:7px 0 }
+.rail:hover{ background:rgba(37,99,235,.08) }
+.label{ white-space:nowrap }

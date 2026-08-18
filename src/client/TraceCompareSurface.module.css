@@ -1,0 +1,12 @@
+.frame{
+  position:absolute;
+  inset:0;
+  display:flex;
+  z-index:30;
+  background:#f4f5f7;
+}
+.iframe{
+  flex:1;
+  border:0;
+  background:#f4f5f7;
+}

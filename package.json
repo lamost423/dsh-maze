@@ -1,0 +1,96 @@
+{
+  "name": "dsh-trace-compare",
+  "version": "0.1.0",
+  "description": "Trace Compare for DeepSeek Harness: upload session logs or follow the live session and visualize the agent's exploration maze — main path, detours, and backtracks on one timeline",
+  "keywords": ["deepseek", "deepseek-harness", "dsh", "dsh-plugin", "trace", "visualization", "session-log", "timeline"],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
+    "./invariant": { "types": "./lib/invariant.d.ts", "default": "./lib/invariant.js" },
+    "./client": { "types": "./lib/client/index.d.ts", "default": "./lib/client.js" },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/index.d.ts",
+    "lib/invariant.js",
+    "lib/invariant.d.ts",
+    "lib/client.js",
+    "lib/client.js.map",
+    "lib/client/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "pack:tgz": "pnpm pack --pack-destination artifacts"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dependencies": {
+    "clsx": "^2.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1 <5",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-layout": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-sidebar": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-invariants": ">=0.1.0-rc.6 <0.2.0",
+    "react": ">=18.2.0 <19"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-layout": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
+    "@types/node": "22.20.0",
+    "@types/react": "18.3.28",
+    "fzstd": "^0.1.1",
+    "lightningcss": "1.32.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsdown": "0.22.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lamost423/dsh-trace-compare.git"
+  },
+  "bugs": { "url": "https://github.com/lamost423/dsh-trace-compare/issues" },
+  "homepage": "https://github.com/lamost423/dsh-trace-compare#readme",
+  "publishConfig": { "access": "public" },
+  "packageManager": "pnpm@11.7.0",
+  "license": "MIT"
+}

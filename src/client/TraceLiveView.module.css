@@ -1,0 +1,18 @@
+.frame{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+}
+.iframe{
+  flex:1;
+  border:0;
+  background:#f4f5f7;
+}
+.empty{
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#7a869e;
+  font-size:13px;
+}

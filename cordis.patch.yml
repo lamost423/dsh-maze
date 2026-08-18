@@ -1,0 +1,6 @@
+# Trace Compare surface: sidebar trigger + upload/compare page + per-session
+# live maze tab. Client-only; the Loader finds the browser bundle through
+# package.json's dsh.client declaration.
+- insert:
+    - id: trace-compare
+      name: dsh-trace-compare
