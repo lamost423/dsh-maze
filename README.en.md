@@ -73,6 +73,24 @@ dsh web
 
 After a restart of `dsh web`, the sidebar footer gains a **Trace Compare** entry and every session view gains a **Live Maze** tab.
 
+## Recent iterations
+
+### v0.2.3 - Honest live window + quote-proof verdicts (2026-08-19)
+
+The live tab renders only the conversation's loaded event window — stale steps from earlier turns leaking past the window edge used to clamp to 0 s and pile up on the left, rendering an 18-hour, 533-step session as "3 turns / 39 steps / 71.4 s". They are now dropped and labeled "N earlier steps not loaded". Also fixed quoted-error false positives: "upstream returns HTTP 400" inside a git commit message no longer flags the command itself — failure signatures scan only the head and tail windows, and both render paths judge the same untruncated text. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
+
+![Live tab: honest window labeling; behavioral detection catching a real 31x blind-retry loop](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
+
+### v0.2.2 - Real tokens, search & filter, export (2026-08-19)
+
+"reasoning N tok" used to count streaming chunks — now real usage is read from the session log's `assistant/message` events, per step and per lane (honest "N segments" fallback without usage). Added the filter toolbar (failures/retries-only, per-tool, full-text search with 15% dimming of misses) and current-view SVG / 2x PNG export. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
+
+![Failures/retries only: hit count + dimming](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
+
+### v0.2.1 - Explainable verdicts: no more length thresholds (2026-08-19)
+
+"Result < 60 chars = dead end" retired: calibration showed it misjudged 56 of 338 tool calls (every 57-char todo_write confirmation included). Replaced with layered verdicts (error flag - failure signatures - per-tool-class rules) plus AgentLens-style behavioral blind-retry cluster detection, every verdict carrying a rationale string shown in tooltips and the detail panel. Verdict logic lives once in `src/client/verdict.js`, spliced into the upload page at build time and imported by the live path — ending mirror drift for good. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
+
 ## Development
 
 ```sh

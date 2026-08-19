@@ -73,6 +73,24 @@ dsh web
 
 重启 `dsh web` 后，侧边栏底部出现「Trace 对比」入口，每个会话视图多一个「实时迷宫」页签。
 
+## 近期迭代
+
+### v0.2.3 · 实时窗口诚实化 + 判定防引用误报（2026-08-19）
+
+实时页签只画对话已加载的事件窗口——窗口边缘漏进来的更早轮次步骤此前被钳到 0 秒堆在左边缘，一份 18 小时、533 步的会话被画成「3 轮 · 39 步 · 71.4s」。现在陈旧步被丢弃并标注「⏮ 另有 N 步更早历史未加载」。同时修掉判定的「引用误报」：git log 提交信息里写的 "upstream returns HTTP 400"、源码里的 "not found in" 不再被当成命令自己失败——失败特征只扫输出开头与末尾窗口，且两条渲染链路统一在未截断全文上判定。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
+
+![实时页签：窗口截断诚实标注，行为学检测抓到真实的 31 连败盲目重试](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
+
+### v0.2.2 · token 真值、搜索过滤、导出（2026-08-19）
+
+「reasoning N tok」此前数的是流式段数——本版从 session log 的 `assistant/message` 读真实 usage，步级与泳道级都显示真 token（无 usage 时诚实回退「N 段推理」）。新增过滤工具行（只看失败/重试、按工具过滤、全文搜索，未命中淡化到 15%）与当前视图的 SVG / 2x PNG 导出。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
+
+![只看失败/重试：命中计数 + 其余淡化](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
+
+### v0.2.1 · 判定可解释：告别长度阈值（2026-08-19）
+
+「结果 <60 字符 = 死路」退役：校准发现它冤枉了 338 次调用中的 56 次（todo_write 的 57 字符成功确认全军覆没）。换成三层判定（错误标志 → 失败特征 → 按工具分类）+ AgentLens 式行为学盲目重试簇检测（同工具 + 参数相似 + 簇内含失败），每个判定带依据文本进 tooltip 与详情面板。判定逻辑收敛为单一真相源 `src/client/verdict.js`，上传页构建期注入、实时链路直接引入，镜像漂移永久消除。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
+
 ## 开发
 
 ```sh
