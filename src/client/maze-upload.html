@@ -1111,7 +1111,9 @@ function drawNode(parent, lane, n, y, isMain, idx){
   const labY = isMain ? y + (idx % 2 ? -17 : 28 + parH) : y + 24
   const lab = el('text', { x: cx, y: labY, 'text-anchor': 'middle', class: 'nlabel' })
   let toolTxt = ''
-  if (n.v !== 'answer'){
+  // 实时模式的 in-flight 步在「推理中、尚无工具调用」阶段 tools 为空且 v='ok'——
+  // 无保护取 tools[0] 会抛错打断 build()，整图停在初始透明度（实测：每个新步骤开始时全图消失）。
+  if (n.v !== 'answer' && n.tools.length > 0){
     const t0 = n.tools[0]
     toolTxt = tlabel(t0.name) + (n.tools.length > 1 ? ' +' + (n.tools.length - 1) : '')
   }

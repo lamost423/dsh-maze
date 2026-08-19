@@ -61,7 +61,7 @@
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/dsh-trace-compare-0.3.2.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.3/dsh-trace-compare-0.3.3.tgz
 dsh web
 ```
 
@@ -91,6 +91,10 @@ dsh web
 4. **按工具分类**：写入类（write / edit / todo_write）无错误即成功，不看输出长短；检索类（grep / read / web_search）开头命中空结果特征才算扑空；bash 及未知工具空输出才算扑空。
 
 在此之上叠一层**行为学检测**：时间序上连续的「同工具 + 参数相似度 ≥0.6」调用簇、且簇内至少一次失败，非失败成员改判无效重试（借鉴 AgentLens 对 SWE-agent 轨迹浪费的确定性检测；不加失败约束会把「连续编辑同一文件」冤枉进去）。刻意**不用**输出长度、不调用 LLM；每个判定都带依据文本，悬停与详情面板可见。全部阈值在 `src/client/verdict.js` 的 `VERDICT_RULES`，可按语料调整；上传页与实时页签共用这一份实现。以上规则由四个真实会话（共 871 步）校准，依据与误报案例见下面各版本说明。
+
+### v0.3.3 · 修复：实时模式新步骤开始时全图消失（2026-08-19）
+
+实时页签每当新步骤开始（模型推理中、还没发出第一个工具调用），整张迷宫会瞬间变透明，等工具调用出现才恢复。根因是 tier1 时代的老 bug：非回答节点的标签代码无保护地取 `tools[0].name`，而 in-flight 步在纯推理阶段 `tools` 为空——TypeError 把 build() 拦腰打断，所有元素停在初始透明度 0。零工具节点跳过工具标签即修复；用合成推送序列（推理期 → 工具出现 → 结算）实测全程可见。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
 
 ### v0.3.2 · 并行工具调用分行（2026-08-19）
 

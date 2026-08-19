@@ -61,7 +61,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/dsh-trace-compare-0.3.2.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.3/dsh-trace-compare-0.3.3.tgz
 dsh web
 ```
 
@@ -91,6 +91,10 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.3.3 - Fix: live maze went blank at the start of every new step (2026-08-19)
+
+Whenever a new step began in the live tab (model reasoning, no tool call issued yet), the whole maze turned transparent until the first tool call appeared. Root cause was a tier-1-era bug: the node label code read `tools[0].name` unguarded, and an in-flight step has an empty `tools` array during its reasoning phase — the TypeError aborted build() mid-way, leaving every element at its initial opacity 0. Zero-tool nodes now skip the tool label; verified with a synthetic push sequence (reasoning phase → tool appears → settled) staying visible throughout. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
 
 ### v0.3.2 - Parallel tool-call rows (2026-08-19)
 
