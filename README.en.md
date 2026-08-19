@@ -18,7 +18,7 @@ Two surfaces, one visual language:
 
 - Solid line: the main path — steps whose tool calls succeeded, plus answer nodes.
 - **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
-- Dashed arcs: exploration detours — steps whose tools failed (red ✗) or returned nothing useful (gray ·), with the return arc back to the branch point.
+- Dashed arcs: exploration detours — steps whose tools failed (red ✗), searched and found nothing (gray ·), or blind-retried (gray ↻), with the return arc back to the branch point.
 - Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
@@ -29,6 +29,13 @@ Timeline honesty rules:
 - **Idle folding**: stretches with no step or tool activity for over 60 s (you thinking between turns) collapse into a thin `⏸` seam labeled with the skipped duration. Axis ticks keep wall-clock labels inside activity segments.
 - Step identity is turn-qualified (`S15·47`), so multi-turn sessions attach detours to the right nodes.
 - Durations, tool timings, and totals stay wall-clock; only the axis is compressed.
+
+Verdict honesty rules (since v0.2.1):
+
+- **No output-length verdicts.** Per-tool verdicts layer: error flag (isError) → generic failure signatures (Traceback / command not found / HTTP 4xx·5xx / `[status=Failed]` …) → per-tool-class rules (write tools succeed unless errored; search tools only dead-end on empty results; bash and unknown tools succeed with any output).
+- **Blind retries** are behavioral: only consecutive same-tool, similar-args call clusters containing at least one failure are marked — following AgentLens-style deterministic waste detection for SWE-agent trajectories.
+- Every verdict carries a **rationale string**, visible in the hover tooltip and the detail panel.
+- All thresholds and tool classes live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation (spliced in at build time).
 
 ## Session log support
 
@@ -43,7 +50,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.0/dsh-trace-compare-0.2.0.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.1/dsh-trace-compare-0.2.1.tgz
 dsh web
 ```
 

@@ -27,11 +27,15 @@ function sourceAssetPath(source: string, importer: string): string {
  * a string for <iframe srcDoc>. The fzstd UMD build is spliced into the page's
  * placeholder script so .jsonl.zstd uploads decompress in browsers whose
  * DecompressionStream lacks 'zstd'.
+ * The shared verdict module (src/client/verdict.js, also imported by
+ * live-data.ts) is spliced into the page's verdict placeholder with its
+ * `export ` prefixes stripped, so both render paths judge with one source.
  */
 function inlineMazeHtmlPlugin(): Plugin {
   const MAZE_VIRTUAL = '\0trace-compare:maze-upload-html'
   const file = fileURLToPath(new URL('./src/client/maze-upload.html', import.meta.url))
   const fzstdUmd = fileURLToPath(new URL('./node_modules/fzstd/umd/index.js', import.meta.url))
+  const verdictFile = fileURLToPath(new URL('./src/client/verdict.js', import.meta.url))
   return {
     name: 'dsh-trace-compare-inline-maze-html',
     resolveId(source: string) {
@@ -41,9 +45,13 @@ function inlineMazeHtmlPlugin(): Plugin {
       if (id !== MAZE_VIRTUAL) return null
       this.addWatchFile(file)
       this.addWatchFile(fzstdUmd)
+      this.addWatchFile(verdictFile)
       const raw = await readFile(file, 'utf8')
-      const html = raw.replace('/*__FZSTD_UMD__*/', await readFile(fzstdUmd, 'utf8'))
-      if (html === raw) throw new Error('maze-upload.html is missing the /*__FZSTD_UMD__*/ placeholder')
+      const verdictJs = (await readFile(verdictFile, 'utf8')).replace(/^export /gm, '')
+      const withVerdict = raw.replace('/*__VERDICT__*/', () => verdictJs)
+      if (withVerdict === raw) throw new Error('maze-upload.html is missing the /*__VERDICT__*/ placeholder')
+      const html = withVerdict.replace('/*__FZSTD_UMD__*/', await readFile(fzstdUmd, 'utf8'))
+      if (html === withVerdict) throw new Error('maze-upload.html is missing the /*__FZSTD_UMD__*/ placeholder')
       // < keeps "</script>" from terminating the loaded client.js bundle.
       return `export default ${JSON.stringify(html).replace(/</g, '\\u003c')}`
     },

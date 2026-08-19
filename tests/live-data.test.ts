@@ -18,11 +18,11 @@ function syntheticSnapshot(): ConversationSnapshot {
       ] },
       { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: true, content: [{ type: 'text', text: 'boom' }] },
       { kind: 'tool-result', time: t0 + 4000, callId: 'b', isError: false, content: [{ type: 'text', text: 'a'.repeat(6000) }] },
-      // step 2: one short-result tool -> deadend -> detour
+      // step 2: search tool with an empty result -> deadend -> detour
       { kind: 'assistant', seq: 12, time: t0 + 6000, timing: { stepStartTime: t0 + 5000 }, blocks: [
         { kind: 'tool-call', name: 'grep', callId: 'c', argsRaw: '{"pattern":"x"}' },
       ] },
-      { kind: 'tool-result', time: t0 + 7000, callId: 'c', isError: false, content: [{ type: 'text', text: 'hit' }] },
+      { kind: 'tool-result', time: t0 + 7000, callId: 'c', isError: false, content: [{ type: 'text', text: '' }] },
       // step 3: tool call whose result has not arrived -> pending -> stays main
       { kind: 'assistant', seq: 13, time: t0 + 9000, timing: { stepStartTime: t0 + 8000 }, blocks: [
         { kind: 'tool-call', name: 'bash', callId: 'd', argsRaw: '{"command":"sleep 99"}' },
@@ -77,6 +77,60 @@ describe('snapshotToMazeData', () => {
       .find(t => t.callId === 'b')!
     expect(long.res).toHaveLength(380)
     expect(long.resFull).toHaveLength(5000)
+  })
+
+  it('attaches a rationale (why) to every settled node and tool', () => {
+    const data = snapshotToMazeData(syntheticSnapshot())
+    const lane = data!.lanes[0]!
+    for (const n of [...lane.main, ...lane.detours]) {
+      expect(n.why, `node S${n.step}`).toBeTruthy()
+      for (const t of n.tools) if (t.e !== null) expect(t.why, `tool ${t.callId}`).toBeTruthy()
+    }
+    const err = lane.detours.find(n => n.v === 'error')!
+    expect(err.why).toContain('错误标志')
+    const dead = lane.detours.find(n => n.v === 'deadend')!
+    expect(dead.why).toContain('扑空')
+  })
+
+  it('keeps short write confirmations on the main path (no length verdicts)', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+          { kind: 'tool-call', name: 'todo_write', callId: 'a', argsRaw: '{"todos":[]}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: false, content: [{ type: 'text', text: 'Updated todo list: 3 pending, 1 in progress, 0 completed.' }] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.stats.detours).toBe(0)
+    expect(lane.main[0]!.v).toBe('ok')
+    expect(lane.main[0]!.why).toContain('写入类')
+  })
+
+  it('marks blind-retry clusters: repeated near-identical calls with a failure inside', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"python3 gen_timeline.py --check"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: true, content: [{ type: 'text', text: 'boom' }] },
+        { kind: 'assistant', seq: 12, time: t0 + 5000, timing: { stepStartTime: t0 + 4000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'b', argsRaw: '{"command":"python3 gen_timeline.py --check"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 6000, callId: 'b', isError: false, content: [{ type: 'text', text: 'wrote timeline.html ok' }] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    // both steps leave the main path: the failure, and its blind retry
+    expect(lane.stats.detours).toBe(2)
+    const retry = lane.detours.find(n => n.v === 'retry')!
+    expect(retry.why).toContain('盲目重试')
+    const err = lane.detours.find(n => n.v === 'error')!
+    expect(err.tools[0]!.why).toContain('重试簇')
   })
 
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {

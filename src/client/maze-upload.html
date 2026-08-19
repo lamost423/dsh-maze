@@ -37,7 +37,7 @@
   .ln.dt{border-color:var(--dead); border-top-style:dashed}
   .ln.bk{border-color:#9aa4b8; border-top-style:dotted}
   .sw{width:14px; height:10px; border-radius:2px; display:inline-block}
-  .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
+  .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.rt{background:#b6c0d2} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
   .controls{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-bottom:10px; position:sticky; top:0; z-index:50; box-shadow:0 1px 3px rgba(16,24,40,.05)}
   .controls button{background:#fff; color:#1f2937; border:1px solid #d8dce6; border-radius:8px; padding:4px 14px; font-size:13px; cursor:pointer; transition:background .15s}
   .controls button:hover{background:#eef1f6}
@@ -63,6 +63,7 @@
   #panel .psec .pt .cp{margin-left:auto}
   #panel pre{white-space:pre-wrap; word-break:break-all; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#374151; padding:7px 9px; margin:0; max-height:230px; overflow:auto; user-select:text}
   #panel pre.args{background:#fbfcfe; border-bottom:1px solid var(--line); max-height:120px}
+  #panel .pwhy{padding:4px 10px; color:#7a869e; font-size:11px; border-bottom:1px solid var(--line)}
   #panel .cp{border:1px solid #d8dce6; background:#fff; border-radius:6px; font-size:11px; color:#46536a; cursor:pointer; padding:1px 8px}
   #panel .cp:hover{background:#eef1f6}
   #panel .jump{display:inline-block; margin:8px 0 0; border:1px solid #bfd3fb; background:#f0f5ff; color:#1d4ed8; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; padding:4px 12px}
@@ -266,34 +267,25 @@ function buildLane(text){
   return { rows, model, title: model ?? (rows.length ? 'Session' : '?') }
 }
 
-/** Verdict per tool event: error / deadend / neutral / ok (generic heuristics). */
-function toolVerdict(ev){
-  if (ev.err) return 'error'
-  const txt = ev.res ?? ''
-  if (/No such container|Invalid token|HTTP 40\d|HTTP 50\d|^Error:|raw output|does not match|No such file/i.test(txt)) return 'error'
-  if (txt.length < 60 || txt === '---' || txt === '') return 'deadend'
-  return 'ok'
-}
-
-const SEV = { error: 3, deadend: 2, neutral: 1, ok: 0 }
-function stepVerdict(evs){
-  let v = 'ok'
-  for (const ev of evs){
-    const s = toolVerdict(ev)
-    if (SEV[s] > SEV[v]) v = s
-  }
-  return v
-}
+/* 判定逻辑（toolVerdict/stepVerdict/markRetryClusters/VERDICT_RULES/SEV）构建期
+   自 verdict.js 注入——与 live-data.ts 共用同一份真相源，改判定请改 verdict.js。 */
+/*__VERDICT__*/
 
 function buildData(fileTexts){
   const lanes = fileTexts.map((text, i) => {
     const { rows, model } = buildLane(text)
+    // 工具级判定 → 跨步骤盲目重试簇标注 → 步级聚合（顺序不可换：簇标注会改工具判定）
+    const allEvs = []
+    for (const r of rows) for (const ev of r.events) allEvs.push(ev)
+    for (const ev of allEvs){ const tv = toolVerdict(ev); ev.v = tv.v; ev.why = tv.why }
+    markRetryClusters(allEvs)
     const main = []
     const detours = []
     let lastMain = null
     for (const r of rows){
-      const v = r.events.length === 0 ? 'answer' : stepVerdict(r.events)
-      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, v }
+      const sv = stepVerdict(r.events)
+      const v = sv === null ? 'answer' : sv.v
+      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, v, why: sv === null ? '无工具调用，输出回答' : sv.why }
       if (v === 'ok' || v === 'answer'){
         main.push(node); lastMain = node
       } else {
@@ -455,10 +447,10 @@ function computeLayout(lanes){
 const svg = document.getElementById('svg')
 const NS = 'http://www.w3.org/2000/svg'
 const MAIN_COLOR = { l1: '#2563eb', l2: '#7c3aed' }
-const VCOLOR = { error: '#dc2626', deadend: '#9aa4b8', neutral: '#b6c0d2', ok: '#16a34a', answer: '#16a34a' }
+const VCOLOR = { error: '#dc2626', deadend: '#9aa4b8', retry: '#b6c0d2', ok: '#16a34a', answer: '#16a34a' }
 const TOOL_LABEL = { bash: 'bash', grep: 'grep', read: 'read', web_search: 'web', python3: 'python', curl: 'curl' }
 const tlabel = n => TOOL_LABEL[n] ?? n
-const vlabel = v => ({ error: '失败 ✗', deadend: '死路 ·', neutral: '低价值', ok: '成功', answer: '回答' }[v] ?? v)
+const vlabel = v => ({ error: '失败 ✗', deadend: '扑空 ·', retry: '无效重试 ↻', ok: '成功', answer: '回答' }[v] ?? v)
 const laneName = lane => DATA.lanes.length === 1 ? '当前会话' : (lane.key === 'l1' ? '第 1 会话' : '第 2 会话')
 
 /** Rebuild the legend from the rendered data: lane entries, then verdict swatches. */
@@ -475,7 +467,8 @@ function renderLegend(){
   lg.push('<span class="lg"><span class="ln dt"></span>出程：从分支点出发的探索</span>')
   lg.push('<span class="lg"><span class="ln bk"></span>回程：失败后折返分支点</span>')
   lg.push('<span class="lg"><span class="sw er"></span>失败 ✗</span>')
-  lg.push('<span class="lg"><span class="sw de"></span>死路/空结果 ·</span>')
+  lg.push('<span class="lg"><span class="sw de"></span>扑空（检索无结果）·</span>')
+  lg.push('<span class="lg"><span class="sw rt"></span>无效重试 ↻</span>')
   lg.push('<span class="lg"><span class="sw an"></span>最终回答</span>')
   if (DATA.timeMap) lg.push('<span class="lg">⏸ 空闲等待已折叠</span>')
   if (DATA.milestones.length > 0 && DATA.lanes.length === 2) lg.push('<span class="lg"><span class="sw ms"></span>里程碑对比线</span>')
@@ -660,7 +653,7 @@ function build(){
       const ay = lay.mainY
       const ex = x(d.s), bx0 = x(d.e), ey = d._y
       const mx = (ax + ex) / 2
-      const vc = d.v === 'error' ? '#dc2626' : (d.v === 'deadend' ? '#9aa4b8' : '#b6c0d2')
+      const vc = VCOLOR[d.v] ?? '#b6c0d2'
       const c1x = ax + 90, c1y = ay + (ey - ay) * 0.38
       const c2x = mx, c2y = ey
       const out = el('path', { d: `M ${ax} ${ay} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`, fill: 'none', stroke: vc, 'stroke-width': 2.6, 'stroke-dasharray': '6 5' })
@@ -716,7 +709,7 @@ function build(){
  */
 function drawNode(parent, lane, n, y, isMain, idx){
   const g = el('g', { class: 'node' })
-  const c = VCOLOR[n.v] ?? VCOLOR.neutral
+  const c = VCOLOR[n.v] ?? '#b6c0d2'
   const h = isMain ? 16 : 12
   const bx0 = x(n.s), bx1 = x(n.e)
   const w = Math.max(bx1 - bx0, 8)
@@ -729,7 +722,7 @@ function drawNode(parent, lane, n, y, isMain, idx){
     icon.textContent = n.v === 'answer' ? '' : '✓'
     icon.style.fontSize = n.v === 'answer' ? '0' : '11px'
   } else {
-    icon.textContent = n.v === 'error' ? '✗' : (n.v === 'deadend' ? '·' : '○')
+    icon.textContent = n.v === 'error' ? '✗' : (n.v === 'retry' ? '↻' : (n.v === 'deadend' ? '·' : '○'))
     icon.style.fontSize = n.v === 'error' ? '12px' : '13px'
     icon.style.fontWeight = '700'
   }
@@ -785,11 +778,12 @@ function showTipFor(d){
   const lane = d._laneKey === 'l1' ? DATA.lanes[0] : DATA.lanes[1]
   const tip = document.getElementById('tip')
   let inner = `<div class="th">${laneName(lane)} S${d.step} · 探索支路 · ${vlabel(d.v)}${d.v === 'error' ? '（被打回）' : ''}</div>`
+  if (d.why) inner += `<div class="rs">判定依据：${esc(d.why)}</div>`
   inner += `<div class="rs">时段 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))}（${(d.e - d.s).toFixed(1)}s）· reasoning ${d.rz} tok</div>`
   inner += `<div class="back">出程曲线自分支点 S${d.attach} 分叉（x 位置），于 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))} 生长完成</div>`
   inner += `<div class="back">↩ 此路不通，折返回分支点（S${d.attach}）</div>`
   d.tools.forEach(t => {
-    inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : ''}\n${esc(t.args)}</pre>`
+    inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : (t.v === 'retry' ? '↻' : '')}\n${esc(t.args)}</pre>`
     if (t.res) inner += `<div class="rs">返回：<pre>${esc(t.res)}</pre></div>`
   })
   if (d.rzTxt) inner += `<div class="rs">思考摘要：${esc(d.rzTxt)}</div>`
@@ -803,11 +797,12 @@ function onHover(e){
   const lane = g._lane
   let inner = `<div class="th">${laneName(lane)} S${n.step} · ${g._isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路'} · ${vlabel(n.v)}${n.v === 'error' ? '（被打回）' : ''}</div>`
   if (n.v !== 'answer'){
+    if (n.why) inner += `<div class="rs">判定依据：${esc(n.why)}</div>`
     inner += `<div class="rs">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))}（${(n.e - n.s).toFixed(1)}s）· reasoning ${n.rz} tok</div>`
     if (!g._isMain) inner += `<div class="back">↩ 此路不通，折返回分支点（S${n.attach}）</div>`
     if (g._nAtt) inner += `<div class="back">⦿ 分支原点：${g._nAtt} 条探索支路从这里出发并折返</div>`
     n.tools.forEach(t => {
-      inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : ''}\n${esc(t.args)}</pre>`
+      inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : (t.v === 'retry' ? '↻' : '')}\n${esc(t.args)}</pre>`
       if (t.res) inner += `<div class="rs">返回：<pre>${esc(t.res)}</pre></div>`
     })
     if (n.rzTxt) inner += `<div class="rs">思考摘要：${esc(n.rzTxt)}</div>`
@@ -845,6 +840,7 @@ function openPanel(n, lane, isMain){
   chip.textContent = (isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路') + ' · ' + vlabel(n.v)
   chip.style.background = VCOLOR[n.v] ?? '#9aa4b8'
   let inner = `<div class="prow">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))} · 耗时 ${(n.e - n.s).toFixed(1)}s · reasoning ${n.rz} tok${n.turn != null ? ' · 第 ' + n.turn + ' 轮' : ''}</div>`
+  if (n.why) inner += `<div class="prow">判定依据：${esc(n.why)}</div>`
   if (!isMain) inner += `<div class="prow" style="color:#d97706">↩ 此路不通，自分支点 S${n.attach} 出发并折返</div>`
   if (liveMode){
     const jumpTool = (n.tools ?? []).find(tl => tl.callId)
@@ -858,8 +854,9 @@ function openPanel(n, lane, isMain){
     const res = String(tl.resFull ?? tl.res ?? '')
     const ai = panelTexts.push(args) - 1
     const ri = panelTexts.push(res) - 1
-    inner += `<div class="psec"><div class="pt"><b>${esc(tlabel(tl.name))}</b><span style="color:#7a869e;font-weight:500">${tl.dur != null && tl.e != null ? tl.dur + 's' : '进行中'}${(tl.v === 'error' || tl.err) ? ' · ✗ 失败' : ''}</span><button class="cp" data-ci="${ai}">复制命令</button></div>`
+    inner += `<div class="psec"><div class="pt"><b>${esc(tlabel(tl.name))}</b><span style="color:#7a869e;font-weight:500">${tl.dur != null && tl.e != null ? tl.dur + 's' : '进行中'}${(tl.v === 'error' || tl.err) ? ' · ✗ 失败' : (tl.v === 'retry' ? ' · ↻ 无效重试' : '')}</span><button class="cp" data-ci="${ai}">复制命令</button></div>`
     inner += `<pre class="args">${args ? esc(args) : '(无参数)'}</pre>`
+    if (tl.why) inner += `<div class="pwhy">判定：${esc(tl.why)}</div>`
     if (res) inner += `<div class="pt" style="border-top:1px solid var(--line)">返回内容<span style="color:#7a869e;font-weight:500">${res.length >= 5000 ? '前 5000 字' : res.length + ' 字'}</span><button class="cp" data-ci="${ri}">复制返回</button></div><pre>${esc(res)}</pre>`
     inner += `</div>`
   }

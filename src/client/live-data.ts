@@ -5,6 +5,7 @@
  * share one visual language.
  */
 import type { ConversationNode, ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 
 /** One tool event in the maze model. */
 export interface MazeTool {
@@ -19,7 +20,9 @@ export interface MazeTool {
   resFull?: string
   err: boolean
   dur: number
-  v: 'error' | 'deadend' | 'neutral' | 'ok'
+  v: 'error' | 'deadend' | 'retry' | 'ok'
+  /** 判定依据文本（tooltip/详情面板展示）。 */
+  why?: string
   /**
    * Wire call identity: pairs the result during conversion, then anchors the
    * page's 在对话中定位 jump (the chat rows carry `data-chat-call-id`).
@@ -43,7 +46,9 @@ export interface MazeNode {
   rzTxt: string
   /** Detail-panel reasoning excerpt (≤2000 chars). */
   rzTxtFull?: string
-  v: 'ok' | 'answer' | 'error' | 'deadend' | 'neutral'
+  v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
+  /** 步级判定依据（最坏工具的依据）。 */
+  why?: string
   attach?: number
 }
 
@@ -65,21 +70,6 @@ export interface MazeData {
 }
 
 const MODEL_LIKE = /"data"\s*:\s*\[/
-
-function toolVerdict(ev: MazeTool): MazeTool['v'] {
-  if (ev.err) return 'error'
-  if (/No such container|Invalid token|HTTP 40\d|HTTP 50\d|^Error:|raw output|does not match|No such file/i.test(ev.res)) return 'error'
-  if (ev.res.length < 60 || ev.res === '---' || ev.res === '') return 'deadend'
-  return 'ok'
-}
-
-const SEV: Record<MazeTool['v'], number> = { error: 3, deadend: 2, neutral: 1, ok: 0 }
-
-function stepVerdict(tools: readonly MazeTool[]): MazeNode['v'] {
-  let v: MazeNode['v'] = 'ok'
-  for (const t of tools) if (SEV[t.v] > SEV[v]) v = t.v
-  return v
-}
 
 function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
@@ -151,7 +141,9 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         p.tool.res = contentText(n.content)
         p.tool.err = n.isError
         p.tool.dur = Math.round((p.tool.e - p.tool.s) * 10) / 10
-        p.tool.v = toolVerdict(p.tool)
+        const tv = toolVerdict(p.tool)
+        p.tool.v = tv.v
+        p.tool.why = tv.why
         p.tool.resFull = p.tool.res.slice(0, 5000)
         p.tool.res = p.tool.res.slice(0, 380)
         const toolEnd = p.tool.e ?? p.tool.s
@@ -185,9 +177,27 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   // tools (no result yet) do not vote, so a step only becomes a detour once
   // its outcome is known; the in-flight step always stays on the main path.
   // Tool-less settled steps are answer nodes, mirroring the upload page.
+  // 行为学盲目重试簇先于步级聚合：只扫已结算调用，in-flight 不参与，签名稳定。
+  const settled: MazeTool[] = []
   for (const r of rows) {
     if (r === liveRow) continue
-    r.v = r.tools.length === 0 ? 'answer' : stepVerdict(r.tools.filter(t => t.e !== null))
+    for (const t of r.tools) if (t.e !== null) settled.push(t)
+  }
+  markRetryClusters(settled)
+  for (const r of rows) {
+    if (r === liveRow) continue
+    if (r.tools.length === 0) {
+      r.v = 'answer'
+      r.why = '无工具调用，输出回答'
+      continue
+    }
+    const sv = stepVerdict(r.tools.filter(t => t.e !== null))
+    if (sv !== null) {
+      r.v = sv.v
+      if (sv.why !== undefined) r.why = sv.why
+    } else {
+      r.why = '工具结果未返回，暂留主干'
+    }
   }
 
   // Partition main path vs detours (mirror of the upload page).
