@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createTraceCompareViewStore } from './store.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
+import { postThemeTo, watchHostTheme } from './theme-sync.ts'
 import css from './TraceCompareSurface.module.css'
 
 /**
@@ -42,10 +43,22 @@ export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCom
       window.removeEventListener('message', onMessage)
     }
   }, [actions, open])
+  // 宿主主题同步：iframe 加载时推一次，打开期间跟随宿主翻转。
+  useEffect(() => {
+    if (!open) return
+    return watchHostTheme(() => { postThemeTo(iframeRef.current) })
+  }, [open])
   if (!open) return null
   return (
     <div className={css.frame}>
-      <iframe ref={iframeRef} title="trace-compare" className={css.iframe} srcDoc={srcDoc} sandbox="allow-scripts allow-modals allow-downloads" />
+      <iframe
+        ref={iframeRef}
+        title="trace-compare"
+        className={css.iframe}
+        srcDoc={srcDoc}
+        sandbox="allow-scripts allow-modals allow-downloads"
+        onLoad={() => { postThemeTo(iframeRef.current) }}
+      />
     </div>
   )
 }

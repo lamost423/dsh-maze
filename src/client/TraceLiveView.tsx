@@ -3,6 +3,7 @@ import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/clie
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
+import { postThemeTo, watchHostTheme } from './theme-sync.ts'
 import css from './TraceLiveView.module.css'
 
 /** trace-jump payload posted by the maze page's detail panel. */
@@ -77,11 +78,15 @@ export function TraceLiveView({ useSession, t }: TraceLiveViewProps) {
   }, [data])
   const onLoad = (): void => {
     const frame = iframeRef.current
+    postThemeTo(frame)   // 主题先于数据：首次 build 即按宿主主题着色
     const payload = dataRef.current
     if (frame !== null && payload !== null) {
       frame.contentWindow?.postMessage({ kind: 'trace-maze', data: payload }, '*')
     }
   }
+
+  // 宿主主题翻转时同步进 iframe（body[data-ds-dark-theme] 属性观察）。
+  useEffect(() => watchHostTheme(() => { postThemeTo(iframeRef.current) }), [])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {

@@ -6,22 +6,46 @@
 <title>DSH Session Trace 迷宫时间线</title>
 <style>
   :root{
-    --bg:#f4f5f7; --panel:#ffffff; --line:#e4e7ee; --txt:#1f2937; --dim:#7a869e;
+    --bg:#f4f5f7; --panel:#ffffff; --panel2:#f6f8fb; --line:#e4e7ee; --txt:#1f2937; --dim:#7a869e;
     --llm:#2563eb; --bash:#0f9488; --grep:#7c3aed; --read:#059669; --web:#d97706; --other:#0891b2;
-    --err:#dc2626; --dead:#9aa4b8; --ans:#16a34a; --main-f:#2563eb; --main-p:#7c3aed;
-    --milestone:#d97706;
+    --err:#dc2626; --dead:#9aa4b8; --retry:#8892a6; --ans:#16a34a; --main-f:#2563eb; --main-p:#7c3aed;
+    --milestone:#d97706; --mslabel-txt:#92400e; --anchor:#0e7490;
+    --hover:#eef1f6; --sel:#e0ebff; --border:#d8dce6; --codebg:#fbfcfe; --code:#374151;
+    --grid:#eceff4; --seam:#eef1f6; --seam-edge:#c7cedb; --seam-txt:#b45309;
+    --turnsep:#94a3b8; --turnsep-txt:#64748b; --backarc:#9aa4b8; --lane1-title:#1d4ed8; --lane2-title:#6d28d9;
+    --nlabel:#46536a; --tick:#9aa4b8; --tick-big:#5b6b85; --nodeline:#ffffff; --hl:#1f2937;
+  }
+  /* 暗色主题：宿主经 postMessage {kind:'trace-theme'} 切换（iframe srcDoc 读不到宿主 DOM）。
+     导出的 SVG/PNG 固定浅色底：导出前临时切回浅色重建（分享场景）。 */
+  :root[data-theme="dark"]{
+    --bg:#0f141b; --panel:#171e29; --panel2:#1c2532; --line:#2b3444; --txt:#dce3ef; --dim:#93a0b6;
+    --err:#ef5350; --dead:#7f8ca3; --retry:#9aa8c0; --ans:#2eb85c; --main-f:#5b8ef7; --main-p:#a07df2;
+    --milestone:#e8a13c; --mslabel-txt:#e0b566; --anchor:#3cc5dd;
+    --hover:#232e40; --sel:#2a3b58; --border:#3b4759; --codebg:#131a24; --code:#c3cddd;
+    --grid:#222b39; --seam:#1a2230; --seam-edge:#39455a; --seam-txt:#e0a35c;
+    --turnsep:#5d6b82; --turnsep-txt:#8b99b0; --backarc:#7f8ca3; --lane1-title:#7fa6ff; --lane2-title:#bfa1ff;
+    --nlabel:#aab6ca; --tick:#77839a; --tick-big:#93a0b6; --nodeline:#0f141b; --hl:#f2f6ff;
   }
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{height:100%}
   body{background:var(--bg); color:var(--txt); font:13px/1.6 "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; padding:20px 24px 16px; display:flex; flex-direction:column; overflow:hidden}
   body > :not(#svgwrap){flex-shrink:0}
-  h1{font-size:19px; font-weight:650; color:#111827}
+  h1{font-size:19px; font-weight:650; color:var(--txt)}
   .sub{color:var(--dim); font-size:12px; margin:2px 0 12px}
-  #drop{background:#fff; border:2px dashed #c7cedb; border-radius:12px; padding:26px 18px; text-align:center; color:#5b6b85; cursor:pointer; transition:border-color .15s, background .15s}
-  #drop.hover{border-color:var(--main-f); background:#f0f5ff}
-  #drop b{color:#2563eb}
+  #drop{background:var(--panel); border:2px dashed var(--seam-edge); border-radius:12px; padding:26px 18px; text-align:center; color:var(--dim); cursor:pointer; transition:border-color .15s, background .15s}
+  #drop.hover{border-color:var(--main-f); background:var(--hover)}
+  #drop b{color:var(--main-f)}
+  /* 出数据后页头收紧：说明隐藏、上传区收成细条、统计卡隐藏（同信息已画在泳道带内）、图例压缩 */
+  body.hasdata{padding:10px 24px 12px}
+  body.hasdata h1{font-size:15px}
+  body.hasdata .sub{display:none}
+  body.hasdata #drop{padding:5px 12px; font-size:12px; border-width:1.5px}
+  body.hasdata #drop .drop-hint, body.hasdata #drop br{display:none}
+  body.hasdata #stats{display:none}
+  body.hasdata .legend{margin:4px 0 6px; font-size:11px; gap:10px}
+  body.hasdata .files{margin-top:6px}
   .files{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
-  .fchip{background:#eef1f6; border:1px solid var(--line); border-radius:8px; padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:8px}
+  .fchip{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:8px}
   .fchip .x{cursor:pointer; color:#9aa4b8; font-weight:700; padding:0 2px}
   .fchip .x:hover{color:#dc2626}
   .fchip.err{border-color:#fca5a5; color:#b91c1c; background:#fef2f2}
@@ -37,86 +61,86 @@
   .ln.dt{border-color:var(--dead); border-top-style:dashed}
   .ln.bk{border-color:#9aa4b8; border-top-style:dotted}
   .sw{width:14px; height:10px; border-radius:2px; display:inline-block}
-  .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.rt{background:#b6c0d2} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
+  .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.rt{background:var(--retry)} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
   .flt-dim{opacity:.15 !important}
   #fltbar .fltlab{display:flex; align-items:center; gap:4px; white-space:nowrap}
-  #fltbar input[type="search"]{flex:0 1 260px; min-width:120px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; font:inherit}
-  #fltbar #fltCount{color:#7a869e; white-space:nowrap}
-  .controls{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-bottom:10px; position:sticky; top:0; z-index:50; box-shadow:0 1px 3px rgba(16,24,40,.05)}
-  .controls button{background:#fff; color:#1f2937; border:1px solid #d8dce6; border-radius:8px; padding:4px 14px; font-size:13px; cursor:pointer; transition:background .15s}
-  .controls button:hover{background:#eef1f6}
-  .controls select{background:#fff; color:#1f2937; border:1px solid #d8dce6; border-radius:8px; padding:3px 6px}
-  #curTime{font-variant-numeric:tabular-nums; min-width:70px; color:#2563eb; font-weight:600}
+  #fltbar input[type="search"]{flex:0 1 260px; min-width:120px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:var(--panel); color:var(--txt)}
+  #fltbar #fltCount{color:var(--dim); white-space:nowrap}
+  .controls{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:6px 12px; margin-bottom:8px; position:sticky; top:0; z-index:50; box-shadow:0 1px 3px rgba(16,24,40,.05)}
+  .controls button{background:var(--panel); color:var(--txt); border:1px solid var(--border); border-radius:8px; padding:4px 14px; font-size:13px; cursor:pointer; transition:background .15s}
+  .controls button:hover{background:var(--hover)}
+  .controls select{background:var(--panel); color:var(--txt); border:1px solid var(--border); border-radius:8px; padding:3px 6px}
+  #curTime{font-variant-numeric:tabular-nums; min-width:70px; color:var(--main-f); font-weight:600}
   #seek{flex:1}
   /* The maze scales to whatever space is left: viewBox + meet fit, no scrolling in either axis. */
   .svgwrap{overflow:hidden; flex:1 1 0; min-height:120px; border:1px solid var(--line); border-radius:12px; background:var(--panel); box-shadow:0 1px 4px rgba(16,24,40,.05); position:relative}
   #svg{width:100%; height:100%; display:block; cursor:grab}
   #svg.panning{cursor:grabbing}
   /* 固定详情面板：盖在 svgwrap 右侧，点节点/支路打开 */
-  #panel{position:absolute; top:0; right:0; bottom:0; width:410px; max-width:78%; background:#fff; border-left:1px solid var(--line); box-shadow:-8px 0 24px rgba(16,24,40,.10); display:none; flex-direction:column; z-index:60}
+  #panel{position:absolute; top:0; right:0; bottom:0; width:410px; max-width:78%; background:var(--panel); border-left:1px solid var(--line); box-shadow:-8px 0 24px rgba(16,24,40,.10); display:none; flex-direction:column; z-index:60}
   #panel.show{display:flex}
   #panel .ph{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); flex-shrink:0}
-  #panel .ph b{font-size:13.5px; color:#111827}
+  #panel .ph b{font-size:13.5px; color:var(--txt)}
   #panel .vchip{font-size:11px; font-weight:700; border-radius:6px; padding:1px 8px; color:#fff}
   #panel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:#9aa4b8; font-size:17px; font-weight:700; padding:0 4px; line-height:1}
   #panel .pclose:hover{color:#dc2626}
   #panel .pbody{overflow:auto; padding:10px 12px 14px; font-size:12px; flex:1}
   #panel .prow{color:var(--dim); margin-bottom:6px}
   #panel .psec{margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:hidden}
-  #panel .psec .pt{display:flex; align-items:center; gap:8px; background:#f6f8fb; padding:5px 9px; font-weight:600; color:#374151}
+  #panel .psec .pt{display:flex; align-items:center; gap:8px; background:var(--panel2); padding:5px 9px; font-weight:600; color:var(--txt)}
   #panel .psec .pt .cp{margin-left:auto}
-  #panel pre{white-space:pre-wrap; word-break:break-all; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#374151; padding:7px 9px; margin:0; max-height:230px; overflow:auto; user-select:text}
-  #panel pre.args{background:#fbfcfe; border-bottom:1px solid var(--line); max-height:120px}
-  #panel .pwhy{padding:4px 10px; color:#7a869e; font-size:11px; border-bottom:1px solid var(--line)}
-  #panel .cp{border:1px solid #d8dce6; background:#fff; border-radius:6px; font-size:11px; color:#46536a; cursor:pointer; padding:1px 8px}
-  #panel .cp:hover{background:#eef1f6}
-  #panel .jump{display:inline-block; margin:8px 0 0; border:1px solid #bfd3fb; background:#f0f5ff; color:#1d4ed8; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; padding:4px 12px}
-  #panel .jump:hover{background:#e0ebff}
-  #panel .rzfull{color:#5b6b85; background:#fbfcfe; border:1px solid var(--line); border-radius:8px; padding:7px 9px; margin-top:10px; max-height:160px; overflow:auto; user-select:text}
-  .zoomhint{color:#b6c0d2; font-size:11px}
+  #panel pre{white-space:pre-wrap; word-break:break-all; font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--code); padding:7px 9px; margin:0; max-height:230px; overflow:auto; user-select:text}
+  #panel pre.args{background:var(--codebg); border-bottom:1px solid var(--line); max-height:120px}
+  #panel .pwhy{padding:4px 10px; color:var(--dim); font-size:11px; border-bottom:1px solid var(--line)}
+  #panel .cp{border:1px solid var(--border); background:var(--panel); border-radius:6px; font-size:11px; color:var(--txt); cursor:pointer; padding:1px 8px}
+  #panel .cp:hover{background:var(--hover)}
+  #panel .jump{display:inline-block; margin:8px 0 0; border:1px solid var(--main-f); background:var(--sel); color:var(--lane1-title); border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; padding:4px 12px}
+  #panel .jump:hover{background:var(--hover)}
+  #panel .rzfull{color:var(--dim); background:var(--codebg); border:1px solid var(--line); border-radius:8px; padding:7px 9px; margin-top:10px; max-height:160px; overflow:auto; user-select:text}
+  .zoomhint{color:var(--dim); font-size:11px; opacity:.6}
   svg text{font-family:"PingFang SC","Hiragino Sans GB",sans-serif}
   .node{cursor:pointer}
-  .node .nbar{stroke:#ffffff; stroke-width:1.2}
-  .nlabel{font-size:11px; fill:#46536a; pointer-events:none; font-weight:600}
-  .dur-label{font-size:9.5px; fill:#98a4b8; pointer-events:none}
+  .node .nbar{stroke:var(--nodeline); stroke-width:1.2}
+  .nlabel{font-size:11px; fill:var(--nlabel); pointer-events:none; font-weight:600}
+  .dur-label{font-size:9.5px; fill:var(--tick); pointer-events:none}
   .node-icon{pointer-events:none}
-  .back-label{font-size:12px; fill:#9aa4b8; pointer-events:none}
+  .back-label{font-size:12px; fill:var(--backarc); pointer-events:none}
   .seg-label{font-size:10.5px; font-weight:700; pointer-events:none}
   .hl-path{stroke-width:4.5!important; filter:drop-shadow(0 0 3px rgba(16,24,40,.18))}
-  .hl-node .nbar{stroke:#1f2937!important; stroke-width:2.5!important}
-  .hl-node .nlabel{fill:#111827!important}
+  .hl-node .nbar{stroke:var(--hl)!important; stroke-width:2.5!important}
+  .hl-node .nlabel{fill:var(--hl)!important}
   .lane-name{font-size:14px; font-weight:700}
-  .lane-info{font-size:11px; fill:#7a869e; font-weight:500}
-  .tick{font-size:10px; fill:#9aa4b8}
-  .tick.big{fill:#5b6b85}
+  .lane-info{font-size:11px; fill:var(--dim); font-weight:500}
+  .tick{font-size:10px; fill:var(--tick)}
+  .tick.big{fill:var(--tick-big)}
   .mk-flag{font-size:12px}
   .msline{stroke:var(--milestone); stroke-dasharray:4 4; stroke-width:1.5}
-  .mslabel{font-size:10.5px; fill:#92400e}
+  .mslabel{font-size:10.5px; fill:var(--mslabel-txt)}
   .msbox{fill:#fff7ed; stroke:#fcd34d; stroke-width:1; rx:4}
-  .ancline{stroke:#0e7490; stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
-  .anclabel{font-size:10.5px; fill:#0e7490; font-weight:600; cursor:pointer}
-  .sw.anc{background:#0e7490}
+  .ancline{stroke:var(--anchor); stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
+  .anclabel{font-size:10.5px; fill:var(--anchor); font-weight:600; cursor:pointer}
+  .sw.anc{background:var(--anchor)}
   /* 支路盘点面板：盖在 svgwrap 左侧（与右侧详情面板对称），列每轮两泳道支路差额 */
-  #invpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:#fff; border-right:1px solid var(--line); box-shadow:8px 0 24px rgba(16,24,40,.10); display:none; flex-direction:column; z-index:60}
+  #invpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:var(--panel); border-right:1px solid var(--line); box-shadow:8px 0 24px rgba(16,24,40,.10); display:none; flex-direction:column; z-index:60}
   #invpanel.show{display:flex}
   #invpanel .ph{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); flex-shrink:0}
-  #invpanel .ph b{font-size:13.5px; color:#111827}
+  #invpanel .ph b{font-size:13.5px; color:var(--txt)}
   #invpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:#9aa4b8; font-size:17px; font-weight:700; padding:0 4px; line-height:1}
   #invpanel .pclose:hover{color:#dc2626}
   #invpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
   #invpanel table{width:100%; border-collapse:collapse}
-  #invpanel th{color:#7a869e; font-weight:600; text-align:left}
+  #invpanel th{color:var(--dim); font-weight:600; text-align:left}
   #invpanel th,#invpanel td{padding:5px 7px; border-bottom:1px solid var(--line); vertical-align:top}
   #invpanel tbody tr[data-turn]{cursor:pointer}
-  #invpanel tbody tr[data-turn]:hover{background:#f0f5ff}
-  #invpanel tr.sel{background:#e0ebff}
-  #invpanel tr.total td{color:#374151; font-weight:600; background:#f6f8fb}
-  #invpanel .hint{color:#9aa4b8; font-size:11px; margin:6px 2px 0}
-  .controls button.on{background:#e0ebff; border-color:#93b4f5; color:#1d4ed8}
+  #invpanel tbody tr[data-turn]:hover{background:var(--hover)}
+  #invpanel tr.sel{background:var(--sel)}
+  #invpanel tr.total td{color:var(--txt); font-weight:600; background:var(--panel2)}
+  #invpanel .hint{color:var(--dim); font-size:11px; margin:6px 2px 0; opacity:.75}
+  .controls button.on{background:var(--sel); border-color:var(--main-f); color:var(--lane1-title)}
   .deadX{font-size:13px; font-weight:700}
-  #tip{position:fixed; z-index:100; max-width:600px; max-height:360px; overflow:auto; background:#ffffff; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:11.5px; display:none; box-shadow:0 8px 28px rgba(16,24,40,.14)}
-  #tip .th{color:#2563eb; font-weight:600; margin-bottom:4px}
-  #tip pre{white-space:pre-wrap; word-break:break-all; color:#374151; font-family:ui-monospace,Menlo,monospace; font-size:11px}
+  #tip{position:fixed; z-index:100; max-width:600px; max-height:360px; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:11.5px; display:none; box-shadow:0 8px 28px rgba(16,24,40,.14)}
+  #tip .th{color:var(--main-f); font-weight:600; margin-bottom:4px}
+  #tip pre{white-space:pre-wrap; word-break:break-all; color:var(--code); font-family:ui-monospace,Menlo,monospace; font-size:11px}
   #tip .rs{margin-top:5px; color:var(--dim)}
   #tip .back{margin-top:4px; color:#d97706}
   .errbar{background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; border-radius:10px; padding:10px 14px; margin:10px 0; font-size:12.5px; display:none}
@@ -133,7 +157,7 @@
 
 <div id="drop">
   <b>点击选择或拖拽</b> 1~2 个 session log（.jsonl / .json / .jsonl.zstd）<br>
-  <span style="color:#9aa4b8">上传 1 个文件 → 单会话展示；上传 2 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>
+  <span class="drop-hint">上传 1 个文件 → 单会话展示；上传 2 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>
 </div>
 <!-- No accept filter: names like "xxx.jsonl 2" (macOS duplicates) must stay selectable; format is detected from content. -->
 <input type="file" id="file" multiple hidden>
@@ -519,7 +543,38 @@ function computeLayout(lanes){
 const svg = document.getElementById('svg')
 const NS = 'http://www.w3.org/2000/svg'
 const MAIN_COLOR = { l1: '#2563eb', l2: '#7c3aed' }
-const VCOLOR = { error: '#dc2626', deadend: '#9aa4b8', retry: '#b6c0d2', ok: '#16a34a', answer: '#16a34a' }
+const VCOLOR = { error: '#dc2626', deadend: '#9aa4b8', retry: '#8892a6', ok: '#16a34a', answer: '#16a34a' }
+
+/* ==================== 主题：CSS 变量单真相源，SVG 属性色经 readPalette 取值 ==================== */
+let THEME = 'light'
+const SVGC = {}   // build 期使用的 SVG 属性色（文本 fill 走 CSS 类，不经此处）
+
+/** 从当前主题的 CSS 变量读入全部 SVG 属性色（含 MAIN_COLOR/VCOLOR），build 前调用。 */
+function readPalette(){
+  const cs = getComputedStyle(document.documentElement)
+  const v = n => cs.getPropertyValue(n).trim()
+  MAIN_COLOR.l1 = v('--main-f'); MAIN_COLOR.l2 = v('--main-p')
+  VCOLOR.error = v('--err'); VCOLOR.deadend = v('--dead'); VCOLOR.retry = v('--retry')
+  VCOLOR.ok = v('--ans'); VCOLOR.answer = v('--ans')
+  SVGC.grid = v('--grid'); SVGC.seam = v('--seam'); SVGC.seamEdge = v('--seam-edge'); SVGC.seamTxt = v('--seam-txt')
+  SVGC.turnSep = v('--turnsep'); SVGC.turnSepTxt = v('--turnsep-txt'); SVGC.back = v('--backarc')
+  SVGC.lane1 = v('--lane1-title'); SVGC.lane2 = v('--lane2-title'); SVGC.milestone = v('--milestone')
+}
+
+/**
+ * 切换主题：置根元素 data-theme + colorScheme（原生控件跟随），重读调色板并全量重建。
+ * mode 非 'dark' 一律按 'light'；force 用于导出时的临时切换（同值也重建）。
+ */
+function setTheme(mode, force){
+  mode = mode === 'dark' ? 'dark' : 'light'
+  if (mode === THEME && !force) return
+  THEME = mode
+  if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+  else document.documentElement.removeAttribute('data-theme')
+  document.documentElement.style.colorScheme = mode
+  readPalette()
+  if (DATA){ build(); render() }
+}
 const TOOL_LABEL = { bash: 'bash', grep: 'grep', read: 'read', web_search: 'web', python3: 'python', curl: 'curl' }
 const tlabel = n => TOOL_LABEL[n] ?? n
 const vlabel = v => ({ error: '失败 ✗', deadend: '扑空 ·', retry: '无效重试 ↻', ok: '成功', answer: '回答' }[v] ?? v)
@@ -536,16 +591,16 @@ function renderLegend(){
       lg.push(`<span class="lg"><span class="ln ${i === 0 ? 'mf' : 'mp'}"></span>第 ${i + 1} 会话主干${l.model ? '（' + esc(l.model) + '）' : ''}</span>`)
     })
   }
-  lg.push('<span class="lg"><span class="ln dt"></span>出程：从分支点出发的探索</span>')
-  lg.push('<span class="lg"><span class="ln bk"></span>回程：失败后折返分支点</span>')
+  lg.push('<span class="lg" title="从分支点出发的探索"><span class="ln dt"></span>出程探索</span>')
+  lg.push('<span class="lg" title="失败后折返分支点"><span class="ln bk"></span>回程折返</span>')
   lg.push('<span class="lg"><span class="sw er"></span>失败 ✗</span>')
-  lg.push('<span class="lg"><span class="sw de"></span>扑空（检索无结果）·</span>')
+  lg.push('<span class="lg" title="检索无结果"><span class="sw de"></span>扑空 ·</span>')
   lg.push('<span class="lg"><span class="sw rt"></span>无效重试 ↻</span>')
   lg.push('<span class="lg"><span class="sw an"></span>最终回答</span>')
-  if (DATA.timeMap) lg.push('<span class="lg">⏸ 空闲等待已折叠</span>')
+  if (DATA.timeMap) lg.push('<span class="lg">⏸ 空闲已折叠</span>')
   if (DATA.lanes.length === 2){
-    lg.push('<span class="lg"><span class="sw ms"></span>轮次对齐线（每轮回答互连）</span>')
-    lg.push('<span class="lg"><span class="sw anc"></span>手动锚点（🔗 添加 · 点线删除）</span>')
+    lg.push('<span class="lg" title="每轮回答互连"><span class="sw ms"></span>轮次对齐线</span>')
+    lg.push('<span class="lg" title="🔗 添加 · 点线删除"><span class="sw anc"></span>手动锚点</span>')
   }
   document.getElementById('legend').innerHTML = lg.join('')
 }
@@ -582,7 +637,7 @@ function build(){
 
   const defs = el('defs', {})
   defs.appendChild(el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }))
-      .appendChild(el('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#9aa4b8' }))
+      .appendChild(el('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: SVGC.back }))
   defs.appendChild(el('clipPath', { id: 'clipTime' }))
       .appendChild(el('rect', { x: X0 - 14, y: 0, width: AXIS_W + 28, height: DATA.viewH }))
   svg.appendChild(defs)
@@ -602,7 +657,7 @@ function build(){
   const drawTick = (cx, label, big) => {
     if (cx < X0 - 20 || cx > X0 + AXIS_W + 20) return
     const g = el('g', {})
-    g.appendChild(el('line', { x1: cx, y1: 0, x2: cx, y2: DATA.viewH, stroke: '#eceff4', 'stroke-width': big ? 1 : 0.5 }))
+    g.appendChild(el('line', { x1: cx, y1: 0, x2: cx, y2: DATA.viewH, stroke: SVGC.grid, 'stroke-width': big ? 1 : 0.5 }))
     // Fine steps label only the big ticks: "12m14s"-wide labels on every tick overlap.
     if (TS >= 60 || big){
       const tx = el('text', { x: cx, y: 14, 'text-anchor': 'middle', class: big ? 'tick big' : 'tick' })
@@ -622,10 +677,10 @@ function build(){
     for (const gp of DATA.timeMap.gaps){
       if (!xVisible(gp.c, gp.c + DATA.timeMap.seam)) continue
       const x0 = x(gp.c), x1 = x(gp.c + DATA.timeMap.seam)
-      gTicks.appendChild(el('rect', { x: x0, y: 0, width: Math.max(x1 - x0, 3), height: DATA.viewH, fill: '#eef1f6', opacity: 0.85 }))
-      gTicks.appendChild(el('line', { x1: x0, y1: 0, x2: x0, y2: DATA.viewH, stroke: '#c7cedb', 'stroke-dasharray': '3 4' }))
-      gTicks.appendChild(el('line', { x1: x1, y1: 0, x2: x1, y2: DATA.viewH, stroke: '#c7cedb', 'stroke-dasharray': '3 4' }))
-      const lb = el('text', { x: (x0 + x1) / 2, y: 14, 'text-anchor': 'middle', class: 'tick big', fill: '#b45309' })
+      gTicks.appendChild(el('rect', { x: x0, y: 0, width: Math.max(x1 - x0, 3), height: DATA.viewH, fill: SVGC.seam, opacity: 0.85 }))
+      gTicks.appendChild(el('line', { x1: x0, y1: 0, x2: x0, y2: DATA.viewH, stroke: SVGC.seamEdge, 'stroke-dasharray': '3 4' }))
+      gTicks.appendChild(el('line', { x1: x1, y1: 0, x2: x1, y2: DATA.viewH, stroke: SVGC.seamEdge, 'stroke-dasharray': '3 4' }))
+      const lb = el('text', { x: (x0 + x1) / 2, y: 14, 'text-anchor': 'middle', class: 'tick big', fill: SVGC.seamTxt })
       lb.textContent = '⏸ ' + fmtT(gp.skipped)
       gTicks.appendChild(lb)
     }
@@ -648,8 +703,8 @@ function build(){
       if (!xVisible(Math.min(na.e, nb.e), Math.max(na.e, nb.e))) continue
       const g = el('g', {})
       g.appendChild(el('line', { x1: x(na.e), y1: y1, x2: x(nb.e), y2: y2, class: 'msline' }))
-      const t1 = el('text', { x: x(na.e) + 6, y: y1 - 6, class: 'mk-flag', fill: '#2563eb' }); t1.textContent = '⚑'
-      const t2 = el('text', { x: x(nb.e) - 6, y: y2 - 6, class: 'mk-flag', fill: '#7c3aed', 'text-anchor': 'end' }); t2.textContent = '⚑'
+      const t1 = el('text', { x: x(na.e) + 6, y: y1 - 6, class: 'mk-flag', fill: MAIN_COLOR.l1 }); t1.textContent = '⚑'
+      const t2 = el('text', { x: x(nb.e) - 6, y: y2 - 6, class: 'mk-flag', fill: MAIN_COLOR.l2, 'text-anchor': 'end' }); t2.textContent = '⚑'
       g.appendChild(t1); g.appendChild(t2)
       const wa = wallClock(na.e), wb = wallClock(nb.e)
       const dA = detA.get(turn), dB = detB.get(turn)
@@ -657,8 +712,8 @@ function build(){
       lab.textContent = `第 ${turn} 轮回答：1st ${fmtT(wa)} ↔ 2nd ${fmtT(wb)}（Δ${fmtT(Math.abs(wb - wa))}）`
         + ((dA?.n ?? 0) + (dB?.n ?? 0) > 0 ? ` · 支路 ${dA?.n ?? 0}↔${dB?.n ?? 0}` : '')
       g.appendChild(lab)
-      g.appendChild(el('circle', { cx: x(na.e), cy: y1, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 }))
-      g.appendChild(el('circle', { cx: x(nb.e), cy: y2, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 }))
+      g.appendChild(el('circle', { cx: x(na.e), cy: y1, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
+      g.appendChild(el('circle', { cx: x(nb.e), cy: y2, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
       msEls.push({ el: g, s: Math.max(na.e, nb.e) })
       gTime.appendChild(g)
     }
@@ -675,7 +730,7 @@ function build(){
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: lay.regionBottom - lay.regionTop, rx: 10, fill: bgFill, stroke: bgStr, 'stroke-width': 1.2 }))
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: 30, rx: 10, fill: barFill }))
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop + 15, width: AXIS_W + 28, height: 15, fill: barFill }))
-    const title = el('text', { x: X0 + 4, y: lay.regionTop + 20, class: 'lane-name', fill: isFlash ? '#1d4ed8' : '#6d28d9' })
+    const title = el('text', { x: X0 + 4, y: lay.regionTop + 20, class: 'lane-name', fill: isFlash ? SVGC.lane1 : SVGC.lane2 })
     title.textContent = `${laneName(lane)}   ${lane.model ?? (lane.preWindow ? '(模型未知：请求头在窗口外)' : '(未知模型)')}`
     const info = el('text', { x: X0 + AXIS_W - 4, y: lay.regionTop + 20, 'text-anchor': 'end', class: 'lane-info' })
     const laneTurns = new Set([...lane.main, ...lane.detours].map(n => n.turn).filter(v => v != null)).size
@@ -691,10 +746,10 @@ function build(){
         if (prev.turn != null && n.turn != null && prev.turn !== n.turn){
           if (xVisible(prev.e, n.s)){
             const bx = x(Math.max(prev.e, (prev.e + n.s) / 2))
-            const sep = el('line', { x1: bx, y1: lay.regionTop + 34, x2: bx, y2: lay.regionBottom - 12, stroke: '#94a3b8', 'stroke-dasharray': '5 5', 'stroke-width': 1.3 })
+            const sep = el('line', { x1: bx, y1: lay.regionTop + 34, x2: bx, y2: lay.regionBottom - 12, stroke: SVGC.turnSep, 'stroke-dasharray': '5 5', 'stroke-width': 1.3 })
             gTime.appendChild(sep)
             pathEls.push({ el: sep, s: prev.e, e: prev.e + 0.5, base: '5 5' })
-            const tl = el('text', { x: bx + 6, y: lay.regionTop + 48, class: 'tick big', fill: '#64748b' })
+            const tl = el('text', { x: bx + 6, y: lay.regionTop + 48, class: 'tick big', fill: SVGC.turnSepTxt })
             tl.textContent = '第 ' + n.turn + ' 轮'
             gTime.appendChild(tl)
             markEls.push({ el: tl, s: prev.e, e: prev.e + 1 })
@@ -740,7 +795,7 @@ function build(){
       gTime.appendChild(sl)
       pathEls.push({ el: sl, s: d.s, e: d.e, det: d, base: '', kind: 'lab' })
       const mx2 = (ax + bx0) / 2
-      const back = el('path', { d: `M ${bx0} ${ey} C ${mx2 + 30} ${ey}, ${mx2 + 30} ${ay}, ${ax} ${ay}`, fill: 'none', stroke: '#9aa4b8', 'stroke-width': 1.6, 'stroke-dasharray': '2 4', 'marker-end': 'url(#arr)' })
+      const back = el('path', { d: `M ${bx0} ${ey} C ${mx2 + 30} ${ey}, ${mx2 + 30} ${ay}, ${ax} ${ay}`, fill: 'none', stroke: SVGC.back, 'stroke-width': 1.6, 'stroke-dasharray': '2 4', 'marker-end': 'url(#arr)' })
       back._det = d
       back.addEventListener('mouseenter', onArcHover)
       back.addEventListener('mouseleave', offArcHover)
@@ -758,7 +813,7 @@ function build(){
 
     const lastN = main[main.length - 1]
     if (lastN && xVisible(lastN.e, lastN.e)){
-      const f = el('text', { x: x(lastN.e), y: lay.mainY - 12, 'text-anchor': 'middle', class: 'mk-flag', fill: '#16a34a' })
+      const f = el('text', { x: x(lastN.e), y: lay.mainY - 12, 'text-anchor': 'middle', class: 'mk-flag', fill: VCOLOR.answer })
       f.textContent = '🏁 ' + fmtT(lane.stats.T)
       gTime.appendChild(f)
       markEls.push({ el: f, s: lastN.e, e: lastN.e + 1 })
@@ -767,7 +822,7 @@ function build(){
 
   drawAnchors(gTime)   // 锚点端点可挂在支路上，须等 assignLanes 给出 _y 后再画
 
-  const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: '#d97706', 'stroke-width': 2 })
+  const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: SVGC.milestone, 'stroke-width': 2 })
   gTime.appendChild(cur)
   window._cursor = cur
   applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
@@ -935,24 +990,32 @@ document.getElementById('btnInv').addEventListener('click', () => {
   else { renderInventory(); invPanelEl.classList.add('show') }
 })
 
-/* ==================== 导出：当前视图 SVG / PNG（2x） ==================== */
+/* ==================== 导出：当前视图 SVG / PNG（2x），固定浅色底 ==================== */
 function serializeSvg(){
-  const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number)
-  const clone = svg.cloneNode(true)
-  clone.setAttribute('xmlns', NS)
-  clone.setAttribute('width', vb[2])
-  clone.setAttribute('height', vb[3])
-  // 页面样式是 <style> 类 + 属性混合，序列化时把全部 CSS 内联进 SVG（body 级选择器在 SVG 内不命中，无害）
-  const css = []
-  for (const sh of document.styleSheets){
-    try { for (const r of sh.cssRules) css.push(r.cssText) } catch { /* 同源内联样式表，正常可读 */ }
+  // 导出面向分享，固定浅色：暗色下临时切浅色全量重建，序列化完立即切回。
+  // 内联进 SVG 的 CSS 含暗色覆盖块，但导出的 svg 根没有 data-theme，浅色变量恒生效。
+  const wasDark = THEME === 'dark'
+  if (wasDark) setTheme('light', true)
+  try {
+    const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number)
+    const clone = svg.cloneNode(true)
+    clone.setAttribute('xmlns', NS)
+    clone.setAttribute('width', vb[2])
+    clone.setAttribute('height', vb[3])
+    // 页面样式是 <style> 类 + 属性混合，序列化时把全部 CSS 内联进 SVG（body 级选择器在 SVG 内不命中，无害）
+    const css = []
+    for (const sh of document.styleSheets){
+      try { for (const r of sh.cssRules) css.push(r.cssText) } catch { /* 同源内联样式表，正常可读 */ }
+    }
+    const st = el('style', {})
+    st.textContent = css.join('\n')
+    clone.insertBefore(st, clone.firstChild)
+    const bg = el('rect', { x: vb[0], y: vb[1], width: vb[2], height: vb[3], fill: getComputedStyle(document.body).backgroundColor || '#ffffff' })
+    clone.insertBefore(bg, st.nextSibling)
+    return new XMLSerializer().serializeToString(clone)
+  } finally {
+    if (wasDark) setTheme('dark', true)
   }
-  const st = el('style', {})
-  st.textContent = css.join('\n')
-  clone.insertBefore(st, clone.firstChild)
-  const bg = el('rect', { x: vb[0], y: vb[1], width: vb[2], height: vb[3], fill: getComputedStyle(document.body).backgroundColor || '#ffffff' })
-  clone.insertBefore(bg, st.nextSibling)
-  return new XMLSerializer().serializeToString(clone)
 }
 
 function dlBlob(blob, name){
@@ -1395,6 +1458,7 @@ function renderFiles(){
 }
 
 function resetView(){
+  document.body.classList.remove('hasdata')
   document.getElementById('legend').style.display = 'none'
   document.getElementById('controls').style.display = 'none'
   document.getElementById('fltbar').style.display = 'none'
@@ -1451,6 +1515,7 @@ function renderData(data, opts){
       <div class="m">主干 ${l.stats.main} 步 + 支路 ${l.stats.detours} 步 = ${l.stats.steps} 步 · ${l.stats.tools} 次工具调用 · ${laneTokLabel(l.stats)} · 总耗时 <b>${fmtT(l.stats.T)}</b></div></div>`
   })
   document.getElementById('stats').innerHTML = h
+  document.body.classList.add('hasdata')   // 页头收紧：说明/大上传区/统计卡让位给迷宫
   document.getElementById('legend').style.display = 'flex'
   document.getElementById('controls').style.display = 'flex'
   document.getElementById('fltbar').style.display = 'flex'
@@ -1560,6 +1625,16 @@ window.addEventListener('message', e => {
   liveSig = sig
   renderData(e.data.data, { follow: true })
 })
+
+// 主题跟随：宿主读取自身主题后推 {kind:'trace-theme', mode}（照 trace-maze 的 postMessage 模式）
+window.addEventListener('message', e => {
+  if (!e.data || e.data.kind !== 'trace-theme') return
+  setTheme(e.data.mode)
+})
+
+// 初始主题：宿主消息到达前按系统偏好兜底（独立打开/分享场景）；宿主消息一到以宿主为准
+readPalette()
+setTheme(typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 
 /* URL-direct load hook: ?load1=<path>&load2=<path> (dev/embed convenience). */
 ;(async () => {

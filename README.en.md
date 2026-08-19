@@ -26,7 +26,9 @@ Two surfaces, one visual language:
 - **Turn alignment lines** (two-session compare, since v0.3.0): each turn's answer nodes are auto-connected with a comparison line labeled with both wall-clock arrival times, the delta, and that turn's detour counts (e.g. "Turn 3 answer: 1st 4m ↔ 2nd 6m (Δ2m) · detours 4↔0"). Only turns present in both runs get a line — the old corpus-specific "model list result" regex milestone is retired.
 - **Manual anchors** (two-session compare): after "🔗 add anchor", click one node in each lane to pin a comparison line with its time delta; click the line to delete, Esc cancels picking. Useful for pinning semantically equivalent moments that sit in different turns.
 - **Detour inventory** (two-session compare): "📋 detour inventory" opens a per-turn table — each side's detour step count, wall-clock time, verdict breakdown (✗ failure / ↻ blind retry / · dead end) and the verdict-time gap (e.g. "session 2 wasted 48.4s more"); clicking a row zooms to that turn and keeps only its detours visible. A turn present on one side only shows "—" — the absence itself is signal.
-- **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined.
+- **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined; **exports are always light-background** regardless of the page's current theme (built for sharing).
+- **Theme following** (since v0.3.1): the page tracks the host dsh light/dark theme (the host components watch `body[data-ds-dark-theme]` and postMessage into the iframe); standalone opens follow the system preference.
+- **Compact header** (since v0.3.1): once data renders, the intro text hides, the upload zone collapses to a slim strip, the per-lane stat cards hide (the same info lives in the lane bands), and the legend fits one row — the maze gets nearly the whole viewport.
 - Playback replays the whole run at up to 300×.
 
 Timeline honesty rules:
@@ -58,7 +60,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/dsh-trace-compare-0.3.0.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/dsh-trace-compare-0.3.1.tgz
 dsh web
 ```
 
@@ -88,6 +90,12 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.3.1 - Theme following + compact header (2026-08-19)
+
+The palette collapses into CSS variables as the single source (SVG attribute colors read via `readPalette`), tracking the host dsh theme: host components watch `body[data-ds-dark-theme]` (rc.6's ThemePresenter mechanism) and postMessage into the sandboxed iframe; standalone opens fall back to the system preference. Exports stay light-background — under dark the page briefly rebuilds in light, serializes, and switches back. The same release compacts the header once data renders (intro hidden, upload zone down to a 31px strip, stat cards hidden, one-row legend), freeing ~250px for the maze, and bumps the blind-retry gray from #b6c0d2 to #8892a6 for legibility. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.1)
+
+![Dark theme + compact header](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/v031-dark.png)
 
 ### v0.3.0 - Compare semantics: turn alignment + manual anchors + detour inventory (2026-08-19)
 
