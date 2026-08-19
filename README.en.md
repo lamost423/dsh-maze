@@ -18,6 +18,7 @@ Two surfaces, one visual language:
 
 - Solid line: the main path — steps whose tool calls succeeded, plus answer nodes.
 - **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
+- **Parallel tool-call rows** (since v0.3.2): when a step fires ≥2 tool calls, each call renders as a thin waterfall bar under the capsule at its real start→end, colored by its own verdict — see at a glance which of the parallel calls dragged or failed; hover a bar for that call's command/result/rationale. Lane height adapts to the maximum concurrency; detour nodes keep their "+N" label (fixed lane slots; the panel lists everything).
 - Dashed arcs: exploration detours — steps whose tools failed (red ✗), searched and found nothing (gray ·), or blind-retried (gray ↻), with the return arc back to the branch point.
 - Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
@@ -60,7 +61,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/dsh-trace-compare-0.3.1.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/dsh-trace-compare-0.3.2.tgz
 dsh web
 ```
 
@@ -90,6 +91,12 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.3.2 - Parallel tool-call rows (2026-08-19)
+
+Multiple tool calls in one step used to collapse into a "bash +1" label, hiding each call's timing and verdict. Now every call renders as a thin waterfall bar under the step capsule at its real start→end, verdict-colored, with a per-call hover (command / result / rationale); lane height adapts to the lane's maximum concurrency (parH zone in computeLayout) and detour arcs shift below it. Real-corpus scale: the 16-turn session has 36 parallel steps, max concurrency 5. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.2)
+
+![Parallel rows: zoomed in, each call's true span is visible](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/v032-parallel.png)
 
 ### v0.3.1 - Theme following + compact header (2026-08-19)
 

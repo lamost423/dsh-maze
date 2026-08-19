@@ -101,6 +101,7 @@
   svg text{font-family:"PingFang SC","Hiragino Sans GB",sans-serif}
   .node{cursor:pointer}
   .node .nbar{stroke:var(--nodeline); stroke-width:1.2}
+  .node .subbar{stroke-width:.8}
   .nlabel{font-size:11px; fill:var(--nlabel); pointer-events:none; font-weight:600}
   .dur-label{font-size:9.5px; fill:var(--tick); pointer-events:none}
   .node-icon{pointer-events:none}
@@ -526,14 +527,19 @@ function computeLayout(lanes){
   // Lane geometry grows with the detour count so no curve can leave the canvas:
   // mainY sits below the band header plus all up-detour lanes, regionBottom
   // clears all down-detour lanes, and the next lane starts below that.
+  // parH reserves the parallel-tool sub-bar zone directly under the main path
+  // (one 9px row per concurrent call); down-detour lanes and below-row labels
+  // shift past it.
   const layout = {}
   let regionTop = 34
   lanes.forEach(l => {
     const up = Math.ceil(l.detours.length / 2)
     const down = Math.floor(l.detours.length / 2)
+    const maxPar = Math.max(0, ...l.main.map(n => n.tools.length >= 2 ? n.tools.length : 0))
+    const parH = maxPar > 0 ? maxPar * 9 + 8 : 0
     const mainY = regionTop + 34 + up * LANE_GAP + 48
-    const regionBottom = mainY + down * LANE_GAP + 58
-    layout[l.key] = { top: regionTop + 24, mainY, up, down, regionTop, regionBottom }
+    const regionBottom = mainY + parH + down * LANE_GAP + 58
+    layout[l.key] = { top: regionTop + 24, mainY, up, down, parH, regionTop, regionBottom }
     regionTop = regionBottom + 66
   })
   return layout
@@ -622,7 +628,8 @@ function assignLanes(lane){
   let up = 0, down = 0
   lane.detours.forEach((d, i) => {
     if (i % 2 === 0){ up += 1; d._lane = up } else { down += 1; d._lane = -down }
-    d._y = LAYOUT[lane.key].mainY + d._lane * LANE_GAP
+    // 正向（主干下方）支路让过并行分行区
+    d._y = LAYOUT[lane.key].mainY + d._lane * LANE_GAP + (d._lane > 0 ? LAYOUT[lane.key].parH : 0)
   })
 }
 
@@ -1082,8 +1089,26 @@ function drawNode(parent, lane, n, y, isMain, idx){
     dur.textContent = fmtT(Math.max(n.e - n.s, 0))
     g.appendChild(dur)
   }
+  // 并行工具分行（瀑布惯例）：一步 ≥2 次调用时，每次调用画成胶囊条下方的细小条，
+  // 按各自起止摆位、按各自判定上色；悬停显示该调用详情，点击仍开整步面板。
+  // 仅主干步分行：支路节点的纵向空间是固定泳道格，保持「+N」标签（详情面板已列全）。
+  const parH = isMain ? (LAYOUT[lane.key].parH ?? 0) : 0
+  if (isMain && n.tools.length >= 2){
+    n.tools.forEach((tl, ti) => {
+      const ty = y + 12 + ti * 9
+      const tx0 = x(tl.s), tx1 = x(tl.e ?? tl.s)
+      const tw = Math.max(tx1 - tx0, 5)
+      const bar = el('rect', { class: 'nbar subbar', x: tx1 - tx0 >= 5 ? tx0 : (tx0 + tx1) / 2 - tw / 2, y: ty, width: tw, height: 7, rx: 3.5, fill: tl.e == null ? SVGC.back : (VCOLOR[tl.v] ?? VCOLOR.retry), opacity: '0' })
+      bar._tool = tl
+      bar._toolNode = n
+      bar._toolLane = lane
+      bar.addEventListener('mouseenter', onToolHover)
+      bar.addEventListener('mouseleave', offToolHover)
+      g.appendChild(bar)
+    })
+  }
   const rowKey = isMain ? (idx % 2 ? 'u' : 'd') : ('det-' + (n._id ?? idx))
-  const labY = isMain ? y + (idx % 2 ? -17 : 28) : y + 24
+  const labY = isMain ? y + (idx % 2 ? -17 : 28 + parH) : y + 24
   const lab = el('text', { x: cx, y: labY, 'text-anchor': 'middle', class: 'nlabel' })
   let toolTxt = ''
   if (n.v !== 'answer'){
@@ -1168,6 +1193,26 @@ function offHover(){
   hoverDet = null
   document.getElementById('tip').style.display = 'none'
   render()
+}
+/* 并行分行小条的悬停：只讲这一次调用；离开即收（回到胶囊条重新悬停可看整步）。 */
+function onToolHover(e){
+  const bar = e.currentTarget
+  const tl = bar._tool, lane = bar._toolLane, n = bar._toolNode
+  const tip = document.getElementById('tip')
+  let inner = `<div class="th">${laneName(lane)} S${n.step} · 并行调用 ${esc(tlabel(tl.name))} · ${vlabel(tl.v)}</div>`
+  inner += `<div class="rs">时段 ${fmtT(wallClock(tl.s))} → ${tl.e != null ? fmtT(wallClock(tl.e)) : '进行中'}${tl.dur != null ? '（' + tl.dur + 's）' : ''}</div>`
+  if (tl.why) inner += `<div class="rs">判定依据：${esc(tl.why)}</div>`
+  inner += `<pre>${esc(tl.args || '(无参数)')}</pre>`
+  if (tl.res) inner += `<div class="rs">返回：<pre>${esc(tl.res)}</pre></div>`
+  tip.innerHTML = inner
+  tip.style.display = 'block'
+  let px = e.clientX + 14, py = e.clientY + 14
+  if (px + 640 > window.innerWidth) px = e.clientX - 640
+  if (py + 400 > window.innerHeight) py = e.clientY - 400
+  tip.style.left = px + 'px'; tip.style.top = py + 'px'
+}
+function offToolHover(){
+  document.getElementById('tip').style.display = 'none'
 }
 function esc(s){
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
