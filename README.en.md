@@ -6,7 +6,7 @@ Trace visualization for [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 
 Two surfaces, one visual language:
 
-- **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2 logs for a same-axis comparison (e.g. flash vs pro on the same task) with milestone lines.
+- **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2 logs for a same-axis comparison (e.g. flash vs pro on the same task) — answer nodes auto-align per turn, comparison anchors can be pinned by hand, and a per-turn inventory tallies the detour gap between the two runs.
 
 ![Trace Compare: shared timeline, verdict-rationale tooltip, pinned detail panel, failures-only filter + search, wheel zoom](assets/trace-compare-v023b.gif)
 
@@ -23,6 +23,9 @@ Two surfaces, one visual language:
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
 - **Search & filter**: a toolbar with a failures/retries-only toggle, per-tool filtering, and full-text search over commands and results (including the 5000-char panel text); non-matching nodes and arcs fade to 15% opacity with a live hit count. Filter state survives live-mode rebuilds.
+- **Turn alignment lines** (two-session compare, since v0.3.0): each turn's answer nodes are auto-connected with a comparison line labeled with both wall-clock arrival times, the delta, and that turn's detour counts (e.g. "Turn 3 answer: 1st 4m ↔ 2nd 6m (Δ2m) · detours 4↔0"). Only turns present in both runs get a line — the old corpus-specific "model list result" regex milestone is retired.
+- **Manual anchors** (two-session compare): after "🔗 add anchor", click one node in each lane to pin a comparison line with its time delta; click the line to delete, Esc cancels picking. Useful for pinning semantically equivalent moments that sit in different turns.
+- **Detour inventory** (two-session compare): "📋 detour inventory" opens a per-turn table — each side's detour step count, wall-clock time, verdict breakdown (✗ failure / ↻ blind retry / · dead end) and the verdict-time gap (e.g. "session 2 wasted 48.4s more"); clicking a row zooms to that turn and keeps only its detours visible. A turn present on one side only shows "—" — the absence itself is signal.
 - **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined.
 - Playback replays the whole run at up to 300×.
 
@@ -55,7 +58,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/dsh-trace-compare-0.2.3.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/dsh-trace-compare-0.3.0.tgz
 dsh web
 ```
 
@@ -85,6 +88,12 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.3.0 - Compare semantics: turn alignment + manual anchors + detour inventory (2026-08-19)
+
+Two-session comparison graduates from a single regex milestone to per-turn semantics: answer nodes auto-connect per turn (labeled with the time delta and detour counts); manual anchors pin any two nodes; the detour inventory tallies per-turn detour steps, wall-clock time, and verdict breakdown for both sides, with row-click zoom and highlighting. The corpus-specific "model list result" regex milestone (MODEL_LIKE/mlist) is retired — the last hardcoded heuristic left after verdict v2 removed the length thresholds. The "exploration phase" red band is retired too: it spanned min-to-max across all detours, covering 99% of a 16-turn session's axis while actual detour time was 1% — a false signal. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.0)
+
+![Two-session compare: turn alignment lines + detour inventory panel + manual anchor](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/v030-compare.png)
 
 ### v0.2.3 - Honest live window + quote-proof verdicts (2026-08-19)
 

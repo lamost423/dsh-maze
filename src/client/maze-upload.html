@@ -82,7 +82,6 @@
   .node-icon{pointer-events:none}
   .back-label{font-size:12px; fill:#9aa4b8; pointer-events:none}
   .seg-label{font-size:10.5px; font-weight:700; pointer-events:none}
-  .band-label{font-size:11px; fill:#b91c1c; pointer-events:none; font-weight:600}
   .hl-path{stroke-width:4.5!important; filter:drop-shadow(0 0 3px rgba(16,24,40,.18))}
   .hl-node .nbar{stroke:#1f2937!important; stroke-width:2.5!important}
   .hl-node .nlabel{fill:#111827!important}
@@ -94,6 +93,26 @@
   .msline{stroke:var(--milestone); stroke-dasharray:4 4; stroke-width:1.5}
   .mslabel{font-size:10.5px; fill:#92400e}
   .msbox{fill:#fff7ed; stroke:#fcd34d; stroke-width:1; rx:4}
+  .ancline{stroke:#0e7490; stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
+  .anclabel{font-size:10.5px; fill:#0e7490; font-weight:600; cursor:pointer}
+  .sw.anc{background:#0e7490}
+  /* 支路盘点面板：盖在 svgwrap 左侧（与右侧详情面板对称），列每轮两泳道支路差额 */
+  #invpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:#fff; border-right:1px solid var(--line); box-shadow:8px 0 24px rgba(16,24,40,.10); display:none; flex-direction:column; z-index:60}
+  #invpanel.show{display:flex}
+  #invpanel .ph{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); flex-shrink:0}
+  #invpanel .ph b{font-size:13.5px; color:#111827}
+  #invpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:#9aa4b8; font-size:17px; font-weight:700; padding:0 4px; line-height:1}
+  #invpanel .pclose:hover{color:#dc2626}
+  #invpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
+  #invpanel table{width:100%; border-collapse:collapse}
+  #invpanel th{color:#7a869e; font-weight:600; text-align:left}
+  #invpanel th,#invpanel td{padding:5px 7px; border-bottom:1px solid var(--line); vertical-align:top}
+  #invpanel tbody tr[data-turn]{cursor:pointer}
+  #invpanel tbody tr[data-turn]:hover{background:#f0f5ff}
+  #invpanel tr.sel{background:#e0ebff}
+  #invpanel tr.total td{color:#374151; font-weight:600; background:#f6f8fb}
+  #invpanel .hint{color:#9aa4b8; font-size:11px; margin:6px 2px 0}
+  .controls button.on{background:#e0ebff; border-color:#93b4f5; color:#1d4ed8}
   .deadX{font-size:13px; font-weight:700}
   #tip{position:fixed; z-index:100; max-width:600px; max-height:360px; overflow:auto; background:#ffffff; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:11.5px; display:none; box-shadow:0 8px 28px rgba(16,24,40,.14)}
   #tip .th{color:#2563eb; font-weight:600; margin-bottom:4px}
@@ -110,7 +129,7 @@
 </head>
 <body>
 <h1>DSH Session Trace 迷宫时间线</h1>
-<div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
+<div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比（按轮次自动对齐 + 手动锚点 + 支路盘点）。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
 
 <div id="drop">
   <b>点击选择或拖拽</b> 1~2 个 session log（.jsonl / .json / .jsonl.zstd）<br>
@@ -122,7 +141,7 @@
 <div class="errbar" id="errbar"></div>
 
 <div class="stats" id="stats"></div>
-<!-- Populated per render: entries reflect the actual lane count, models, and milestone presence. -->
+<!-- Populated per render: entries reflect the actual lane count, models, and compare-mode extras. -->
 <div class="legend" id="legend" style="display:none"></div>
 
 <div class="controls" id="controls" style="display:none">
@@ -146,6 +165,8 @@
   <input type="search" id="fltQIn" placeholder="搜索命令与返回内容…">
   <span id="fltCount"></span>
   <span style="flex:1"></span>
+  <button id="btnAnchor" style="display:none" title="两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除">🔗 加锚点</button>
+  <button id="btnInv" style="display:none" title="按轮次盘点两条泳道的支路差额">📋 支路盘点</button>
   <button id="btnExpSvg" title="导出当前视图为 SVG">⬇ SVG</button>
   <button id="btnExpPng" title="导出当前视图为 PNG（2x）">⬇ PNG</button>
 </div>
@@ -156,6 +177,10 @@
   <div class="ph"><b id="panelTitle"></b><span class="vchip" id="panelChip"></span><button class="pclose" id="panelClose" title="关闭（Esc）">×</button></div>
   <div class="pbody" id="panelBody"></div>
 </div>
+<div id="invpanel">
+  <div class="ph"><b>支路盘点（按轮次）</b><button class="pclose" id="invClose" title="关闭">×</button></div>
+  <div class="pbody" id="invBody"></div>
+</div>
 </div>
 <div id="tip"></div>
 
@@ -163,8 +188,6 @@
 <script>
 'use strict'
 /* ============================ 解析：JSONL → lanes ============================ */
-const MODEL_LIKE = /"data"\s*:\s*\[/  // heuristic for "returned model list" results
-
 function tOf(e){ return e.time ?? e.time0 ?? e.createdAt }
 
 /** Format seconds for axis/stat labels: 49252 → "13.7h", 340 → "6m", 42.5 → "42.5s". */
@@ -339,29 +362,40 @@ function buildData(fileTexts){
     const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
     const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
     const T = Math.round(rows[rows.length - 1].e * 10) / 10
-    // milestone heuristic: first tool result that looks like a model list
-    let mlist = null
-    outer: for (const r of rows){
-      for (const ev of r.events){
-        if (ev.res && MODEL_LIKE.test(ev.res) && /model/i.test(ev.res) && /"id"/.test(ev.res)){
-          mlist = ev.e; break outer
-        }
-      }
-    }
-    return { key: 'l' + (i + 1), model, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length }, mlist }
+    return { key: 'l' + (i + 1), model, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
   const Tmax = Math.max(...lanes.map(l => l.stats.T), 460)
-  const milestones = []
-  for (const kind of ['mlist', 'finish']){
-    const ts = lanes.map(l => kind === 'mlist' ? l.mlist : l.stats.T)
-    if (ts.some(t => t === null)) continue
-    milestones.push({
-      id: 'm' + (milestones.length + 1),
-      label: kind === 'mlist' ? '模型列表结果' : '完成',
-      flashT: ts[0], proT: ts[1],
-    })
+  return { Tmax, lanes }
+}
+
+/* 轮次聚合（纯数据，对比模式的对齐线与支路盘点共用）。turn 缺失的旧日志统一记第 1 轮。 */
+
+/** 每轮支路聚合：Map(turn → { n, T, by:{error,retry,deadend} })。T 为墙钟秒——wall 把（可能折叠过的）坐标反查回墙钟，未折叠时传恒等函数。 */
+function turnDetourStats(lane, wall){
+  const m = new Map()
+  for (const d of lane.detours){
+    const t = d.turn ?? 1
+    const g = m.get(t) ?? { n: 0, T: 0, by: { error: 0, retry: 0, deadend: 0 } }
+    g.n += 1
+    g.T += Math.max(0, wall(d.e) - wall(d.s))
+    g.by[d.v] = (g.by[d.v] ?? 0) + 1
+    m.set(t, g)
   }
-  return { Tmax, milestones, lanes }
+  return m
+}
+
+/** 每轮的收尾主干节点（该轮最后一个主干节点，即回答）：Map(turn → node)。main 按时间序，后者覆盖前者。 */
+function turnEndNodes(lane){
+  const m = new Map()
+  for (const n of lane.main) m.set(n.turn ?? 1, n)
+  return m
+}
+
+/** 各泳道出现过的轮次并集，升序。 */
+function unionTurns(lanes){
+  const s = new Set()
+  for (const l of lanes) for (const n of [...l.main, ...l.detours]) s.add(n.turn ?? 1)
+  return [...s].sort((a, b) => a - b)
 }
 
 /* ==================== 空闲折叠：对话间等待压成细缝 ==================== */
@@ -437,11 +471,6 @@ function compressTimeline(data){
   for (const l of data.lanes){
     l.main.forEach(remap)
     l.detours.forEach(remap)
-    if (l.mlist != null) l.mlist = map(l.mlist)
-  }
-  for (const m of data.milestones ?? []){
-    m.flashT = map(m.flashT)
-    m.proT = map(m.proT)
   }
   data.Tmax = Math.max(c, 60)
   data.timeMap = { segments, gaps, seam }
@@ -514,7 +543,10 @@ function renderLegend(){
   lg.push('<span class="lg"><span class="sw rt"></span>无效重试 ↻</span>')
   lg.push('<span class="lg"><span class="sw an"></span>最终回答</span>')
   if (DATA.timeMap) lg.push('<span class="lg">⏸ 空闲等待已折叠</span>')
-  if (DATA.milestones.length > 0 && DATA.lanes.length === 2) lg.push('<span class="lg"><span class="sw ms"></span>里程碑对比线</span>')
+  if (DATA.lanes.length === 2){
+    lg.push('<span class="lg"><span class="sw ms"></span>轮次对齐线（每轮回答互连）</span>')
+    lg.push('<span class="lg"><span class="sw anc"></span>手动锚点（🔗 添加 · 点线删除）</span>')
+  }
   document.getElementById('legend').innerHTML = lg.join('')
 }
 
@@ -603,24 +635,31 @@ function build(){
     }
   }
 
-  // milestone comparison lines (2 lanes only)
-  if (DATA.milestones.length > 0 && DATA.lanes.length === 2){
-    const y1 = LAYOUT[DATA.lanes[0].key].mainY, y2 = LAYOUT[DATA.lanes[1].key].mainY
-    for (const m of DATA.milestones){
+  // 轮次对齐线（双泳道）：每一轮取两边的回答节点互连，标注墙钟时差与该轮支路差额。
+  // 只连两边都有的轮次；只在一边出现的轮次交给支路盘点面板呈现（缺席本身就是信号）。
+  if (DATA.lanes.length === 2){
+    const [lA, lB] = DATA.lanes
+    const y1 = LAYOUT[lA.key].mainY, y2 = LAYOUT[lB.key].mainY
+    const endA = turnEndNodes(lA), endB = turnEndNodes(lB)
+    const detA = turnDetourStats(lA, wallClock), detB = turnDetourStats(lB, wallClock)
+    for (const turn of unionTurns(DATA.lanes)){
+      const na = endA.get(turn), nb = endB.get(turn)
+      if (!na || !nb) continue
+      if (!xVisible(Math.min(na.e, nb.e), Math.max(na.e, nb.e))) continue
       const g = el('g', {})
-      g.appendChild(el('line', { x1: x(m.flashT), y1: y1, x2: x(m.proT), y2: y2, class: 'msline' }))
-      const t1 = el('text', { x: x(m.flashT) + 6, y: y1 - 6, class: 'mk-flag', fill: '#2563eb' }); t1.textContent = '⚑'
-      const t2 = el('text', { x: x(m.proT) - 6, y: y2 - 6, class: 'mk-flag', fill: '#7c3aed', 'text-anchor': 'end' }); t2.textContent = '⚑'
+      g.appendChild(el('line', { x1: x(na.e), y1: y1, x2: x(nb.e), y2: y2, class: 'msline' }))
+      const t1 = el('text', { x: x(na.e) + 6, y: y1 - 6, class: 'mk-flag', fill: '#2563eb' }); t1.textContent = '⚑'
+      const t2 = el('text', { x: x(nb.e) - 6, y: y2 - 6, class: 'mk-flag', fill: '#7c3aed', 'text-anchor': 'end' }); t2.textContent = '⚑'
       g.appendChild(t1); g.appendChild(t2)
-      const cx = (x(m.flashT) + x(m.proT)) / 2, cy = (y1 + y2) / 2
-      const diff = m.proT - m.flashT
-      const lab = el('text', { x: cx, y: cy - 8, 'text-anchor': 'middle', class: 'mslabel' })
-      lab.textContent = `${m.label}：1st ${fmtT(m.flashT)} ↔ 2nd ${fmtT(m.proT)}（+${fmtT(Math.abs(diff))}）`
+      const wa = wallClock(na.e), wb = wallClock(nb.e)
+      const dA = detA.get(turn), dB = detB.get(turn)
+      const lab = el('text', { x: (x(na.e) + x(nb.e)) / 2, y: (y1 + y2) / 2 - 8, 'text-anchor': 'middle', class: 'mslabel' })
+      lab.textContent = `第 ${turn} 轮回答：1st ${fmtT(wa)} ↔ 2nd ${fmtT(wb)}（Δ${fmtT(Math.abs(wb - wa))}）`
+        + ((dA?.n ?? 0) + (dB?.n ?? 0) > 0 ? ` · 支路 ${dA?.n ?? 0}↔${dB?.n ?? 0}` : '')
       g.appendChild(lab)
-      const r1 = el('circle', { cx: x(m.flashT), cy: y1, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 })
-      const r2 = el('circle', { cx: x(m.proT), cy: y2, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 })
-      g.appendChild(r1); g.appendChild(r2)
-      msEls.push({ el: g, s: Math.max(m.flashT, m.proT) })
+      g.appendChild(el('circle', { cx: x(na.e), cy: y1, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 }))
+      g.appendChild(el('circle', { cx: x(nb.e), cy: y2, r: 12, fill: 'none', stroke: '#d97706', 'stroke-width': 2 }))
+      msEls.push({ el: g, s: Math.max(na.e, nb.e) })
       gTime.appendChild(g)
     }
   }
@@ -642,19 +681,6 @@ function build(){
     const laneTurns = new Set([...lane.main, ...lane.detours].map(n => n.turn).filter(v => v != null)).size
     info.textContent = `${laneTurns > 1 ? laneTurns + ' 轮 · ' : ''}${lane.stats.steps} 步（主干 ${lane.stats.main} / 支路 ${lane.stats.detours}）· ${lane.stats.tools} 次工具调用 · ${laneTokLabel(lane.stats)} · 总耗时 ${fmtT(lane.stats.T)}${lane.preWindow ? ' · ⏮ 另有 ' + lane.preWindow + ' 步更早历史未加载' : ''}`
     gStatic.appendChild(title); gStatic.appendChild(info)
-
-    // explore-phase background band
-    if (lane.detours.length > 1){
-      const t0s = Math.min(...lane.detours.map(d => d.s)), t1s = Math.max(...lane.detours.map(d => d.e))
-      if (xVisible(t0s, t1s)){
-        const x0 = x(t0s), x1 = x(t1s)
-        const band = el('rect', { x: x0, y: lay.mainY - (LAYOUT[lane.key].up * LANE_GAP + 40), width: x1 - x0, height: LAYOUT[lane.key].up * LANE_GAP + LAYOUT[lane.key].down * LANE_GAP + 80, fill: 'rgba(220,38,38,0.035)', stroke: 'rgba(220,38,38,0.16)', 'stroke-dasharray': '2 3' })
-        gTime.appendChild(band)
-        const bt = el('text', { x: x0 + 10, y: lay.mainY - LAYOUT[lane.key].up * LANE_GAP - 14, class: 'band-label' })
-        bt.textContent = `探索期 ${t0s.toFixed(0)}s → ${t1s.toFixed(0)}s（${lane.detours.length} 条支路）`
-        gTime.appendChild(bt)
-      }
-    }
 
     const main = lane.main
     main.forEach((n, i) => {
@@ -739,10 +765,62 @@ function build(){
     }
   })
 
+  drawAnchors(gTime)   // 锚点端点可挂在支路上，须等 assignLanes 给出 _y 后再画
+
   const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: '#d97706', 'stroke-width': 2 })
   gTime.appendChild(cur)
   window._cursor = cur
   applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
+}
+
+/* ==================== 手动锚点：页内状态（DATA 之外），build() 尾部重画 ==================== */
+let ANCHORS = []       // [{a:{lane,step}, b:{lane,step}}]，a 恒为 l1 侧
+let anchorPick = null  // 选点中：{first: {lane,step}|null}；null = 未在选点
+
+/** 按 {lane,step} 找回节点与其当前绘制 y（主干=mainY，支路=_y）；数据刷新后找不到返回 null。 */
+function findAnchorNode(ref){
+  const lane = DATA.lanes.find(l => l.key === ref.lane)
+  if (!lane) return null
+  const n = lane.main.find(nn => nn.step === ref.step)
+  if (n) return { n, y: LAYOUT[lane.key].mainY }
+  const d = lane.detours.find(nn => nn.step === ref.step)
+  return d ? { n: d, y: d._y } : null
+}
+
+function drawAnchors(gTime){
+  if (DATA.lanes.length !== 2) return
+  ANCHORS = ANCHORS.filter(a => findAnchorNode(a.a) && findAnchorNode(a.b))   // 节点随数据刷新消失时静默放弃
+  ANCHORS.forEach((a, i) => {
+    const pa = findAnchorNode(a.a), pb = findAnchorNode(a.b)
+    const ax = x((pa.n.s + pa.n.e) / 2), bx = x((pb.n.s + pb.n.e) / 2)
+    if (!xVisible(Math.min(pa.n.s, pb.n.s), Math.max(pa.n.e, pb.n.e))) return
+    const g = el('g', {})
+    g.appendChild(el('line', { x1: ax, y1: pa.y, x2: bx, y2: pb.y, class: 'ancline' }))
+    const lab = el('text', { x: (ax + bx) / 2 + 8, y: (pa.y + pb.y) / 2 + 4, class: 'anclabel' })
+    lab.textContent = `⚓ S${pa.n.step} ↔ S${pb.n.step}（Δ${fmtT(Math.abs(wallClock(pb.n.e) - wallClock(pa.n.e)))}）✕`
+    g.appendChild(lab)
+    const tt = el('title', {}); tt.textContent = '点击删除此锚点'; g.appendChild(tt)
+    g.addEventListener('click', ev => { ANCHORS.splice(i, 1); queueBuild(); ev.stopPropagation() })
+    gTime.appendChild(g)
+  })
+}
+
+const btnAnchor = document.getElementById('btnAnchor')
+function startAnchorPick(){ anchorPick = { first: null }; btnAnchor.classList.add('on'); btnAnchor.textContent = '点第一个节点…（再按取消）' }
+function stopAnchorPick(){ anchorPick = null; btnAnchor.classList.remove('on'); btnAnchor.textContent = '🔗 加锚点' }
+btnAnchor.addEventListener('click', () => { anchorPick ? stopAnchorPick() : startAnchorPick() })
+
+/** 选点模式下的节点点击：同泳道重选，异泳道成锚。 */
+function pickAnchorNode(n, laneKey){
+  const ref = { lane: laneKey, step: n.step }
+  if (!anchorPick.first || anchorPick.first.lane === laneKey){
+    anchorPick.first = ref
+    btnAnchor.textContent = '再点另一会话的节点…'
+    return
+  }
+  ANCHORS.push(anchorPick.first.lane === 'l1' ? { a: anchorPick.first, b: ref } : { a: ref, b: anchorPick.first })
+  stopAnchorPick()
+  queueBuild()
 }
 
 /* ==================== 过滤与搜索：状态在 DATA 之外，重建后还原 ==================== */
@@ -761,12 +839,17 @@ function nodeMatches(n){
 }
 
 function applyFilter(){
-  const active = fltFail || fltTool !== '' || fltQ !== ''
-  nodeEls.forEach(({ el }) => el.classList.toggle('flt-dim', active && el._node != null && !nodeMatches(el._node)))
-  pathEls.forEach(({ el, det }) => { if (det) el.classList.toggle('flt-dim', active && !nodeMatches(det)) })
+  const active = fltFail || fltTool !== '' || fltQ !== '' || invSel != null
+  // 盘点选轮叠加在常规过滤上：选中某轮后只保留该轮的支路，其余（含主干）淡化
+  const pass = (n, isDet) => nodeMatches(n) && (invSel == null || (isDet && (n.turn ?? 1) === invSel))
+  nodeEls.forEach(({ el }) => el.classList.toggle('flt-dim', active && el._node != null && !pass(el._node, el._det != null)))
+  pathEls.forEach(({ el, det }) => { if (det) el.classList.toggle('flt-dim', active && !pass(det, true)) })
   let hit = 0, total = 0
   if (active && DATA){
-    for (const l of DATA.lanes) for (const n of [...l.main, ...l.detours]){ total += 1; if (nodeMatches(n)) hit += 1 }
+    for (const l of DATA.lanes){
+      for (const n of l.main){ total += 1; if (pass(n, false)) hit += 1 }
+      for (const n of l.detours){ total += 1; if (pass(n, true)) hit += 1 }
+    }
   }
   document.getElementById('fltCount').textContent = active ? `命中 ${hit} / ${total} 步` : ''
 }
@@ -784,6 +867,73 @@ function refreshFltTools(){
 document.getElementById('fltFail').addEventListener('change', e => { fltFail = e.target.checked; applyFilter() })
 document.getElementById('fltToolSel').addEventListener('change', e => { fltTool = e.target.value; applyFilter() })
 document.getElementById('fltQIn').addEventListener('input', e => { fltQ = e.target.value.trim(); applyFilter() })
+
+/* ==================== 支路盘点（双泳道按轮次）：状态在 DATA 之外 ==================== */
+const invPanelEl = document.getElementById('invpanel')
+const invBody = document.getElementById('invBody')
+let invSel = null   // 盘点面板选中的轮次；非空时 applyFilter 只保留该轮支路
+
+function fmtDetCell(g){
+  if (!g) return '<td style="color:#b6c0d2">—</td>'
+  const by = []
+  if (g.by.error) by.push(`<span style="color:#dc2626">✗${g.by.error}</span>`)
+  if (g.by.retry) by.push(`<span style="color:#8892a6">↻${g.by.retry}</span>`)
+  if (g.by.deadend) by.push(`<span style="color:#9aa4b8">·${g.by.deadend}</span>`)
+  return `<td>${g.n} 步 · ${fmtT(g.T)}${by.length ? '　' + by.join(' ') : ''}</td>`
+}
+
+/** 差额文案：正=第 2 会话多耗，负=第 1 会话多耗；1 秒内视为持平。 */
+function fmtDetDiff(dT, any){
+  if (!any) return ''
+  return Math.abs(dT) < 1 ? '≈持平' : `第 ${dT > 0 ? 2 : 1} 会话多耗 ${fmtT(Math.abs(dT))}`
+}
+
+function renderInventory(){
+  if (!DATA || DATA.lanes.length !== 2) return
+  const [lA, lB] = DATA.lanes
+  const detA = turnDetourStats(lA, wallClock), detB = turnDetourStats(lB, wallClock)
+  let rows = ''
+  const ta = { n: 0, T: 0 }, tb = { n: 0, T: 0 }
+  for (const turn of unionTurns(DATA.lanes)){
+    const a = detA.get(turn), b = detB.get(turn)
+    if (a){ ta.n += a.n; ta.T += a.T }
+    if (b){ tb.n += b.n; tb.T += b.T }
+    rows += `<tr data-turn="${turn}"${turn === invSel ? ' class="sel"' : ''}><td>第 ${turn} 轮</td>${fmtDetCell(a)}${fmtDetCell(b)}<td>${fmtDetDiff((b?.T ?? 0) - (a?.T ?? 0), a || b)}</td></tr>`
+  }
+  invBody.innerHTML = `<table><thead><tr><th>轮次</th><th>第 1 会话支路</th><th>第 2 会话支路</th><th>差额</th></tr></thead><tbody>${rows}`
+    + `<tr class="total"><td>合计</td><td>${ta.n} 步 · ${fmtT(ta.T)}</td><td>${tb.n} 步 · ${fmtT(tb.T)}</td><td>${ta.n + tb.n > 0 ? fmtDetDiff(tb.T - ta.T, true) : '两边都无支路'}</td></tr></tbody></table>`
+    + `<div class="hint">点一行：缩放到该轮并只保留该轮支路（其余淡化），再点同一行取消。支路耗时为墙钟时间；✗ 失败 · ↻ 无效重试 · · 扑空。</div>`
+}
+
+invBody.addEventListener('click', ev => {
+  const tr = ev.target.closest('tr[data-turn]')
+  if (!tr) return
+  const turn = Number(tr.dataset.turn)
+  if (invSel === turn){
+    invSel = null
+    renderInventory(); applyFilter()
+    return
+  }
+  invSel = turn
+  // 缩放到该轮：两条泳道该轮全部节点的时间范围（压缩坐标，setViewWindow 同一坐标系）
+  let s = Infinity, e = -Infinity
+  for (const l of DATA.lanes) for (const n of [...l.main, ...l.detours]){
+    if ((n.turn ?? 1) !== turn) continue
+    s = Math.min(s, n.s); e = Math.max(e, n.e)
+  }
+  if (s < e){ const pad = Math.max((e - s) * 0.06, 2); setViewWindow(s - pad, e + pad) }
+  renderInventory(); applyFilter()
+})
+
+function closeInv(){
+  invPanelEl.classList.remove('show')
+  if (invSel != null){ invSel = null; applyFilter() }
+}
+document.getElementById('invClose').addEventListener('click', closeInv)
+document.getElementById('btnInv').addEventListener('click', () => {
+  if (invPanelEl.classList.contains('show')) closeInv()
+  else { renderInventory(); invPanelEl.classList.add('show') }
+})
 
 /* ==================== 导出：当前视图 SVG / PNG（2x） ==================== */
 function serializeSvg(){
@@ -1044,12 +1194,14 @@ function legacyCopy(text){
 function onNodeClick(e){
   if (suppressClick) return
   const g = e.currentTarget
+  if (anchorPick){ pickAnchorNode(g._node, g._lane.key); e.stopPropagation(); return }
   openPanel(g._node, g._lane, g._isMain)
   e.stopPropagation()
 }
 function onArcClick(e){
   if (suppressClick) return
   const d = e.currentTarget._det
+  if (anchorPick){ pickAnchorNode(d, d._laneKey); e.stopPropagation(); return }
   openPanel(d, d._laneKey === 'l1' ? DATA.lanes[0] : DATA.lanes[1], false)
   e.stopPropagation()
 }
@@ -1115,10 +1267,13 @@ svg.addEventListener('dblclick', e => {
   queueBuild()
 })
 document.getElementById('btnFit').addEventListener('click', () => { VIEW = null; queueBuild() })
-// Esc：面板开着先关面板；否则透传给宿主（上传面板的宿主级 Esc 收不到 iframe 焦点内的按键）。
+// Esc 逐层退出：选锚点中先取消选点，再关详情面板，再关盘点面板；都没有才透传给宿主
+//（上传面板的宿主级 Esc 收不到 iframe 焦点内的按键）。
 window.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return
+  if (anchorPick){ stopAnchorPick(); return }
   if (panelEl.classList.contains('show')){ closePanel(); return }
+  if (invPanelEl.classList.contains('show')){ closeInv(); return }
   parent.postMessage({ kind: 'trace-esc' }, '*')
 })
 
@@ -1247,6 +1402,9 @@ function resetView(){
   document.getElementById('stats').innerHTML = ''
   VIEW = null
   closePanel()
+  closeInv()
+  ANCHORS = []
+  if (anchorPick) stopAnchorPick()
   while (svg.firstChild) svg.removeChild(svg.firstChild)
 }
 
@@ -1269,10 +1427,16 @@ function renderData(data, opts){
   DATA = data
   compressTimeline(DATA)
   TMAX = DATA.Tmax
-  // Fresh uploads reset the zoom; live refreshes keep the user's window,
-  // re-clamped to the new (compressed) span. Coordinates can drift slightly
-  // when a refresh adds activity segments — the window stays approximate.
-  if (!opts.follow) VIEW = null
+  // Fresh uploads reset the zoom (and compare-mode user state: anchors, inventory
+  // selection); live refreshes keep the user's window, re-clamped to the new
+  // (compressed) span. Coordinates can drift slightly when a refresh adds
+  // activity segments — the window stays approximate.
+  if (!opts.follow){
+    VIEW = null
+    ANCHORS = []
+    if (anchorPick) stopAnchorPick()
+    invSel = null
+  }
   else if (VIEW){
     const span = Math.min(VIEW.t1 - VIEW.t0, TMAX)
     const s = Math.max(0, Math.min(VIEW.t0, TMAX - span))
@@ -1291,6 +1455,12 @@ function renderData(data, opts){
   document.getElementById('controls').style.display = 'flex'
   document.getElementById('fltbar').style.display = 'flex'
   refreshFltTools()
+  // 对比专属控件只在双泳道出现；盘点面板开着时随数据刷新重算
+  const two = DATA.lanes.length === 2
+  btnAnchor.style.display = two ? '' : 'none'
+  document.getElementById('btnInv').style.display = two ? '' : 'none'
+  if (!two) closeInv()
+  else if (invPanelEl.classList.contains('show')) renderInventory()
   document.getElementById('svgwrap').style.display = 'block'
   playing = false
   if (timer){ clearInterval(timer); timer = 0 }

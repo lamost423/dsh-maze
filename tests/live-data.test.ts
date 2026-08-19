@@ -51,6 +51,12 @@ describe('snapshotToMazeData', () => {
     expect(new Set([...lane.main, ...lane.detours].map(n => n.turn))).toEqual(new Set([1]))
   })
 
+  it('carries no retired milestone fields (v0.3.0: turn alignment replaced mlist/milestones)', () => {
+    const data = snapshotToMazeData(syntheticSnapshot())!
+    expect('milestones' in data).toBe(false)
+    expect('mlist' in data.lanes[0]!).toBe(false)
+  })
+
   it('reports the latest model carried by a request header', () => {
     const data = snapshotToMazeData(syntheticSnapshot())
     expect(data!.lanes[0]!.model).toBe('deepseek-v4-flash')

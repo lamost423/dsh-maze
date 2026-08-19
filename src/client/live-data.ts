@@ -69,17 +69,13 @@ export interface MazeLane {
   main: MazeNode[]
   detours: MazeNode[]
   stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
-  mlist: number | null
 }
 
 /** The maze payload the upload page consumes. */
 export interface MazeData {
   Tmax: number
-  milestones: { id: string; label: string; flashT: number; proT: number }[]
   lanes: MazeLane[]
 }
-
-const MODEL_LIKE = /"data"\s*:\s*\[/
 
 function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
@@ -237,14 +233,6 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
   const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
   const T = Math.max(...rows.map(r => r.e), 0.1)
-  let mlist: number | null = null
-  outer: for (const r of rows) {
-    for (const tool of r.tools) {
-      if (tool.res && MODEL_LIKE.test(tool.res) && /model/i.test(tool.res) && /"id"/.test(tool.res)) {
-        mlist = tool.e; break outer
-      }
-    }
-  }
   // requestConfig is only present on assistant nodes whose request header fell
   // inside the snapshot window; take the latest carrier so the current model shows.
   let model: string | null = null
@@ -257,12 +245,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     preWindow,
     main, detours,
     stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
-    mlist,
   }
 
-  const Tmax = Math.max(T, 60)
-  const milestones: MazeData['milestones'] = []
-  if (mlist !== null) milestones.push({ id: 'm1', label: '模型列表结果', flashT: mlist, proT: mlist })
-  milestones.push({ id: 'm2', label: '当前进度', flashT: T, proT: T })
-  return { Tmax, milestones, lanes: [lane] }
+  return { Tmax: Math.max(T, 60), lanes: [lane] }
 }
