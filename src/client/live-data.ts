@@ -60,6 +60,12 @@ export interface MazeNode {
 export interface MazeLane {
   key: 'l1' | 'l2'
   model: string | null
+  /**
+   * 被丢弃的窗口外陈旧步数：对话快照是事件窗口，窗口内可能残留早于首条用户消息的
+   * assistant 节点（更早轮次的尾巴）。它们的时间会被钳到 0 堆在左边缘、虚高统计并
+   * 制造假支路，所以转换时丢弃并在此计数，页面据此标注「另有 N 步更早历史未加载」。
+   */
+  preWindow: number
   main: MazeNode[]
   detours: MazeNode[]
   stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
@@ -114,10 +120,15 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     return node
   }
 
+  let preWindow = 0
   for (const n of nodes) {
     if (n.kind === 'user') {
       turn += 1
     } else if (n.kind === 'assistant') {
+      if (firstUser !== undefined && n.time < firstUser.time) {
+        preWindow += 1
+        continue
+      }
       const s = rel(n.timing?.stepStartTime ?? n.time)
       const tools: MazeTool[] = []
       let rz = 0
@@ -243,6 +254,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   const lane: MazeLane = {
     key: 'l1',
     model,
+    preWindow,
     main, detours,
     stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
     mlist,

@@ -9,13 +9,31 @@
  */
 
 export const VERDICT_RULES = {
-  /** 通用失败特征。刻意不含项目特定话术（如 "No such container"），包装器级失败靠 [status=Failed] / __EXIT__ 兜住。 */
-  ERROR_PATTERNS: /Traceback \(most recent|command not found|Permission denied|No such file|HTTP 40\d|HTTP 50\d|^Error:|\[stderr\].*(Error|Traceback)|\[status=Failed\]|__EXIT__=[1-9]/i,
+  /**
+   * 强失败特征（扫开头 + 末尾两个窗口）：包装器/运行时的硬标记。真失败的标记要么在
+   * 短输出里（命令直接死掉），要么贴着末尾（stderr 段是包装器追加在最后的）；而转储/
+   * 引用别的日志时（如会话分析会话），这些标记悬在长文本中部，两个窗口都够不着。
+   * 刻意不含项目特定话术（如 "No such container"），那类失败靠 [status=Failed] / __EXIT__ 兜住。
+   */
+  ERROR_PATTERNS_STRONG: /\[stderr\].*(Error|Traceback|File ")|\[status=Failed\]|__EXIT__=[1-9]/i,
+  /**
+   * 弱失败特征（只扫开头窗口）：真实报错从开头开始说，而 git log / grep / 文档类输出
+   * 在正文深处**引用**别人的报错（如提交信息里写 "upstream returns HTTP 400"）不该算
+   * 这条命令失败——2026-08-19 实测误报案例。
+   */
+  ERROR_PATTERNS_WEAK: /Traceback \(most recent|command not found|Permission denied|No such file|HTTP 40\d|HTTP 50\d|^Error:/i,
+  /** 开头扫描窗口（字符）：弱特征仅此窗口；强特征此窗口 + 末尾窗口。 */
+  ERROR_HEAD_SCAN: 300,
+  /** 末尾扫描窗口（字符）：覆盖「长输出后崩溃」的 stderr 追加段。 */
+  ERROR_TAIL_SCAN: 1000,
   /** 写入类工具：成功确认天然很短，无错误即成功，永不按输出判扑空。 */
   WRITE_TOOLS: ['write', 'edit', 'todo_write'],
   /** 检索类工具：空结果=扑空；有返回（哪怕一行命中）即成功。 */
   SEARCH_TOOLS: ['grep', 'read', 'web_search', 'read_image'],
-  /** 空结果/无命中特征（整体为空或 '---'，或含无结果话术）。 */
+  /**
+   * 空结果/无命中特征（只扫开头窗口）：真正的空结果提示本来就是整段短消息；
+   * 读到的文件内容/命中的代码里出现 "not found in" 字样不算扑空——2026-08-19 实测误报案例。
+   */
   NO_RESULT_PATTERNS: /^(---)?$|no matches|no results|not found in/i,
   /** 盲目重试：相邻同工具调用的参数 token Jaccard 相似度门槛。 */
   RETRY_SIMILARITY: 0.6,
@@ -26,18 +44,26 @@ export const VERDICT_RULES = {
 /** 步级聚合的严重度序：取最坏工具判定作为步判定。 */
 export const SEV = { error: 4, retry: 3, deadend: 2, ok: 0, answer: 0 }
 
-/** 单工具判定：错误标志 → 失败特征 → 按工具分类；返回判定值和依据文本。 */
+/**
+ * 单工具判定：错误标志 → 失败特征 → 按工具分类；返回判定值和依据文本。
+ * ev.res 必须传**未截断**的返回全文——上传与实时两条链路统一在同一份文本上判定，
+ * 否则同一步会在两种模式下判出不同结果（2026-08-19 实测踩过）。
+ */
 export function toolVerdict(ev){
   if (ev.err) return { v: 'error', why: '工具返回错误标志（isError）' }
   const txt = (ev.res ?? '').trim()
-  const hit = VERDICT_RULES.ERROR_PATTERNS.exec(txt)
-  if (hit !== null) return { v: 'error', why: '返回内容命中失败特征「' + hit[0].slice(0, 48) + '」' }
+  const head = txt.slice(0, VERDICT_RULES.ERROR_HEAD_SCAN)
+  const tail = txt.slice(-VERDICT_RULES.ERROR_TAIL_SCAN)
+  const strong = VERDICT_RULES.ERROR_PATTERNS_STRONG.exec(head) ?? VERDICT_RULES.ERROR_PATTERNS_STRONG.exec(tail)
+  if (strong !== null) return { v: 'error', why: '输出命中失败特征「' + strong[0].slice(0, 48) + '」' }
+  const weak = VERDICT_RULES.ERROR_PATTERNS_WEAK.exec(head)
+  if (weak !== null) return { v: 'error', why: '输出开头命中失败特征「' + weak[0].slice(0, 48) + '」' }
   if (VERDICT_RULES.WRITE_TOOLS.includes(ev.name)) return { v: 'ok', why: '写入类工具，无错误即成功' }
   if (VERDICT_RULES.SEARCH_TOOLS.includes(ev.name)){
-    if (VERDICT_RULES.NO_RESULT_PATTERNS.test(txt)) return { v: 'deadend', why: txt === '' ? '检索返回为空，判为扑空' : '检索命中无结果特征，判为扑空' }
+    if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: txt === '' ? '检索返回为空，判为扑空' : '检索开头命中无结果特征，判为扑空' }
     return { v: 'ok', why: '检索有返回' }
   }
-  if (VERDICT_RULES.NO_RESULT_PATTERNS.test(txt)) return { v: 'deadend', why: '退出正常但无输出，判为扑空' }
+  if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: '退出正常但无输出，判为扑空' }
   return { v: 'ok', why: '退出正常且有输出' }
 }
 

@@ -156,6 +156,56 @@ describe('snapshotToMazeData', () => {
     expect(bare.stats.outTok).toBeNull()
   })
 
+  it('drops pre-window stale assistant nodes and counts them as preWindow', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        // 更早轮次的尾巴：早于窗口内首条用户消息，会被钳到 0 制造假象 -> 丢弃并计数
+        { kind: 'assistant', seq: 5, time: t0 - 60000, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'old', argsRaw: '{"command":"ls"}' },
+        ] },
+        { kind: 'tool-result', time: t0 - 59000, callId: 'old', isError: false, content: [{ type: 'text', text: 'stale' }] },
+        { kind: 'user', time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+          { kind: 'text', text: 'fresh answer' },
+        ] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.preWindow).toBe(1)
+    expect(lane.stats.steps).toBe(1)
+    expect(lane.main[0]!.v).toBe('answer')
+  })
+
+  it('ignores failure-looking text quoted deep in output; catches head and tail signatures', () => {
+    const quoted = 'commit log '.repeat(60) + ' upstream returns HTTP 400 when sound=true ' + 'more log '.repeat(200)
+    const tailCrash = 'build output '.repeat(200) + ' [stderr] Traceback (most recent call last): boom'
+    const headMiss = 'command not found: foobar'
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"git log"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: false, content: [{ type: 'text', text: quoted }] },
+        { kind: 'assistant', seq: 12, time: t0 + 5000, timing: { stepStartTime: t0 + 4000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'b', argsRaw: '{"command":"pnpm build"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 6000, callId: 'b', isError: false, content: [{ type: 'text', text: tailCrash }] },
+        { kind: 'assistant', seq: 13, time: t0 + 8000, timing: { stepStartTime: t0 + 7000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'c', argsRaw: '{"command":"foobar"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 9000, callId: 'c', isError: false, content: [{ type: 'text', text: headMiss }] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    const byCall = new Map([...lane.main, ...lane.detours].flatMap(n => n.tools.map(t => [t.callId, t] as const)))
+    expect(byCall.get('a')!.v).toBe('ok')      // 引用在正文深处，不算这条命令失败
+    expect(byCall.get('b')!.v).toBe('error')   // 末尾 stderr 追加段
+    expect(byCall.get('c')!.v).toBe('error')   // 开头真实报错
+  })
+
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {
     const snap = syntheticSnapshot() as { nodes: { kind: string; blocks?: { kind: string; text?: string }[] }[] }
     const first = snap.nodes.find(n => n.kind === 'assistant')!

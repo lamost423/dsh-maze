@@ -18,7 +18,10 @@ export interface Verdict {
 
 /** 判定常量（阈值与分类，均可调；依据见工作区 PROPOSAL-trace-compare-verdict.md）。 */
 export declare const VERDICT_RULES: {
-  ERROR_PATTERNS: RegExp
+  ERROR_PATTERNS_STRONG: RegExp
+  ERROR_PATTERNS_WEAK: RegExp
+  ERROR_HEAD_SCAN: number
+  ERROR_TAIL_SCAN: number
   WRITE_TOOLS: string[]
   SEARCH_TOOLS: string[]
   NO_RESULT_PATTERNS: RegExp
@@ -30,8 +33,8 @@ export declare const VERDICT_RULES: {
 export declare const SEV: Record<string, number>
 
 /**
- * 单工具判定：错误标志 → 失败特征 → 按工具分类。
- * @param ev 已配对结果的工具调用
+ * 单工具判定：错误标志 → 强失败特征（全文）→ 弱失败特征（仅开头）→ 按工具分类。
+ * @param ev 已配对结果的工具调用；res 必须是未截断的返回全文（两条渲染链路统一口径）
  * @returns 判定值与依据文本
  */
 export declare function toolVerdict(ev: VerdictInput): Verdict
