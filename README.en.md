@@ -22,6 +22,8 @@ Two surfaces, one visual language:
 - Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
+- **Search & filter**: a toolbar with a failures/retries-only toggle, per-tool filtering, and full-text search over commands and results (including the 5000-char panel text); non-matching nodes and arcs fade to 15% opacity with a live hit count. Filter state survives live-mode rebuilds.
+- **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined.
 - Playback replays the whole run at up to 300×.
 
 Timeline honesty rules:
@@ -29,6 +31,7 @@ Timeline honesty rules:
 - **Idle folding**: stretches with no step or tool activity for over 60 s (you thinking between turns) collapse into a thin `⏸` seam labeled with the skipped duration. Axis ticks keep wall-clock labels inside activity segments.
 - Step identity is turn-qualified (`S15·47`), so multi-turn sessions attach detours to the right nodes.
 - Durations, tool timings, and totals stay wall-clock; only the axis is compressed.
+- **Tokens are real** (since v0.2.2): reasoning/output tokens come from the session log's `assistant/message` `usage` (the old "reasoning N tok" counted streaming chunks, not tokens). Logs without usage fall back to an honest "N reasoning segments" label.
 
 Verdict honesty rules (since v0.2.1):
 
@@ -50,7 +53,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.1/dsh-trace-compare-0.2.1.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/dsh-trace-compare-0.2.2.tgz
 dsh web
 ```
 

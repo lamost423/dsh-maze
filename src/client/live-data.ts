@@ -46,6 +46,10 @@ export interface MazeNode {
   rzTxt: string
   /** Detail-panel reasoning excerpt (≤2000 chars). */
   rzTxtFull?: string
+  /** 该步真实推理 token（assistant/message 的 usage；无真值时 null，页面回退显示段数）。 */
+  rzTok?: number | null
+  /** 该步真实输出 token（含推理），同上口径。 */
+  outTok?: number | null
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
   /** 步级判定依据（最坏工具的依据）。 */
   why?: string
@@ -58,7 +62,7 @@ export interface MazeLane {
   model: string | null
   main: MazeNode[]
   detours: MazeNode[]
-  stats: { steps: number; tools: number; rz: number; T: number; main: number; detours: number }
+  stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
   mlist: number | null
 }
 
@@ -133,6 +137,12 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         }
       }
       cur = pushStep(s, rel(n.time), tools, rz, rzTxt, n.seq)
+      // usage 在节点契约上是 unknown（源自 assistant/message 事件），运行期窄化后取真实 token
+      const u = n.usage as { reasoningTokens?: unknown; outputTokens?: unknown } | null | undefined
+      if (u !== null && typeof u === 'object') {
+        if (typeof u.reasoningTokens === 'number') cur.rzTok = u.reasoningTokens
+        if (typeof u.outputTokens === 'number') cur.outTok = u.outputTokens
+      }
     } else if (n.kind === 'tool-result') {
       const idx = pending.findIndex(p => p.tool.callId === n.callId)
       if (idx >= 0) {
@@ -213,6 +223,8 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
   }
   const toolsCount = rows.reduce((n, r) => n + r.tools.length, 0)
   const rzCount = rows.reduce((n, r) => n + r.rz, 0)
+  const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
+  const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
   const T = Math.max(...rows.map(r => r.e), 0.1)
   let mlist: number | null = null
   outer: for (const r of rows) {
@@ -232,7 +244,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     key: 'l1',
     model,
     main, detours,
-    stats: { steps: rows.length, tools: toolsCount, rz: rzCount, T, main: main.length, detours: detours.length },
+    stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
     mlist,
   }
 

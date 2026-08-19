@@ -133,6 +133,29 @@ describe('snapshotToMazeData', () => {
     expect(err.tools[0]!.why).toContain('重试簇')
   })
 
+  it('carries real token usage per step and lane totals; null without usage', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 900, outputTokens: 321, reasoningTokens: 274 }, blocks: [
+          { kind: 'text', text: 'a' },
+        ] },
+        { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { outputTokens: 100, reasoningTokens: 40 }, blocks: [
+          { kind: 'text', text: 'b' },
+        ] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.main.map(n => n.rzTok)).toEqual([274, 40])
+    expect(lane.stats.rzTok).toBe(314)
+    expect(lane.stats.outTok).toBe(421)
+    // 无 usage 的会话：统计为 null，页面据此回退到「N 段推理」的诚实标签
+    const bare = snapshotToMazeData(syntheticSnapshot())!.lanes[0]!
+    expect(bare.stats.rzTok).toBeNull()
+    expect(bare.stats.outTok).toBeNull()
+  })
+
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {
     const snap = syntheticSnapshot() as { nodes: { kind: string; blocks?: { kind: string; text?: string }[] }[] }
     const first = snap.nodes.find(n => n.kind === 'assistant')!

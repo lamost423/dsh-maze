@@ -38,6 +38,10 @@
   .ln.bk{border-color:#9aa4b8; border-top-style:dotted}
   .sw{width:14px; height:10px; border-radius:2px; display:inline-block}
   .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.rt{background:#b6c0d2} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
+  .flt-dim{opacity:.15 !important}
+  #fltbar .fltlab{display:flex; align-items:center; gap:4px; white-space:nowrap}
+  #fltbar input[type="search"]{flex:0 1 260px; min-width:120px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; font:inherit}
+  #fltbar #fltCount{color:#7a869e; white-space:nowrap}
   .controls{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 14px; margin-bottom:10px; position:sticky; top:0; z-index:50; box-shadow:0 1px 3px rgba(16,24,40,.05)}
   .controls button{background:#fff; color:#1f2937; border:1px solid #d8dce6; border-radius:8px; padding:4px 14px; font-size:13px; cursor:pointer; transition:background .15s}
   .controls button:hover{background:#eef1f6}
@@ -136,6 +140,16 @@
   <span class="zoomhint">滚轮缩放 · 拖拽平移</span>
 </div>
 
+<div class="controls" id="fltbar" style="display:none">
+  <label class="fltlab"><input type="checkbox" id="fltFail"> 只看失败/重试</label>
+  <select id="fltToolSel"><option value="">全部工具</option></select>
+  <input type="search" id="fltQIn" placeholder="搜索命令与返回内容…">
+  <span id="fltCount"></span>
+  <span style="flex:1"></span>
+  <button id="btnExpSvg" title="导出当前视图为 SVG">⬇ SVG</button>
+  <button id="btnExpPng" title="导出当前视图为 PNG（2x）">⬇ PNG</button>
+</div>
+
 <div class="svgwrap" id="svgwrap" style="display:none">
 <svg id="svg" viewBox="0 0 1560 1150" preserveAspectRatio="xMidYMin meet"></svg>
 <div id="panel">
@@ -158,6 +172,20 @@ function fmtT(t){
   if (t >= 3600) return (t / 3600).toFixed(t >= 36000 ? 0 : 1) + 'h'
   if (t >= 120) return Math.round(t / 60) + 'm'
   return (Math.round(t * 10) / 10) + 's'
+}
+
+/** 步级推理量标签：有 usage 真值用 token，否则诚实按流式段数计（旧标签把段数冒充 token）。 */
+function rzLabel(n){
+  return n.rzTok != null ? '推理 ' + n.rzTok.toLocaleString() + ' tok' : n.rz + ' 段推理'
+}
+
+/** 泳道级推理/输出量标签，同上口径。 */
+function laneTokLabel(st){
+  if (st.rzTok == null && st.outTok == null) return st.rz.toLocaleString() + ' 段推理'
+  const parts = []
+  if (st.outTok != null) parts.push('输出 ' + st.outTok.toLocaleString() + ' tok')
+  if (st.rzTok != null) parts.push('推理 ' + st.rzTok.toLocaleString() + ' tok')
+  return parts.join(' · ')
 }
 
 /** Axis tick interval keeping ≤50 gridlines for any span (sub-minute steps serve zoomed-in windows). */
@@ -220,6 +248,7 @@ function buildLane(text){
   const first = evs.find(e => e.type === 'user/message')
   const t0 = first !== undefined ? tOf(first) : tOf(evs[0])
   const rows = []
+  const rowByStep = new Map()
   let cur = null
   const pending = []
   for (const e of evs){
@@ -228,8 +257,16 @@ function buildLane(text){
     const tm = (tOf(e) - t0) / 1000
     if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
-      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '' }
+      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null }
       rows.push(cur)
+      rowByStep.set(cur.step, cur)
+    } else if (t === 'assistant/message' && d.usage && typeof d.usage === 'object'){
+      // 真实 token 用量：assistant/message 自带 turn/step 归属（每步一条，防御性累加）
+      const row = rowByStep.get(d.turn != null ? d.turn + '·' + d.step : d.step)
+      if (row){
+        if (typeof d.usage.reasoningTokens === 'number') row.rzTok = (row.rzTok ?? 0) + d.usage.reasoningTokens
+        if (typeof d.usage.outputTokens === 'number') row.outTok = (row.outTok ?? 0) + d.usage.outputTokens
+      }
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
     } else if (t === 'reasoning-chunks' && cur !== null){
@@ -285,7 +322,7 @@ function buildData(fileTexts){
     for (const r of rows){
       const sv = stepVerdict(r.events)
       const v = sv === null ? 'answer' : sv.v
-      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, v, why: sv === null ? '无工具调用，输出回答' : sv.why }
+      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, rzTok: r.rzTok, outTok: r.outTok, v, why: sv === null ? '无工具调用，输出回答' : sv.why }
       if (v === 'ok' || v === 'answer'){
         main.push(node); lastMain = node
       } else {
@@ -295,6 +332,8 @@ function buildData(fileTexts){
     if (main.length === 0) throw new Error('没有可解析的有效步骤（step/start 事件缺失？）')
     const tools = rows.reduce((n, r) => n + r.events.length, 0)
     const rz = rows.reduce((n, r) => n + r.rz, 0)
+    const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
+    const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
     const T = Math.round(rows[rows.length - 1].e * 10) / 10
     // milestone heuristic: first tool result that looks like a model list
     let mlist = null
@@ -305,7 +344,7 @@ function buildData(fileTexts){
         }
       }
     }
-    return { key: 'l' + (i + 1), model, rows, main, detours, stats: { steps: rows.length, tools, rz, T, main: main.length, detours: detours.length }, mlist }
+    return { key: 'l' + (i + 1), model, rows, main, detours, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length }, mlist }
   })
   const Tmax = Math.max(...lanes.map(l => l.stats.T), 460)
   const milestones = []
@@ -597,7 +636,7 @@ function build(){
     title.textContent = `${laneName(lane)}   ${lane.model ?? '(未知模型)'}`
     const info = el('text', { x: X0 + AXIS_W - 4, y: lay.regionTop + 20, 'text-anchor': 'end', class: 'lane-info' })
     const laneTurns = new Set([...lane.main, ...lane.detours].map(n => n.turn).filter(v => v != null)).size
-    info.textContent = `${laneTurns > 1 ? laneTurns + ' 轮 · ' : ''}${lane.stats.steps} 步（主干 ${lane.stats.main} / 支路 ${lane.stats.detours}）· ${lane.stats.tools} 次工具调用 · reasoning ${lane.stats.rz.toLocaleString()} tok · 总耗时 ${fmtT(lane.stats.T)}`
+    info.textContent = `${laneTurns > 1 ? laneTurns + ' 轮 · ' : ''}${lane.stats.steps} 步（主干 ${lane.stats.main} / 支路 ${lane.stats.detours}）· ${lane.stats.tools} 次工具调用 · ${laneTokLabel(lane.stats)} · 总耗时 ${fmtT(lane.stats.T)}`
     gStatic.appendChild(title); gStatic.appendChild(info)
 
     // explore-phase background band
@@ -699,7 +738,100 @@ function build(){
   const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: '#d97706', 'stroke-width': 2 })
   gTime.appendChild(cur)
   window._cursor = cur
+  applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
 }
+
+/* ==================== 过滤与搜索：状态在 DATA 之外，重建后还原 ==================== */
+let fltFail = false, fltTool = '', fltQ = ''
+
+function nodeMatches(n){
+  if (fltFail && (n.v === 'ok' || n.v === 'answer')) return false
+  if (fltTool !== '' && !(n.tools ?? []).some(tl => tl.name === fltTool)) return false
+  if (fltQ !== ''){
+    const q = fltQ.toLowerCase()
+    const inTools = (n.tools ?? []).some(tl =>
+      String(tl.args ?? '').toLowerCase().includes(q) || String(tl.resFull ?? tl.res ?? '').toLowerCase().includes(q))
+    if (!inTools && !String(n.rzTxtFull ?? n.rzTxt ?? '').toLowerCase().includes(q)) return false
+  }
+  return true
+}
+
+function applyFilter(){
+  const active = fltFail || fltTool !== '' || fltQ !== ''
+  nodeEls.forEach(({ el }) => el.classList.toggle('flt-dim', active && el._node != null && !nodeMatches(el._node)))
+  pathEls.forEach(({ el, det }) => { if (det) el.classList.toggle('flt-dim', active && !nodeMatches(det)) })
+  let hit = 0, total = 0
+  if (active && DATA){
+    for (const l of DATA.lanes) for (const n of [...l.main, ...l.detours]){ total += 1; if (nodeMatches(n)) hit += 1 }
+  }
+  document.getElementById('fltCount').textContent = active ? `命中 ${hit} / ${total} 步` : ''
+}
+
+/** 工具类型下拉从当前数据取集合，保留选中项；选中的工具从数据消失时清空过滤。 */
+function refreshFltTools(){
+  const sel = document.getElementById('fltToolSel')
+  const names = new Set()
+  for (const l of DATA.lanes) for (const n of [...l.main, ...l.detours]) for (const tl of n.tools ?? []) names.add(tl.name)
+  if (fltTool !== '' && !names.has(fltTool)) fltTool = ''
+  sel.innerHTML = '<option value="">全部工具</option>'
+    + [...names].sort().map(x => `<option value="${esc(x)}"${x === fltTool ? ' selected' : ''}>${esc(tlabel(x))}</option>`).join('')
+}
+
+document.getElementById('fltFail').addEventListener('change', e => { fltFail = e.target.checked; applyFilter() })
+document.getElementById('fltToolSel').addEventListener('change', e => { fltTool = e.target.value; applyFilter() })
+document.getElementById('fltQIn').addEventListener('input', e => { fltQ = e.target.value.trim(); applyFilter() })
+
+/* ==================== 导出：当前视图 SVG / PNG（2x） ==================== */
+function serializeSvg(){
+  const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number)
+  const clone = svg.cloneNode(true)
+  clone.setAttribute('xmlns', NS)
+  clone.setAttribute('width', vb[2])
+  clone.setAttribute('height', vb[3])
+  // 页面样式是 <style> 类 + 属性混合，序列化时把全部 CSS 内联进 SVG（body 级选择器在 SVG 内不命中，无害）
+  const css = []
+  for (const sh of document.styleSheets){
+    try { for (const r of sh.cssRules) css.push(r.cssText) } catch { /* 同源内联样式表，正常可读 */ }
+  }
+  const st = el('style', {})
+  st.textContent = css.join('\n')
+  clone.insertBefore(st, clone.firstChild)
+  const bg = el('rect', { x: vb[0], y: vb[1], width: vb[2], height: vb[3], fill: getComputedStyle(document.body).backgroundColor || '#ffffff' })
+  clone.insertBefore(bg, st.nextSibling)
+  return new XMLSerializer().serializeToString(clone)
+}
+
+function dlBlob(blob, name){
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+}
+
+const expName = () => 'trace-maze-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+
+document.getElementById('btnExpSvg').addEventListener('click', () => {
+  dlBlob(new Blob([serializeSvg()], { type: 'image/svg+xml' }), expName() + '.svg')
+})
+
+document.getElementById('btnExpPng').addEventListener('click', () => {
+  const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number)
+  const url = URL.createObjectURL(new Blob([serializeSvg()], { type: 'image/svg+xml' }))
+  const img = new Image()
+  img.onload = () => {
+    const cv = document.createElement('canvas')
+    cv.width = Math.round(vb[2] * 2)
+    cv.height = Math.round(vb[3] * 2)
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height)
+    URL.revokeObjectURL(url)
+    cv.toBlob(b => { if (b) dlBlob(b, expName() + '.png'); else showErr('PNG 导出失败：canvas 编码为空') }, 'image/png')
+  }
+  img.onerror = () => { URL.revokeObjectURL(url); showErr('PNG 导出失败：SVG 栅格化未成功') }
+  img.src = url
+})
 
 /**
  * One step as a duration capsule: a rounded bar spanning x(s)→x(e) (minimum
@@ -779,7 +911,7 @@ function showTipFor(d){
   const tip = document.getElementById('tip')
   let inner = `<div class="th">${laneName(lane)} S${d.step} · 探索支路 · ${vlabel(d.v)}${d.v === 'error' ? '（被打回）' : ''}</div>`
   if (d.why) inner += `<div class="rs">判定依据：${esc(d.why)}</div>`
-  inner += `<div class="rs">时段 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))}（${(d.e - d.s).toFixed(1)}s）· reasoning ${d.rz} tok</div>`
+  inner += `<div class="rs">时段 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))}（${(d.e - d.s).toFixed(1)}s）· ${rzLabel(d)}</div>`
   inner += `<div class="back">出程曲线自分支点 S${d.attach} 分叉（x 位置），于 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))} 生长完成</div>`
   inner += `<div class="back">↩ 此路不通，折返回分支点（S${d.attach}）</div>`
   d.tools.forEach(t => {
@@ -798,7 +930,7 @@ function onHover(e){
   let inner = `<div class="th">${laneName(lane)} S${n.step} · ${g._isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路'} · ${vlabel(n.v)}${n.v === 'error' ? '（被打回）' : ''}</div>`
   if (n.v !== 'answer'){
     if (n.why) inner += `<div class="rs">判定依据：${esc(n.why)}</div>`
-    inner += `<div class="rs">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))}（${(n.e - n.s).toFixed(1)}s）· reasoning ${n.rz} tok</div>`
+    inner += `<div class="rs">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))}（${(n.e - n.s).toFixed(1)}s）· ${rzLabel(n)}</div>`
     if (!g._isMain) inner += `<div class="back">↩ 此路不通，折返回分支点（S${n.attach}）</div>`
     if (g._nAtt) inner += `<div class="back">⦿ 分支原点：${g._nAtt} 条探索支路从这里出发并折返</div>`
     n.tools.forEach(t => {
@@ -839,7 +971,7 @@ function openPanel(n, lane, isMain){
   const chip = document.getElementById('panelChip')
   chip.textContent = (isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路') + ' · ' + vlabel(n.v)
   chip.style.background = VCOLOR[n.v] ?? '#9aa4b8'
-  let inner = `<div class="prow">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))} · 耗时 ${(n.e - n.s).toFixed(1)}s · reasoning ${n.rz} tok${n.turn != null ? ' · 第 ' + n.turn + ' 轮' : ''}</div>`
+  let inner = `<div class="prow">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))} · 耗时 ${(n.e - n.s).toFixed(1)}s · ${rzLabel(n)}${n.turn != null ? ' · 第 ' + n.turn + ' 轮' : ''}</div>`
   if (n.why) inner += `<div class="prow">判定依据：${esc(n.why)}</div>`
   if (!isMain) inner += `<div class="prow" style="color:#d97706">↩ 此路不通，自分支点 S${n.attach} 出发并折返</div>`
   if (liveMode){
@@ -1106,6 +1238,7 @@ function renderFiles(){
 function resetView(){
   document.getElementById('legend').style.display = 'none'
   document.getElementById('controls').style.display = 'none'
+  document.getElementById('fltbar').style.display = 'none'
   document.getElementById('svgwrap').style.display = 'none'
   document.getElementById('stats').innerHTML = ''
   VIEW = null
@@ -1147,11 +1280,13 @@ function renderData(data, opts){
   let h = ''
   DATA.lanes.forEach(l => {
     h += `<div class="card"><div><b>${laneName(l)}</b> <span class="key">${esc(l.model ?? '未知模型')}</span></div>
-      <div class="m">主干 ${l.stats.main} 步 + 支路 ${l.stats.detours} 步 = ${l.stats.steps} 步 · ${l.stats.tools} 次工具调用 · reasoning ${l.stats.rz.toLocaleString()} tok · 总耗时 <b>${fmtT(l.stats.T)}</b></div></div>`
+      <div class="m">主干 ${l.stats.main} 步 + 支路 ${l.stats.detours} 步 = ${l.stats.steps} 步 · ${l.stats.tools} 次工具调用 · ${laneTokLabel(l.stats)} · 总耗时 <b>${fmtT(l.stats.T)}</b></div></div>`
   })
   document.getElementById('stats').innerHTML = h
   document.getElementById('legend').style.display = 'flex'
   document.getElementById('controls').style.display = 'flex'
+  document.getElementById('fltbar').style.display = 'flex'
+  refreshFltTools()
   document.getElementById('svgwrap').style.display = 'block'
   playing = false
   if (timer){ clearInterval(timer); timer = 0 }
@@ -1232,7 +1367,8 @@ function mazeSignature(data){
     for (const arr of [l.main, l.detours]){
       for (const n of arr){
         if (n.live){ parts.push('L' + n.tools.length); continue }
-        parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length)
+        // rzTok 在 assistant/message 终结时一次性到位（流式期间恒空），进签名不会引发重画风暴
+        parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length + ':' + (n.rzTok != null ? 1 : 0))
       }
     }
   }
