@@ -526,13 +526,21 @@ function build(){
   const gTime = svg.appendChild(el('g', { 'clip-path': 'url(#clipTime)' }))
 
   const TS = tickStep(viewSpan())
+  // Sub-minute tick steps need second precision: fmtT alone renders every
+  // deep-zoom label as the same "3m".
+  const tickLab = TS < 60
+    ? rt => rt >= 120 ? Math.floor(rt / 60) + 'm' + String(Math.round(rt % 60)).padStart(2, '0') + 's' : fmtT(rt)
+    : fmtT
   const drawTick = (cx, label, big) => {
     if (cx < X0 - 20 || cx > X0 + AXIS_W + 20) return
     const g = el('g', {})
     g.appendChild(el('line', { x1: cx, y1: 0, x2: cx, y2: DATA.viewH, stroke: '#eceff4', 'stroke-width': big ? 1 : 0.5 }))
-    const tx = el('text', { x: cx, y: 14, 'text-anchor': 'middle', class: big ? 'tick big' : 'tick' })
-    tx.textContent = label
-    g.appendChild(tx)
+    // Fine steps label only the big ticks: "12m14s"-wide labels on every tick overlap.
+    if (TS >= 60 || big){
+      const tx = el('text', { x: cx, y: 14, 'text-anchor': 'middle', class: big ? 'tick big' : 'tick' })
+      tx.textContent = label
+      g.appendChild(tx)
+    }
     gTicks.appendChild(g)
   }
   if (DATA.timeMap){
@@ -540,7 +548,7 @@ function build(){
     // collapsed idle gap renders as a hatched seam labeled with the skipped time.
     for (const seg of DATA.timeMap.segments){
       for (let rt = Math.ceil(seg.rs / TS) * TS; rt <= seg.re + 0.001; rt += TS){
-        drawTick(x(seg.cs + (rt - seg.rs)), fmtT(rt), (rt / TS) % 2 === 0)
+        drawTick(x(seg.cs + (rt - seg.rs)), tickLab(rt), (rt / TS) % 2 === 0)
       }
     }
     for (const gp of DATA.timeMap.gaps){
@@ -555,7 +563,7 @@ function build(){
     }
   } else {
     for (let t = 0; t <= TMAX + 0.001; t += TS){
-      drawTick(x(t), fmtT(t), (t / TS) % 2 === 0)
+      drawTick(x(t), tickLab(t), (t / TS) % 2 === 0)
     }
   }
 
