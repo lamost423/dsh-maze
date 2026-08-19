@@ -8,7 +8,7 @@ Two surfaces, one visual language:
 
 - **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2 logs for a same-axis comparison (e.g. flash vs pro on the same task) with milestone lines.
 
-![Trace Compare: shared timeline, verdict-rationale tooltip, pinned detail panel, failures-only filter + search, wheel zoom](assets/trace-compare.gif)
+![Trace Compare: shared timeline, verdict-rationale tooltip, pinned detail panel, failures-only filter + search, wheel zoom](assets/trace-compare-v023.gif)
 
 - **Live Maze** (per-session conversation tab): the same maze grows in real time while the session executes; detours appear as soon as a tool result settles a step's verdict.
 
