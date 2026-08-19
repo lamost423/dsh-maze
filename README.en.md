@@ -17,8 +17,11 @@ Two surfaces, one visual language:
 ## What the maze shows
 
 - Solid line: the main path — steps whose tool calls succeeded, plus answer nodes.
+- **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
 - Dashed arcs: exploration detours — steps whose tools failed (red ✗) or returned nothing useful (gray ·), with the return arc back to the branch point.
-- Hover any node or arc for the commands, results, timings, and reasoning summary.
+- Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
+- **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
+- **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
 - Playback replays the whole run at up to 300×.
 
 Timeline honesty rules:
@@ -40,7 +43,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.1.2/dsh-trace-compare-0.1.2.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.0/dsh-trace-compare-0.2.0.tgz
 dsh web
 ```
 

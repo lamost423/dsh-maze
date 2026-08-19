@@ -5,11 +5,61 @@ import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import css from './TraceLiveView.module.css'
 
+/** trace-jump payload posted by the maze page's detail panel. */
+interface TraceJumpMessage {
+  kind?: string
+  callId?: string
+  seq?: number
+}
+
+/** How long the jump keeps polling for the target chat row before giving up (chat may still be rendering). */
+const JUMP_SEEK_TRIES = 40
+const JUMP_SEEK_INTERVAL_MS = 100
+
+/**
+ * Switch this conversation column to the Chat view and reveal the step's row.
+ * DOM-routed on purpose: the per-session chat store (view/inspect) is private
+ * to ui-conversation's apply scope, so the plugin drives the visible controls
+ * instead — the first `role=tab` button is the Chat tab (order 0), tool rows
+ * carry `data-chat-call-id`, and a turn's closing assistant message carries
+ * `id="dsh-message-<seq>"`. Works unchanged against stock dsh (rc.6). Rows
+ * older than the chat's loaded window are not found; the jump then degrades
+ * to the view switch alone.
+ */
+function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
+  const scrollport = frame.closest('[data-conversation-scroll]')
+  const column = scrollport?.parentElement
+  if (scrollport === null || scrollport === undefined || column === null || column === undefined) return
+  const chatTab = column.querySelector('[role="tablist"] [role="tab"]')
+  if (chatTab instanceof HTMLElement) chatTab.click()
+  const selector = msg.callId !== undefined
+    ? `[data-chat-call-id="${CSS.escape(msg.callId)}"]`
+    : msg.seq !== undefined ? `[id="dsh-message-${String(msg.seq)}"]` : null
+  if (selector === null) return
+  let tries = 0
+  const seek = (): void => {
+    const target = scrollport.querySelector(selector)
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      target.animate(
+        [{ boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.75)' }, { boxShadow: '0 0 0 3px rgba(37, 99, 235, 0)' }],
+        { duration: 1800, easing: 'ease-out' },
+      )
+      return
+    }
+    tries += 1
+    if (tries < JUMP_SEEK_TRIES) setTimeout(seek, JUMP_SEEK_INTERVAL_MS)
+  }
+  seek()
+}
+
 /**
  * Live maze view: a per-session conversation tab that mirrors the current
  * session's execution as a growing exploration maze. Subscribes to the
  * conversation snapshot (real-time) and pushes converted payloads into the
- * shared maze page inside an isolated iframe.
+ * shared maze page inside an isolated iframe. The page's detail panel posts
+ * trace-jump messages back; this component answers them by switching the
+ * column to the Chat view and revealing the step's row.
  */
 export function TraceLiveView({ useSession, t }: TraceLiveViewProps) {
   const snapshot = useSession(s => s)
@@ -32,6 +82,18 @@ export function TraceLiveView({ useSession, t }: TraceLiveViewProps) {
       frame.contentWindow?.postMessage({ kind: 'trace-maze', data: payload }, '*')
     }
   }
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent): void => {
+      const frame = iframeRef.current
+      if (frame === null || event.source !== frame.contentWindow) return
+      const msg = event.data as TraceJumpMessage | null
+      if (msg === null || msg.kind !== 'trace-jump') return
+      jumpToChat(frame, msg)
+    }
+    window.addEventListener('message', onMessage)
+    return () => { window.removeEventListener('message', onMessage) }
+  }, [])
 
   if (data === null) {
     return <div className={css.empty}>{t('live.empty')}</div>

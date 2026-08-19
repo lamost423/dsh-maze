@@ -13,12 +13,18 @@ export interface MazeTool {
   s: number
   e: number | null
   args: string
+  /** Tooltip excerpt of the result (≤380 chars). */
   res: string
+  /** Detail-panel text of the result (≤5000 chars). */
+  resFull?: string
   err: boolean
   dur: number
   v: 'error' | 'deadend' | 'neutral' | 'ok'
-  /** Call head pairing key; dropped before the payload crosses to the iframe. */
-  _callId?: string
+  /**
+   * Wire call identity: pairs the result during conversion, then anchors the
+   * page's 在对话中定位 jump (the chat rows carry `data-chat-call-id`).
+   */
+  callId?: string
 }
 
 /** One maze node (main step or detour branch). */
@@ -26,6 +32,8 @@ export interface MazeNode {
   step: number
   /** 1-based conversation turn; the page breaks the main path between turns. */
   turn?: number
+  /** Session-log seq of the source assistant node; fallback jump anchor (`dsh-message-<seq>`). */
+  seq?: number
   /** True for the single in-flight step; excluded from the page's redraw signature. */
   live?: boolean
   s: number
@@ -33,6 +41,8 @@ export interface MazeNode {
   tools: MazeTool[]
   rz: number
   rzTxt: string
+  /** Detail-panel reasoning excerpt (≤2000 chars). */
+  rzTxtFull?: string
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'neutral'
   attach?: number
 }
@@ -97,11 +107,14 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
 
   // Verdicts are recomputed after the full scan: at push time the step's
   // tool-results have not been paired yet (they arrive as later nodes).
-  const pushStep = (s: number, e: number, tools: MazeTool[], rz: number, rzTxt: string): MazeNode => {
+  const pushStep = (s: number, e: number, tools: MazeTool[], rz: number, rzTxt: string, seq?: number): MazeNode => {
     nextStep += 1
+    const rzClean = rzTxt.replace(/\s+/g, ' ').trim()
     const node: MazeNode = {
-      step: nextStep, turn: Math.max(turn, 1), s, e, tools, rz, rzTxt: rzTxt.replace(/\s+/g, ' ').trim().slice(0, 240),
+      step: nextStep, turn: Math.max(turn, 1), s, e, tools, rz,
+      rzTxt: rzClean.slice(0, 240), rzTxtFull: rzClean.slice(0, 2000),
       v: 'ok',
+      ...(seq === undefined ? {} : { seq }),
     }
     rows.push(node)
     return node
@@ -123,15 +136,15 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
           const tool: MazeTool = {
             k: 't', name: b.name, s, e: null,
             args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok',
+            callId: b.callId,
           }
-          tool._callId = b.callId
           tools.push(tool)
           pending.push({ tool })
         }
       }
-      cur = pushStep(s, rel(n.time), tools, rz, rzTxt)
+      cur = pushStep(s, rel(n.time), tools, rz, rzTxt, n.seq)
     } else if (n.kind === 'tool-result') {
-      const idx = pending.findIndex(p => p.tool._callId === n.callId)
+      const idx = pending.findIndex(p => p.tool.callId === n.callId)
       if (idx >= 0) {
         const p = pending.splice(idx, 1)[0]!
         p.tool.e = rel(n.time)
@@ -139,6 +152,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         p.tool.err = n.isError
         p.tool.dur = Math.round((p.tool.e - p.tool.s) * 10) / 10
         p.tool.v = toolVerdict(p.tool)
+        p.tool.resFull = p.tool.res.slice(0, 5000)
         p.tool.res = p.tool.res.slice(0, 380)
         const toolEnd = p.tool.e ?? p.tool.s
         if (cur !== null) cur.e = Math.max(cur.e, toolEnd)
@@ -156,7 +170,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     for (const b of snap.partial.blocks) {
       if (b.kind === 'reasoning') { rz += 1; rzTxt += b.text }
       else if (b.kind === 'tool-call') {
-        tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok' })
+        tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok', callId: b.callId })
       }
     }
     if (rz > 0 || tools.length > 0) {

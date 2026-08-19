@@ -12,6 +12,7 @@ import css from './TraceCompareSurface.module.css'
 export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCompareSurfaceProps) {
   const open = useStore(state => state.open)
   const srcDoc = useMemo(() => MAZE_PAGE_HTML, [])
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
   // Any Session navigation while the surface is open — sidebar selection or a
   // new Session — switches the conversation beneath this opaque surface, so it
   // closes to reveal it (mirrors the execution board).
@@ -22,18 +23,29 @@ export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCom
     lastSession.current = currentSession
     if (open && changed) actions.close()
   }, [actions, currentSession, open])
+  // Host-level Esc plus the page's trace-esc relay: keydown lands inside the
+  // iframe window once it has focus, so the page forwards Esc via postMessage.
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') actions.close()
     }
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== iframeRef.current?.contentWindow) return
+      const msg = event.data as { kind?: string } | null
+      if (msg !== null && msg.kind === 'trace-esc') actions.close()
+    }
     window.addEventListener('keydown', onKeyDown)
-    return () => { window.removeEventListener('keydown', onKeyDown) }
+    window.addEventListener('message', onMessage)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('message', onMessage)
+    }
   }, [actions, open])
   if (!open) return null
   return (
     <div className={css.frame}>
-      <iframe title="trace-compare" className={css.iframe} srcDoc={srcDoc} sandbox="allow-scripts allow-modals allow-downloads" />
+      <iframe ref={iframeRef} title="trace-compare" className={css.iframe} srcDoc={srcDoc} sandbox="allow-scripts allow-modals allow-downloads" />
     </div>
   )
 }

@@ -17,8 +17,11 @@
 ## 迷宫画的是什么
 
 - 实线：主干路径——工具调用成功推进的步骤和回答节点。
+- **时长胶囊条**：每个步骤画成从开始到结束的圆角条，判定色填充——3 分钟的 bash 和 0.2 秒的 read 一眼可辨；条够宽时耗时直接写在条内。
 - 虚线弧：探索支路——工具失败（红 ✗）或结果扑空（灰 ·）的步骤，以及折返回分支点的回程线。
-- 悬停任意节点或弧线，查看命令、返回内容、耗时和思考摘要。
+- 悬停任意节点或弧线快速预览；**点击**在右侧打开固定详情面板——完整命令与返回内容（各带复制按钮，返回内容保留前 5000 字）、耗时、判定、思考摘要，Esc 或 × 关闭。
+- **缩放导航**：滚轮以光标为中心横向缩放，拖拽平移，双击空白处或「⤢ 整图」按钮复位；轴刻度随缩放窗口自动加密（最细到 1 秒）。
+- **跳转对话**（仅实时页签）：详情面板里点「在对话中定位此步骤」，宿主切回对话页并滚动高亮对应的工具行。行太老、超出对话已加载窗口时退化为只切页签。
 - 播放功能最高 300× 回放整次运行。
 
 时间轴的诚实规则：
@@ -40,7 +43,7 @@
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.1.2/dsh-trace-compare-0.1.2.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.0/dsh-trace-compare-0.2.0.tgz
 dsh web
 ```
 
