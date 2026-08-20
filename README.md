@@ -3,7 +3,8 @@
 中文 | [English](README.en.md)
 
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
-[![Listed in awesome-deepseek-harness](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/0xsline/awesome-deepseek-harness)
+[![Listed in awesome-deepseek-harness (Dominic789654)](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/Dominic789654/awesome-deepseek-harness)
+[![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的执行轨迹可视化插件：把智能体真实的探索过程画出来——它坚持推进的主干、失败或扑空的支路、以及折返点，全部落在同一根时间轴上。
 
