@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createTraceCompareViewStore } from './store.ts'
+import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { postThemeTo, watchHostTheme } from './theme-sync.ts'
 import css from './TraceCompareSurface.module.css'
@@ -10,7 +12,7 @@ import css from './TraceCompareSurface.module.css'
  * isolated iframe. The page parses uploaded session logs and renders the
  * exploration maze on a shared timeline; nothing here reaches the host.
  */
-export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCompareSurfaceProps) {
+export function TraceCompareSurface({ useStore, actions, useSessions, locale }: TraceCompareSurfaceProps) {
   const open = useStore(state => state.open)
   const srcDoc = useMemo(() => MAZE_PAGE_HTML, [])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -48,6 +50,12 @@ export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCom
     if (!open) return
     return watchHostTheme(() => { postThemeTo(iframeRef.current) })
   }, [open])
+  // 宿主语言同步：打开时推一次，打开期间跟随语言切换（照主题同步的通道模式）。
+  useEffect(() => {
+    if (!open) return
+    postLocaleTo(iframeRef.current, locale)
+    return locale.subscribe(() => { postLocaleTo(iframeRef.current, locale) })
+  }, [locale, open])
   if (!open) return null
   return (
     <div className={css.frame}>
@@ -57,13 +65,17 @@ export function TraceCompareSurface({ useStore, actions, useSessions }: TraceCom
         className={css.iframe}
         srcDoc={srcDoc}
         sandbox="allow-scripts allow-modals allow-downloads"
-        onLoad={() => { postThemeTo(iframeRef.current) }}
+        onLoad={() => { postThemeTo(iframeRef.current); postLocaleTo(iframeRef.current, locale) }}
       />
     </div>
   )
 }
 
-/** Center surface props: the runtime kit (session navigation) plus the shared view store. */
+/** Center surface props: the runtime kit (session navigation), the shared view store, and the host locale service. */
 export type TraceCompareSurfaceProps =
   PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createTraceCompareViewStore>>
+  & {
+    /** 宿主 locale 服务：iframe 页面文案跟随其 active 语言。 */
+    locale: LocaleRuntime
+  }

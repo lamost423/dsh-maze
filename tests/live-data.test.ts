@@ -93,9 +93,9 @@ describe('snapshotToMazeData', () => {
       for (const t of n.tools) if (t.e !== null) expect(t.why, `tool ${t.callId}`).toBeTruthy()
     }
     const err = lane.detours.find(n => n.v === 'error')!
-    expect(err.why).toContain('错误标志')
+    expect(err.why).toEqual({ k: 'errFlag' })
     const dead = lane.detours.find(n => n.v === 'deadend')!
-    expect(dead.why).toContain('扑空')
+    expect(dead.why!.k).toBe('searchEmpty')
   })
 
   it('keeps short write confirmations on the main path (no length verdicts)', () => {
@@ -112,7 +112,7 @@ describe('snapshotToMazeData', () => {
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.stats.detours).toBe(0)
     expect(lane.main[0]!.v).toBe('ok')
-    expect(lane.main[0]!.why).toContain('写入类')
+    expect(lane.main[0]!.why).toEqual({ k: 'writeOk' })
   })
 
   it('marks blind-retry clusters: repeated near-identical calls with a failure inside', () => {
@@ -134,9 +134,9 @@ describe('snapshotToMazeData', () => {
     // both steps leave the main path: the failure, and its blind retry
     expect(lane.stats.detours).toBe(2)
     const retry = lane.detours.find(n => n.v === 'retry')!
-    expect(retry.why).toContain('盲目重试')
+    expect(retry.why).toEqual({ k: 'retryCluster', p: [2, 1] })
     const err = lane.detours.find(n => n.v === 'error')!
-    expect(err.tools[0]!.why).toContain('重试簇')
+    expect(err.tools[0]!.why2).toEqual({ k: 'retryCtx', p: [2] })
   })
 
   it('carries real token usage per step and lane totals; null without usage', () => {

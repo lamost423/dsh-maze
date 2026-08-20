@@ -68,9 +68,10 @@ describe('snapshotToMazeData with subagent children', () => {
     expect(node.s).toBeCloseTo(13, 1)
     expect(node.e).toBeCloseTo(30, 1)
     expect(node.v).toBe('ok')
-    expect(node.label).toBe('子代理 修测试')
-    expect(node.why).toContain('子代理「修测试」')
-    expect(node.why).toContain('2 次工具调用')
+    expect(node.label).toBe('修测试')
+    expect(node.sub).toBe(true)
+    // 结构化判定依据：{k:'child', p:[label, steps, tools, state]}，展示端按界面语言渲染
+    expect(node.why).toEqual({ k: 'child', p: ['修测试', 2, 2, 0] })
     // Anchored at the parent main step that contains the child's start,
     // with the spawning call's row seq as the chat-jump anchor.
     expect(node.attach).toBe(lane.main[0]!.step)
@@ -83,14 +84,14 @@ describe('snapshotToMazeData with subagent children', () => {
     const node = data!.lanes[0]!.detours[0]!
     expect(node.live).toBe(true)
     expect(node.v).toBe('ok')
-    expect(node.why).toContain('运行中')
+    expect(node.why!.p![3]).toBe(1)   // state 1 = 运行中
   })
 
   it('marks a child whose last settled step errored', () => {
     const data = snapshotToMazeData(parentSnap(), [child({}, childNodes({ errorTail: true }))])
     const node = data!.lanes[0]!.detours[0]!
     expect(node.v).toBe('error')
-    expect(node.why).toContain('以错误收尾')
+    expect(node.why!.p![3]).toBe(2)   // state 2 = 以错误收尾
   })
 
   it('skips children without usable rows and extends Tmax past long children', () => {

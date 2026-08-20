@@ -7,6 +7,7 @@
  */
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import type { VerdictWhy } from './verdict.js'
 
 /** One tool event in the maze model. */
 export interface MazeTool {
@@ -22,8 +23,10 @@ export interface MazeTool {
   err: boolean
   dur: number
   v: 'error' | 'deadend' | 'retry' | 'ok'
-  /** 判定依据文本（tooltip/详情面板展示）。 */
-  why?: string
+  /** 结构化判定依据（展示端按界面语言渲染）。 */
+  why?: VerdictWhy
+  /** 附加依据（盲目重试簇里失败成员的簇上下文）。 */
+  why2?: VerdictWhy
   /**
    * Wire call identity: pairs the result during conversion, then anchors the
    * page's 在对话中定位 jump (the chat rows carry `data-chat-call-id`).
@@ -54,8 +57,12 @@ export interface MazeNode {
   /** 该步真实输出 token（含推理），同上口径。 */
   outTok?: number | null
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
-  /** 步级判定依据（最坏工具的依据）。 */
-  why?: string
+  /** 步级结构化判定依据（最坏工具的依据；展示端按界面语言渲染）。 */
+  why?: VerdictWhy
+  /** 附加依据（最坏工具携带的重试簇上下文）。 */
+  why2?: VerdictWhy
+  /** True marks an aggregated subagent child node (display composes its label). */
+  sub?: true
   attach?: number
 }
 
@@ -242,15 +249,16 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
     if (r === liveRow) continue
     if (r.tools.length === 0) {
       r.v = 'answer'
-      r.why = '无工具调用，输出回答'
+      r.why = { k: 'noTools' }
       continue
     }
     const sv = stepVerdict(r.tools.filter(t => t.e !== null))
     if (sv !== null) {
       r.v = sv.v
       if (sv.why !== undefined) r.why = sv.why
+      if (sv.why2 !== undefined) r.why2 = sv.why2
     } else {
-      r.why = '工具结果未返回，暂留主干'
+      r.why = { k: 'pendingTools' }
     }
   }
 
@@ -278,18 +286,20 @@ function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number
   const settledRows = rows.filter(r => r !== liveRow)
   const lastSettled = settledRows[settledRows.length - 1]
   const v: MazeNode['v'] = child.running ? 'ok' : lastSettled?.v === 'error' ? 'error' : 'ok'
-  const state = child.running ? ' · 运行中' : lastSettled?.v === 'error' ? ' · 以错误收尾' : ''
+  // 状态码进依据参数：0 = 已完成，1 = 运行中，2 = 以错误收尾（展示端按语言渲染）。
+  const state = child.running ? 1 : lastSettled?.v === 'error' ? 2 : 0
   const short = child.label.length > 12 ? `${child.label.slice(0, 12)}…` : child.label
   return {
     step: CHILD_STEP_BASE + index,
-    label: `子代理 ${short}`,
+    label: short,
+    sub: true,
     s, e, tools, rz,
     rzTxt: rzTxt.slice(0, 240),
     rzTxtFull: rzTxt.slice(0, 2000),
     ...(rzTok === null ? {} : { rzTok }),
     ...(outTok === null ? {} : { outTok }),
     v,
-    why: `子代理「${child.label}」· ${String(rows.length)} 步 · ${String(tools.length)} 次工具调用${state}`,
+    why: { k: 'child', p: [child.label, rows.length, tools.length, state] },
     ...(child.running ? { live: true } : {}),
   }
 }

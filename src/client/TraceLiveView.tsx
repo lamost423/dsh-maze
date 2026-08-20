@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
+import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { SubagentMazeSource } from './subagent-lanes.ts'
 import { postThemeTo, watchHostTheme } from './theme-sync.ts'
@@ -65,7 +67,7 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
  * trace-jump messages back; this component answers them by switching the
  * column to the Chat view and revealing the step's row.
  */
-export function TraceLiveView({ useSession, sessionId, sessions, t }: TraceLiveViewProps) {
+export function TraceLiveView({ useSession, sessionId, sessions, locale, t }: TraceLiveViewProps) {
   const snapshot = useSession(s => s)
   // One roster per (service, session); disposed with the view or on session switch.
   const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
@@ -86,6 +88,7 @@ export function TraceLiveView({ useSession, sessionId, sessions, t }: TraceLiveV
   const onLoad = (): void => {
     const frame = iframeRef.current
     postThemeTo(frame)   // 主题先于数据：首次 build 即按宿主主题着色
+    postLocaleTo(frame, locale)   // 语言同理：首次 build 即按宿主语言渲染文案
     const payload = dataRef.current
     if (frame !== null && payload !== null) {
       frame.contentWindow?.postMessage({ kind: 'trace-maze', data: payload }, '*')
@@ -94,6 +97,11 @@ export function TraceLiveView({ useSession, sessionId, sessions, t }: TraceLiveV
 
   // 宿主主题翻转时同步进 iframe（body[data-ds-dark-theme] 属性观察）。
   useEffect(() => watchHostTheme(() => { postThemeTo(iframeRef.current) }), [])
+  // 宿主语言切换时同步进 iframe（照主题同步的通道模式）。
+  useEffect(() => {
+    postLocaleTo(iframeRef.current, locale)
+    return locale.subscribe(() => { postLocaleTo(iframeRef.current, locale) })
+  }, [locale])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent): void => {
@@ -124,8 +132,10 @@ export function TraceLiveView({ useSession, sessionId, sessions, t }: TraceLiveV
   )
 }
 
-/** Live view props: the conversation view runtime kit, the sessions service, and locale copy. */
+/** Live view props: the conversation view runtime kit, the sessions service, the host locale service, and locale copy. */
 export type TraceLiveViewProps = ConvViewProps & PropsLocale<'traceCompare'> & {
   /** Root sessions service; supplies the subagent child roster and projections. */
   sessions: ISessions
+  /** 宿主 locale 服务：iframe 页面文案跟随其 active 语言。 */
+  locale: LocaleRuntime
 }

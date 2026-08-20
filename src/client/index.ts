@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TraceCompareTrigger } from './TraceCompareTrigger.tsx'
-import { TraceCompareSurface } from './TraceCompareSurface.tsx'
+import { TraceCompareSurface, type TraceCompareSurfaceProps } from './TraceCompareSurface.tsx'
 import { TraceLiveView, type TraceLiveViewProps } from './TraceLiveView.tsx'
 import { en, zh, type TraceCompareKey } from './locales.ts'
 import { createTraceCompareViewStore } from './store.ts'
@@ -43,17 +43,20 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     locale: NS,
     store: viewStore,
   }, TraceCompareTrigger))
+  // Service dependencies ride closure components: the slot kit owns the
+  // per-slot props while the plugin owns its service dependencies (sessions,
+  // and the locale runtime the iframe pages follow for their copy).
+  const BoundTraceCompareSurface = (props: Omit<TraceCompareSurfaceProps, 'locale'>) =>
+    createElement(TraceCompareSurface, { ...props, locale: ctx.locale })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'trace-compare',
     order: 10,
     locale: NS,
     store: viewStore,
-  }, TraceCompareSurface))
-  // The sessions service rides a closure component: the slot kit owns the
-  // per-session props while the plugin owns its service dependency.
-  const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions'>) =>
-    createElement(TraceLiveView, { ...props, sessions: ctx.sessions })
+  }, BoundTraceCompareSurface))
+  const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions' | 'locale'>) =>
+    createElement(TraceLiveView, { ...props, sessions: ctx.sessions, locale: ctx.locale })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'trace-live',

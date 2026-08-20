@@ -4,6 +4,9 @@
  * 剥掉 export 前缀后注入页面脚本的 VERDICT 占位符——改这里即同时改两条链路。
  * 类型声明在 verdict.d.ts（手写，改导出时同步）。
  *
+ * 判定依据（why/why2）是结构化键值 { k, p }，不含任何语言的成品文案——展示端
+ * （maze-upload.html 的 whyText）按当前界面语言渲染，切语言即时生效。
+ *
  * 阈值与分类按 2026-08-19 三个真实会话（338 次工具调用）校准拍定，依据见工作区
  * PROPOSAL-trace-compare-verdict.md；VERDICT_RULES 各参数可调，改后重跑校准脚本核对。
  */
@@ -45,26 +48,26 @@ export const VERDICT_RULES = {
 export const SEV = { error: 4, retry: 3, deadend: 2, ok: 0, answer: 0 }
 
 /**
- * 单工具判定：错误标志 → 失败特征 → 按工具分类；返回判定值和依据文本。
+ * 单工具判定：错误标志 → 失败特征 → 按工具分类；返回判定值和结构化依据 { k, p }。
  * ev.res 必须传**未截断**的返回全文——上传与实时两条链路统一在同一份文本上判定，
  * 否则同一步会在两种模式下判出不同结果（2026-08-19 实测踩过）。
  */
 export function toolVerdict(ev){
-  if (ev.err) return { v: 'error', why: '工具返回错误标志（isError）' }
+  if (ev.err) return { v: 'error', why: { k: 'errFlag' } }
   const txt = (ev.res ?? '').trim()
   const head = txt.slice(0, VERDICT_RULES.ERROR_HEAD_SCAN)
   const tail = txt.slice(-VERDICT_RULES.ERROR_TAIL_SCAN)
   const strong = VERDICT_RULES.ERROR_PATTERNS_STRONG.exec(head) ?? VERDICT_RULES.ERROR_PATTERNS_STRONG.exec(tail)
-  if (strong !== null) return { v: 'error', why: '输出命中失败特征「' + strong[0].slice(0, 48) + '」' }
+  if (strong !== null) return { v: 'error', why: { k: 'errStrong', p: [strong[0].slice(0, 48)] } }
   const weak = VERDICT_RULES.ERROR_PATTERNS_WEAK.exec(head)
-  if (weak !== null) return { v: 'error', why: '输出开头命中失败特征「' + weak[0].slice(0, 48) + '」' }
-  if (VERDICT_RULES.WRITE_TOOLS.includes(ev.name)) return { v: 'ok', why: '写入类工具，无错误即成功' }
+  if (weak !== null) return { v: 'error', why: { k: 'errWeak', p: [weak[0].slice(0, 48)] } }
+  if (VERDICT_RULES.WRITE_TOOLS.includes(ev.name)) return { v: 'ok', why: { k: 'writeOk' } }
   if (VERDICT_RULES.SEARCH_TOOLS.includes(ev.name)){
-    if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: txt === '' ? '检索返回为空，判为扑空' : '检索开头命中无结果特征，判为扑空' }
-    return { v: 'ok', why: '检索有返回' }
+    if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: { k: txt === '' ? 'searchEmpty' : 'searchNoHit' } }
+    return { v: 'ok', why: { k: 'searchOk' } }
   }
-  if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: '退出正常但无输出，判为扑空' }
-  return { v: 'ok', why: '退出正常且有输出' }
+  if (VERDICT_RULES.NO_RESULT_PATTERNS.test(head)) return { v: 'deadend', why: { k: 'exitNoOut' } }
+  return { v: 'ok', why: { k: 'exitOk' } }
 }
 
 /** 步级判定：返回该步最坏判定的工具（其 v/why 即步判定与依据）；无参与投票的工具时返回 null。 */
@@ -95,7 +98,7 @@ export function argSimilarity(a, b){
  * 盲目重试簇标注（借 AgentLens 的确定性检测）：时间序上连续的「同工具 + 参数相似」
  * 调用簇，且簇内至少一次失败，才算盲目重试——不加失败约束会把「连续编辑同一文件」
  * 这类正常工作方式冤枉进去（edit 参数只有文件路径）。就地把簇内非失败调用改判
- * v='retry' 并写依据；失败调用保持 error、依据追加簇上下文。返回命中簇数。
+ * v='retry' 并写结构化依据；失败调用保持 error，簇上下文追加在 why2。返回命中簇数。
  * calls 必须按时间序传入，且只传已有结果的调用（实时模式排除 in-flight）。
  */
 export function markRetryClusters(calls){
@@ -113,8 +116,8 @@ export function markRetryClusters(calls){
       if (fails > 0){
         clusters += 1
         for (const c of cluster){
-          if (c.v === 'error') c.why = (c.why ?? '') + '；处于连续重试簇（同一操作共 ' + len + ' 次）'
-          else { c.v = 'retry'; c.why = '同一操作连续重试 ' + len + ' 次（其中 ' + fails + ' 次失败），判为盲目重试' }
+          if (c.v === 'error') c.why2 = { k: 'retryCtx', p: [len] }
+          else { c.v = 'retry'; c.why = { k: 'retryCluster', p: [len, fails] } }
         }
       }
     }
