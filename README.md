@@ -62,9 +62,11 @@ Compatibility: verified against official `0.1.0-rc.6` (build + full test suite) 
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz
+dsh plugin --profile web add dsh-trace-compare
 dsh web
 ```
+
+Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz`
 
 To install from a checkout instead:
 
