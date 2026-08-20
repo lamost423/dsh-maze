@@ -1,67 +1,67 @@
 # dsh-trace-compare
 
-English | [中文](README.zh.md)
+中文 | [English](README.en.md)
 
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-deepseek-harness](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/0xsline/awesome-deepseek-harness)
 
-Trace visualization for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): see how the agent actually explored — the main path it committed to, the detours that failed or dead-ended, and where it backtracked — on one shared timeline.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的执行轨迹可视化插件：把智能体真实的探索过程画出来——它坚持推进的主干、失败或扑空的支路、以及折返点，全部落在同一根时间轴上。
 
-Two surfaces, one visual language:
+两个入口，一套视觉语言：
 
-- **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2 logs for a same-axis comparison (e.g. flash vs pro on the same task) — answer nodes auto-align per turn, comparison anchors can be pinned by hand, and a per-turn inventory tallies the detour gap between the two runs.
+- **Trace 对比**（侧边栏入口）：上传 1 个 session log 看单次运行的迷宫，或上传 2 个做同轴对比（比如同一任务 flash 与 pro 的跑法差异）——按轮次自动对齐两边的回答节点，可手动钉锚点，并按轮次盘点两边的支路差额。
 
-![Trace Compare: shared timeline, verdict-rationale tooltip, pinned detail panel, failures-only filter + search, wheel zoom](assets/trace-compare-v023b.gif)
+![Trace 对比：同轴对比 → 悬停看判定依据 → 详情面板 → 只看失败/重试 + 搜索 → 滚轮缩放](assets/trace-compare-v023b.gif)
 
-- **Live Maze** (per-session conversation tab): the same maze grows in real time while the session executes; detours appear as soon as a tool result settles a step's verdict.
+- **实时迷宫**（会话内页签）：同一张迷宫图随当前会话执行实时生长；某一步的工具结果一旦落定，支路立刻显现。
 
-![Live Maze: the maze grows while the session runs; idle waits fold away](assets/live-maze.gif)
+![实时迷宫：会话执行中迷宫实时生长，空闲等待自动折叠](assets/live-maze.gif)
 
-## What the maze shows
+## 迷宫画的是什么
 
-- Solid line: the main path — steps whose tool calls succeeded, plus answer nodes.
-- **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
-- **Parallel tool-call rows** (since v0.3.2): when a step fires ≥2 tool calls, each call renders as a thin waterfall bar under the capsule at its real start→end, colored by its own verdict — see at a glance which of the parallel calls dragged or failed; hover a bar for that call's command/result/rationale. Lane height adapts to the maximum concurrency; detour nodes keep their "+N" label (fixed lane slots; the panel lists everything).
-- Dashed arcs: exploration detours — steps whose tools failed (red ✗), searched and found nothing (gray ·), or blind-retried (gray ↻), with the return arc back to the branch point.
-- **Subagent branches** (since v0.4.0, live tab): dsh subagent child sessions spawned by the model render as aggregated detour nodes branching off the main path — anchored at the spawning step on the parent's clock, with the child's judged tool calls as sub-bars; running children grow live and read "still running". Hover cards and the detail panel carry the subagent identity and spawn/rejoin copy; clicking jumps back to the spawning row. Only real task subagents qualify (`origin: 'subagent'`) — manual branch-offs and side chats stay out. Requires the host's background history-open capability; absent on the official rc line the feature hides silently.
-- Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
-- **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
-- **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
-- **Search & filter**: a toolbar with a failures/retries-only toggle, per-tool filtering, and full-text search over commands and results (including the 5000-char panel text); non-matching nodes and arcs fade to 15% opacity with a live hit count. Filter state survives live-mode rebuilds.
-- **Turn alignment lines** (two-session compare, since v0.3.0): each turn's answer nodes are auto-connected with a comparison line labeled with both wall-clock arrival times, the delta, and that turn's detour counts (e.g. "Turn 3 answer: 1st 4m ↔ 2nd 6m (Δ2m) · detours 4↔0"). Only turns present in both runs get a line — the old corpus-specific "model list result" regex milestone is retired.
-- **Manual anchors** (two-session compare): after "🔗 add anchor", click one node in each lane to pin a comparison line with its time delta; click the line to delete, Esc cancels picking. Useful for pinning semantically equivalent moments that sit in different turns.
-- **Detour inventory** (two-session compare): "📋 detour inventory" opens a per-turn table — each side's detour step count, wall-clock time, verdict breakdown (✗ failure / ↻ blind retry / · dead end) and the verdict-time gap (e.g. "session 2 wasted 48.4s more"); clicking a row zooms to that turn and keeps only its detours visible. A turn present on one side only shows "—" — the absence itself is signal.
-- **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined; **exports are always light-background** regardless of the page's current theme (built for sharing).
-- **Theme following** (since v0.3.1): the page tracks the host dsh light/dark theme (the host components watch `body[data-ds-dark-theme]` and postMessage into the iframe); standalone opens follow the system preference.
-- **Compact header** (since v0.3.1): once data renders, the intro text hides, the upload zone collapses to a slim strip, the per-lane stat cards hide (the same info lives in the lane bands), and the legend fits one row — the maze gets nearly the whole viewport.
-- Playback replays the whole run at up to 300×.
+- 实线：主干路径——工具调用成功推进的步骤和回答节点。
+- **时长胶囊条**：每个步骤画成从开始到结束的圆角条，判定色填充——3 分钟的 bash 和 0.2 秒的 read 一眼可辨；条够宽时耗时直接写在条内。
+- **并行工具分行**（v0.3.2 起）：一步内 ≥2 次工具调用时，每次调用画成胶囊条下方的细小条（瀑布惯例），按各自真实起止摆位、按各自判定上色——一眼看出并行发的几个调用里哪个拖了时间、哪个失败；悬停单条看该次调用的命令/返回/判定依据，泳道高度随最大并行数自适应。支路节点保持「+N」标签（其空间为固定泳道格，详情面板已列全）。
+- 虚线弧：探索支路——工具失败（红 ✗）、检索扑空（灰 ·）或盲目重试（灰 ↻）的步骤，以及折返回分支点的回程线。
+- **子代理支路**（v0.4.0 起，实时页签）：模型派生的 dsh 子代理会话画成主干上分出的聚合支路节点——挂靠在派生它的那一步、与父会话共享时间轴，节点子条是子代理全部已判定的工具调用，运行中的子代理实时生长并标注「仍在运行」；悬停/详情面板显示「子代理支路」身份与派生汇回关系，点击跳回主对话中的派生位置。只认真正的任务子代理（`origin: 'subagent'`），手动分支和 side-chat 侧聊不入图。依赖宿主「后台加载子会话历史」的能力，官方 rc 线暂缺该能力时自动静默隐藏。
+- 悬停任意节点或弧线快速预览；**点击**在右侧打开固定详情面板——完整命令与返回内容（各带复制按钮，返回内容保留前 5000 字）、耗时、判定、思考摘要，Esc 或 × 关闭。
+- **缩放导航**：滚轮以光标为中心横向缩放，拖拽平移，双击空白处或「⤢ 整图」按钮复位；轴刻度随缩放窗口自动加密（最细到 1 秒）。
+- **跳转对话**（仅实时页签）：详情面板里点「在对话中定位此步骤」，宿主切回对话页并滚动高亮对应的工具行。行太老、超出对话已加载窗口时退化为只切页签。
+- **搜索与过滤**：工具行提供「只看失败/重试」开关、按工具类型过滤、命令与返回内容全文搜索（含 5000 字面板全文）；不命中的节点与支路淡化到 15% 透明度，实时显示命中步数。实时模式下过滤状态在重建后自动还原。
+- **轮次对齐线**（双会话对比，v0.3.0 起）：每一轮的回答节点自动互连一条对比线，标注两边到达该轮的墙钟时刻、时差和该轮支路数差（如「第 3 轮回答：1st 4m ↔ 2nd 6m（Δ2m）· 支路 4↔0」）。只连两边都有的轮次——旧版从特定任务总结的「模型列表结果」正则里程碑已退役。
+- **手动锚点**（双会话对比）：「🔗 加锚点」后在两条泳道各点一个节点，钉一条带时差标注的对比线；点线删除，Esc 取消选点。适合钉住两边语义等价但轮次错位的时刻。
+- **支路盘点**（双会话对比）：「📋 支路盘点」打开按轮次的差额表——每轮两边各自的支路步数、墙钟耗时、类别构成（✗ 失败 / ↻ 无效重试 / · 扑空）和差额结论（如「第 2 会话多耗 48.4s」）；点一行缩放到该轮并只保留该轮支路，其余淡化。一边有这轮另一边没有显示「—」，缺席本身就是信号。
+- **导出**：一键导出当前视图（含缩放窗口与过滤淡化状态）为 SVG 或 2x PNG，样式已内联、拿去即用；**无论页面当前是浅色还是暗色，导出固定浅色底**（分享场景）。
+- **主题跟随**（v0.3.1 起）：页面随宿主 dsh 的明暗主题自动切换（宿主组件监听 `body[data-ds-dark-theme]` 并 postMessage 进 iframe）；独立打开时按系统偏好。
+- **紧凑页头**（v0.3.1 起）：出数据后说明文字隐藏、上传区收成细条、泳道统计卡隐藏（同信息已画在泳道带内）、图例压成一行——迷宫拿走绝大部分视口。
+- 播放功能最高 300× 回放整次运行。
 
-Timeline honesty rules:
+时间轴的诚实规则：
 
-- **Idle folding**: stretches with no step or tool activity for over 60 s (you thinking between turns) collapse into a thin `⏸` seam labeled with the skipped duration. Axis ticks keep wall-clock labels inside activity segments.
-- Step identity is turn-qualified (`S15·47`), so multi-turn sessions attach detours to the right nodes.
-- Durations, tool timings, and totals stay wall-clock; only the axis is compressed.
-- **The live tab renders only the conversation's loaded event window** (honestly labeled since v0.2.3): stale steps from earlier turns leaking into the window edge are dropped and noted as "⏮ N earlier steps not loaded" instead of piling at 0 s and inflating stats; for the whole session, download the log and use the upload view.
-- **Tokens are real** (since v0.2.2): reasoning/output tokens come from the session log's `assistant/message` `usage` (the old "reasoning N tok" counted streaming chunks, not tokens). Logs without usage fall back to an honest "N reasoning segments" label.
+- **空闲折叠**：超过 60 秒没有任何步骤/工具活动的区间（比如两轮对话之间你在思考）压缩成一条带 `⏸` 标注的细缝，标明省略了多久；活动段内的刻度仍显示真实墙钟时间。
+- 步骤标识带轮次（`S15·47`），多轮会话的支路不会挂错节点。
+- 步骤时长、工具耗时、总耗时都保持墙钟真值，只有轴被压缩。
+- **实时页签只画对话已加载的事件窗口**（v0.2.3 起诚实标注）：窗口边缘残留的更早轮次步骤会被丢弃并标注「⏮ 另有 N 步更早历史未加载」，不再钳到 0 秒堆在左边缘、虚高统计；要看全会话用「Session log 下载 → 上传对比」。
+- **token 是真值**（v0.2.2 起）：推理/输出 token 读自 session log 里 `assistant/message` 的 `usage`（此前的「reasoning N tok」数的是流式段数，不是 token）。日志没有 usage 时标签诚实回退为「N 段推理」。
 
-Verdict honesty rules (since v0.2.1):
+判定的诚实规则（v0.2.1 起）：
 
-- **No output-length verdicts.** Per-tool verdicts layer: error flag (isError) → failure signatures → per-tool-class rules (write tools succeed unless errored; search tools only dead-end on empty results; bash and unknown tools succeed with any output).
-- **Failure signatures scan only the head and tail windows** (since v0.2.3): real errors either lead the output or sit in the appended stderr section, while error-looking text QUOTED mid-output (git log, file reads, log dumps) is deliberately ignored — a command that prints "upstream returns HTTP 400" inside a commit message did not itself fail. Both render paths judge the same untruncated text.
-- **Blind retries** are behavioral: only consecutive same-tool, similar-args call clusters containing at least one failure are marked — following AgentLens-style deterministic waste detection for SWE-agent trajectories.
-- Every verdict carries a **rationale string**, visible in the hover tooltip and the detail panel.
-- All thresholds and tool classes live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation (spliced in at build time).
+- **不按输出长度判定**。单工具判定三层：错误标志（isError）→ 失败特征 → 按工具分类（写入类无错误即成功；检索类空结果才算扑空；bash 及未知工具有输出即成功）。
+- **失败特征只扫开头与末尾窗口**（v0.2.3 起）：真实报错要么从开头开始说、要么是追加在末尾的 stderr 段；而 git log / 读文件 / 转储日志时**引用**的报错字样悬在长文本中部——判定刻意不看那里，避免把「病历」当「发病」（实测案例：提交信息里写 "upstream returns HTTP 400" 被误判为该命令失败）。两条渲染链路统一在未截断的全文上判定。
+- **盲目重试**是行为学判定：时间序上连续的「同工具 + 参数相似」调用簇、且簇内至少一次失败，才标为无效重试——借鉴 AgentLens 对 SWE-agent 轨迹「浪费」的确定性检测。
+- 每个判定都带**依据文本**，悬停 tooltip 和详情面板可见（如「同一操作连续重试 4 次（其中 1 次失败），判为盲目重试」）。
+- 全部阈值与分类在 `src/client/verdict.js` 的 `VERDICT_RULES` 常量里，可按项目语料调整；页面与实时两条渲染链路共用这一份实现（构建期注入）。
 
-## Session log support
+## 支持的 session log 格式
 
-Upload accepts DSH session logs in any of these forms, detected by content (the file name does not matter — macOS duplicates like `session.jsonl 2` work):
+按文件内容识别格式，文件名任意（macOS 复制出的「session.jsonl 2」也能直接选）：
 
-- plain `.jsonl` (session format v0 event streams)
-- `.jsonl.zstd` exactly as stored under `~/.dsh/sessions/` — decompressed in the browser (native `DecompressionStream('zstd')` when available, bundled [fzstd](https://github.com/101arrowz/fzstd) otherwise)
+- 纯文本 `.jsonl`（session 格式 v0 事件流）
+- `~/.dsh/sessions/` 下原样的 `.jsonl.zstd`——浏览器端直接解压（原生 `DecompressionStream('zstd')` 可用时优先，否则用内置的 [fzstd](https://github.com/101arrowz/fzstd)）
 
-## Install
+## 安装
 
-Compatibility: verified against official `0.1.0-rc.6` (build + full test suite) and `rc.8` (slot/type audit + live acceptance); the peer range covers `rc.6` through the current rc line, and every new rc release gets a follow-up check.
+兼容性：已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证；peer 范围覆盖 `rc.6` 到当前 rc 线，且随官方每个新 rc 版本跟进复验。
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
@@ -69,9 +69,9 @@ dsh plugin --profile web add dsh-trace-compare
 dsh web
 ```
 
-Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz`
+想钉住特定版本？每个 Release 也附 tgz：`dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz`
 
-To install from a checkout instead:
+从源码安装：
 
 ```sh
 git clone https://github.com/lamost423/dsh-trace-compare.git
@@ -83,74 +83,74 @@ dsh plugin --profile web add .
 dsh web
 ```
 
-After a restart of `dsh web`, the sidebar footer gains a **Trace Compare** entry and every session view gains a **Live Maze** tab.
+重启 `dsh web` 后，侧边栏底部出现「Trace 对比」入口，每个会话视图多一个「实时迷宫」页签。
 
-## Recent iterations
+## 近期迭代
 
-### Current branch-verdict logic (introduced v0.2.1, refined v0.2.3)
+### 当前的支路判定逻辑（v0.2.1 引入，v0.2.3 收敛）
 
-Whether a step stays on the main path or becomes a branch is decided by its worst tool verdict: ok/answer stay on the trunk; failure (red x), empty-handed search (gray dot), and blind retry (gray loop) move the whole step to a branch. Each tool call is judged in four layers:
+一步进主干还是支路，由这一步最坏的工具判定决定：成功/回答留在主干，失败（红 ✗）、扑空（灰 ·）、无效重试（灰 ↻）整步进支路。单个工具调用按四层判：
 
-1. **Error flag**: the result carries isError → failure;
-2. **Strong failure signatures**: wrapper hard markers like `[status=Failed]`, non-zero `__EXIT__=`, `[stderr]` followed by Error/Traceback → failure. Scanned only in the first 300 and last 1000 chars — real failures either lead the output or sit in the appended stderr section; errors QUOTED mid-output (git log messages, source strings) don't count;
-3. **Weak failure signatures**: Traceback, command not found, Permission denied, No such file, HTTP 4xx/5xx, leading Error: → failure, first 300 chars only;
-4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
+1. **错误标志**：工具结果带 isError → 失败；
+2. **强失败特征**：`[status=Failed]`、`__EXIT__=` 非零、`[stderr]` 后跟 Error / Traceback 这类包装器硬标记 → 失败。只扫输出开头 300 与末尾 1000 字符——真失败要么开头就报、要么是追加在末尾的 stderr 段，长文本**中部引用**的报错（git log 提交信息、源码字符串）不算；
+3. **弱失败特征**：Traceback、command not found、Permission denied、No such file、HTTP 4xx/5xx、行首 Error: → 失败，只扫开头 300 字符；
+4. **按工具分类**：写入类（write / edit / todo_write）无错误即成功，不看输出长短；检索类（grep / read / web_search）开头命中空结果特征才算扑空；bash 及未知工具空输出才算扑空。
 
-On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+在此之上叠一层**行为学检测**：时间序上连续的「同工具 + 参数相似度 ≥0.6」调用簇、且簇内至少一次失败，非失败成员改判无效重试（借鉴 AgentLens 对 SWE-agent 轨迹浪费的确定性检测；不加失败约束会把「连续编辑同一文件」冤枉进去）。刻意**不用**输出长度、不调用 LLM；每个判定都带依据文本，悬停与详情面板可见。全部阈值在 `src/client/verdict.js` 的 `VERDICT_RULES`，可按语料调整；上传页与实时页签共用这一份实现。以上规则由四个真实会话（共 871 步）校准，依据与误报案例见下面各版本说明。
 
-### v0.4.0 - Subagent execution folds into the live maze (2026-08-20)
+### v0.4.0 · 子代理执行折入实时迷宫（2026-08-20）
 
-Tasks the model spawns through the `subagent` tool used to be one opaque bar; now every dsh subagent child session folds into the parent's live maze as an aggregated detour node — anchored at the spawning main-path step on the shared clock, with the child's judged tool calls (args/results/verdicts) as sub-bars, live growth while running, and a click-through back to the spawning row. Admission is disciplined: only `origin: 'subagent'`, non-ephemeral children (manual "branch in new conversation" and side chats stay out), and settled children whose whole activity predates the visible window are dropped under the parent's pre-window rule. Subagent identity runs through node labels, hover cards, and the detail panel ("⤴ spawned from main step SN; results rejoin the main path"), replacing the dead-end copy that belongs to failed exploration; internal step ids are no longer user-visible. Requires the host's `SessionFace.open` background history capability — absent through official rc.6–rc.8 the feature degrades silently, everything else unaffected. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.4.0)
+模型调 `subagent` 工具派生的任务，此前在迷宫里只是一根不透明的长条；现在每个 dsh 子代理会话折成主干上分出的聚合支路节点——挂靠在派生它的那一步、共享父会话时间轴，节点子条是子代理全部已判定的工具调用（参数/返回/判定齐全），运行中的实时生长，点击跳回派生位置。入图有纪律：仅 `origin: 'subagent'` 且非临时会话（手动「在新对话分支」与 side-chat 不算），已结束且活动完全早于可见窗口的陈旧子代理按父会话 preWindow 同口径丢弃。子代理身份贯穿节点标签、悬停卡与详情面板（"⤴ 由主干 SN 派生的子代理任务，完成后结果汇回主干"），不再套用失败探索的「此路不通」文案，内部步号不再暴露。依赖宿主 `SessionFace.open`（后台加载子会话历史）——官方 rc.6–rc.8 暂无此能力，插件自动静默降级、其余功能不受影响。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.4.0)
 
-![Live maze: four subagents fold into the parent timeline as branch nodes; running ones grow live](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/v040-subagent.png)
+![实时迷宫：4 个子代理以支路节点折入父会话时间轴，运行中的实时生长](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/v040-subagent.png)
 
-### v0.3.3 - Fix: live maze went blank at the start of every new step (2026-08-19)
+### v0.3.3 · 修复：实时模式新步骤开始时全图消失（2026-08-19）
 
-Whenever a new step began in the live tab (model reasoning, no tool call issued yet), the whole maze turned transparent until the first tool call appeared. Root cause was a tier-1-era bug: the node label code read `tools[0].name` unguarded, and an in-flight step has an empty `tools` array during its reasoning phase — the TypeError aborted build() mid-way, leaving every element at its initial opacity 0. Zero-tool nodes now skip the tool label; verified with a synthetic push sequence (reasoning phase → tool appears → settled) staying visible throughout. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
+实时页签每当新步骤开始（模型推理中、还没发出第一个工具调用），整张迷宫会瞬间变透明，等工具调用出现才恢复。根因是 tier1 时代的老 bug：非回答节点的标签代码无保护地取 `tools[0].name`，而 in-flight 步在纯推理阶段 `tools` 为空——TypeError 把 build() 拦腰打断，所有元素停在初始透明度 0。零工具节点跳过工具标签即修复；用合成推送序列（推理期 → 工具出现 → 结算）实测全程可见。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
 
-### v0.3.2 - Parallel tool-call rows (2026-08-19)
+### v0.3.2 · 并行工具调用分行（2026-08-19）
 
-Multiple tool calls in one step used to collapse into a "bash +1" label, hiding each call's timing and verdict. Now every call renders as a thin waterfall bar under the step capsule at its real start→end, verdict-colored, with a per-call hover (command / result / rationale); lane height adapts to the lane's maximum concurrency (parH zone in computeLayout) and detour arcs shift below it. Real-corpus scale: the 16-turn session has 36 parallel steps, max concurrency 5. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.2)
+此前一步内多次工具调用折叠成「bash +1」标签，各调用的起止/耗时/判定全被吃掉。现在每次调用画成步骤胶囊条下方的细小条（瀑布惯例）：按真实起止摆位、判定色填充、悬停看单次调用详情（命令/返回/依据）；泳道高度按该泳道最大并行数自适应（computeLayout 的 parH 区），下方支路弧线自动让位。实测语料：16 轮长会话有 36 个并行步、最大并行 5。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.2)
 
-![Parallel rows: zoomed in, each call's true span is visible](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/v032-parallel.png)
+![并行分行：缩放后可见每次调用的真实时段](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/v032-parallel.png)
 
-### v0.3.1 - Theme following + compact header (2026-08-19)
+### v0.3.1 · 主题跟随 + 紧凑页头（2026-08-19）
 
-The palette collapses into CSS variables as the single source (SVG attribute colors read via `readPalette`), tracking the host dsh theme: host components watch `body[data-ds-dark-theme]` (rc.6's ThemePresenter mechanism) and postMessage into the sandboxed iframe; standalone opens fall back to the system preference. Exports stay light-background — under dark the page briefly rebuilds in light, serializes, and switches back. The same release compacts the header once data renders (intro hidden, upload zone down to a 31px strip, stat cards hidden, one-row legend), freeing ~250px for the maze, and bumps the blind-retry gray from #b6c0d2 to #8892a6 for legibility. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.1)
+页面调色板收敛为 CSS 变量单真相源（SVG 属性色经 `readPalette` 同源取值），随宿主 dsh 明暗主题自动切换：宿主组件监听 `body[data-ds-dark-theme]`（rc.6 的 ThemePresenter 机制）postMessage 进沙箱 iframe，独立打开按系统偏好兜底；导出 SVG/PNG 固定浅色底，暗色下导出前临时切浅色重建、导完切回。同版收紧页头布局：出数据后说明隐藏、上传区收成 31px 细条、泳道统计卡隐藏、图例压成一行，迷宫可视区多出约 250px。顺手把「无效重试」灰从 #b6c0d2 提到 #8892a6，浅色下一眼可辨。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.1)
 
-![Dark theme + compact header](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/v031-dark.png)
+![暗色主题 + 紧凑页头](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/v031-dark.png)
 
-### v0.3.0 - Compare semantics: turn alignment + manual anchors + detour inventory (2026-08-19)
+### v0.3.0 · 对比语义升级：轮次对齐 + 手动锚点 + 支路盘点（2026-08-19）
 
-Two-session comparison graduates from a single regex milestone to per-turn semantics: answer nodes auto-connect per turn (labeled with the time delta and detour counts); manual anchors pin any two nodes; the detour inventory tallies per-turn detour steps, wall-clock time, and verdict breakdown for both sides, with row-click zoom and highlighting. The corpus-specific "model list result" regex milestone (MODEL_LIKE/mlist) is retired — the last hardcoded heuristic left after verdict v2 removed the length thresholds. The "exploration phase" red band is retired too: it spanned min-to-max across all detours, covering 99% of a 16-turn session's axis while actual detour time was 1% — a false signal. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.0)
+双会话对比从「一条正则里程碑」升级成一套按轮次的对比语义：每轮回答节点自动互连对齐线（标注时差与该轮支路数差）；「🔗 加锚点」手动钉任意两节点的对比线；「📋 支路盘点」按轮次列两边支路的步数/墙钟耗时/类别构成与差额，点行缩放该轮并高亮该轮支路。语料特定的「模型列表结果」正则里程碑（MODEL_LIKE/mlist）随之退役——判定 v2 清理长度阈值后的最后一个硬编码启发式。「探索期」红色背景带一并退役：它取首末支路的最小最大跨度，16 轮长会话上罩住 99% 的时间轴而支路真实耗时只占 1%，是虚假信号。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.0)
 
-![Two-session compare: turn alignment lines + detour inventory panel + manual anchor](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/v030-compare.png)
+![双会话对比：轮次对齐线 + 支路盘点面板 + 手动锚点](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/v030-compare.png)
 
-### v0.2.3 - Honest live window + quote-proof verdicts (2026-08-19)
+### v0.2.3 · 实时窗口诚实化 + 判定防引用误报（2026-08-19）
 
-The live tab renders only the conversation's loaded event window — stale steps from earlier turns leaking past the window edge used to clamp to 0 s and pile up on the left, rendering an 18-hour, 533-step session as "3 turns / 39 steps / 71.4 s". They are now dropped and labeled "N earlier steps not loaded". Also fixed quoted-error false positives: "upstream returns HTTP 400" inside a git commit message no longer flags the command itself — failure signatures scan only the head and tail windows, and both render paths judge the same untruncated text. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
+实时页签只画对话已加载的事件窗口——窗口边缘漏进来的更早轮次步骤此前被钳到 0 秒堆在左边缘，一份 18 小时、533 步的会话被画成「3 轮 · 39 步 · 71.4s」。现在陈旧步被丢弃并标注「⏮ 另有 N 步更早历史未加载」。同时修掉判定的「引用误报」：git log 提交信息里写的 "upstream returns HTTP 400"、源码里的 "not found in" 不再被当成命令自己失败——失败特征只扫输出开头与末尾窗口，且两条渲染链路统一在未截断全文上判定。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
 
-![Live tab: honest window labeling; behavioral detection catching a real 31x blind-retry loop](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
+![实时页签：窗口截断诚实标注，行为学检测抓到真实的 31 连败盲目重试](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
 
-### v0.2.2 - Real tokens, search & filter, export (2026-08-19)
+### v0.2.2 · token 真值、搜索过滤、导出（2026-08-19）
 
-"reasoning N tok" used to count streaming chunks — now real usage is read from the session log's `assistant/message` events, per step and per lane (honest "N segments" fallback without usage). Added the filter toolbar (failures/retries-only, per-tool, full-text search with 15% dimming of misses) and current-view SVG / 2x PNG export. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
+「reasoning N tok」此前数的是流式段数——本版从 session log 的 `assistant/message` 读真实 usage，步级与泳道级都显示真 token（无 usage 时诚实回退「N 段推理」）。新增过滤工具行（只看失败/重试、按工具过滤、全文搜索，未命中淡化到 15%）与当前视图的 SVG / 2x PNG 导出。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
 
-![Failures/retries only: hit count + dimming](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
+![只看失败/重试：命中计数 + 其余淡化](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
 
-### v0.2.1 - Explainable verdicts: no more length thresholds (2026-08-19)
+### v0.2.1 · 判定可解释：告别长度阈值（2026-08-19）
 
-"Result < 60 chars = dead end" retired in favor of the layered verdicts + behavioral retry detection described above. Motivation: calibration showed the length threshold misjudged 56 of 338 tool calls (every 57-char todo_write confirmation included) while missing real failures buried in long outputs. Verdict logic also converged into the single source `src/client/verdict.js` (spliced into the upload page at build time, imported by the live path), ending mirror drift for good. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
+「结果 <60 字符 = 死路」退役，换成上面的分层判定 + 行为学重试检测。动机：校准发现长度阈值冤枉了 338 次调用中的 56 次（todo_write 的 57 字符成功确认全军覆没），反而漏掉藏在长输出里的真失败。判定逻辑同时收敛为单一真相源 `src/client/verdict.js`（上传页构建期注入、实时链路直接引入），镜像漂移永久消除。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
 
-## Development
+## 开发
 
 ```sh
 pnpm install
-pnpm check   # typecheck + vitest + build
+pnpm check   # 类型检查 + vitest + 构建
 ```
 
-The upload/visualization page is a self-contained HTML document (`src/client/maze-upload.html`) rendered inside a sandboxed `<iframe srcDoc>`; parsing and rendering run entirely in the browser, and nothing from an uploaded log reaches the host.
+上传/可视化页面是一份自包含的 HTML（`src/client/maze-upload.html`），运行在沙箱化的 `<iframe srcDoc>` 里；解析与渲染全部在浏览器端完成，上传的日志内容不会到达宿主。
 
-## License
+## 许可
 
-MIT. See [NOTICE](NOTICE) — this project contains code derived from DeepSeek Harness.
+MIT。见 [NOTICE](NOTICE)——本项目包含源自 DeepSeek Harness 的衍生代码。
