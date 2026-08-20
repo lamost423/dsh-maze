@@ -2,6 +2,9 @@
 
 English | [中文](README.zh.md)
 
+[![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
+[![Listed in awesome-deepseek-harness](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/0xsline/awesome-deepseek-harness)
+
 Trace visualization for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): see how the agent actually explored — the main path it committed to, the detours that failed or dead-ended, and where it backtracked — on one shared timeline.
 
 Two surfaces, one visual language:
