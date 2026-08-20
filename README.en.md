@@ -20,6 +20,7 @@ Two surfaces, one visual language:
 - **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
 - **Parallel tool-call rows** (since v0.3.2): when a step fires ≥2 tool calls, each call renders as a thin waterfall bar under the capsule at its real start→end, colored by its own verdict — see at a glance which of the parallel calls dragged or failed; hover a bar for that call's command/result/rationale. Lane height adapts to the maximum concurrency; detour nodes keep their "+N" label (fixed lane slots; the panel lists everything).
 - Dashed arcs: exploration detours — steps whose tools failed (red ✗), searched and found nothing (gray ·), or blind-retried (gray ↻), with the return arc back to the branch point.
+- **Subagent branches** (since v0.4.0, live tab): dsh subagent child sessions spawned by the model render as aggregated detour nodes branching off the main path — anchored at the spawning step on the parent's clock, with the child's judged tool calls as sub-bars; running children grow live and read "still running". Hover cards and the detail panel carry the subagent identity and spawn/rejoin copy; clicking jumps back to the spawning row. Only real task subagents qualify (`origin: 'subagent'`) — manual branch-offs and side chats stay out. Requires the host's background history-open capability; absent on the official rc line the feature hides silently.
 - Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
@@ -61,7 +62,7 @@ Install the compatible DSH CLI, then add the plugin to the profile:
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.6
-dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.3/dsh-trace-compare-0.3.3.tgz
+dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz
 dsh web
 ```
 
@@ -91,6 +92,12 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.4.0 - Subagent execution folds into the live maze (2026-08-20)
+
+Tasks the model spawns through the `subagent` tool used to be one opaque bar; now every dsh subagent child session folds into the parent's live maze as an aggregated detour node — anchored at the spawning main-path step on the shared clock, with the child's judged tool calls (args/results/verdicts) as sub-bars, live growth while running, and a click-through back to the spawning row. Admission is disciplined: only `origin: 'subagent'`, non-ephemeral children (manual "branch in new conversation" and side chats stay out), and settled children whose whole activity predates the visible window are dropped under the parent's pre-window rule. Subagent identity runs through node labels, hover cards, and the detail panel ("⤴ spawned from main step SN; results rejoin the main path"), replacing the dead-end copy that belongs to failed exploration; internal step ids are no longer user-visible. Requires the host's `SessionFace.open` background history capability — absent through official rc.6–rc.8 the feature degrades silently, everything else unaffected. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.4.0)
+
+![Live maze: four subagents fold into the parent timeline as branch nodes; running ones grow live](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/v040-subagent.png)
 
 ### v0.3.3 - Fix: live maze went blank at the start of every new step (2026-08-19)
 
