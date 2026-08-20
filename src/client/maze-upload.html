@@ -797,7 +797,7 @@ function build(){
       const bx = 0.125 * ax + 0.375 * c1x + 0.375 * c2x + 0.125 * ex
       const by = 0.125 * ay + 0.375 * c1y + 0.375 * c2y + 0.125 * ey
       const sl = el('text', { x: bx, y: by - 5, 'text-anchor': 'middle', class: 'seg-label', fill: vc })
-      sl.textContent = 'S' + d.step
+      sl.textContent = d.label ?? ('S' + d.step)
       sl.style.opacity = 0
       gTime.appendChild(sl)
       pathEls.push({ el: sl, s: d.s, e: d.e, det: d, base: '', kind: 'lab' })
@@ -1117,14 +1117,16 @@ function drawNode(parent, lane, n, y, isMain, idx){
     const t0 = n.tools[0]
     toolTxt = tlabel(t0.name) + (n.tools.length > 1 ? ' +' + (n.tools.length - 1) : '')
   }
-  const full = 'S' + n.step + (toolTxt ? ' ' + toolTxt : '')
+  // 子代理等携带 label 的节点用自己的标签，不暴露内部 step 编号。
+  const short = n.label ?? ('S' + n.step)
+  const full = short + (toolTxt ? ' ' + toolTxt : '')
   const key = lane.key + '-' + rowKey
   const prevEnd = labRows[key] !== undefined ? labRows[key] : -1e9
   if (cx - prevEnd >= wEst(full) + 12){
     lab.textContent = full
     labRows[key] = cx + wEst(full) / 2
   } else if (cx - prevEnd >= 26){
-    lab.textContent = 'S' + n.step
+    lab.textContent = short
     labRows[key] = cx + 10
   } else {
     lab.textContent = ''
@@ -1153,11 +1155,14 @@ function offArcHover(){
 function showTipFor(d){
   const lane = d._laneKey === 'l1' ? DATA.lanes[0] : DATA.lanes[1]
   const tip = document.getElementById('tip')
-  let inner = `<div class="th">${laneName(lane)} S${d.step} · 探索支路 · ${vlabel(d.v)}${d.v === 'error' ? '（被打回）' : ''}</div>`
+  const sub = d.label !== undefined
+  let inner = `<div class="th">${laneName(lane)} ${d.label ?? ('S' + d.step)} · ${sub ? '子代理支路' : '探索支路'} · ${vlabel(d.v)}${d.v === 'error' ? '（被打回）' : ''}</div>`
   if (d.why) inner += `<div class="rs">判定依据：${esc(d.why)}</div>`
   inner += `<div class="rs">时段 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))}（${(d.e - d.s).toFixed(1)}s）· ${rzLabel(d)}</div>`
-  inner += `<div class="back">出程曲线自分支点 S${d.attach} 分叉（x 位置），于 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))} 生长完成</div>`
-  inner += `<div class="back">↩ 此路不通，折返回分支点（S${d.attach}）</div>`
+  inner += sub
+    ? `<div class="back">⤴ 由主干 S${d.attach} 派生的子代理任务${d.live ? '，仍在运行' : '，完成后结果汇回主干'}</div>`
+    : `<div class="back">出程曲线自分支点 S${d.attach} 分叉（x 位置），于 ${fmtT(wallClock(d.s))} → ${fmtT(wallClock(d.e))} 生长完成</div>`
+      + `<div class="back">↩ 此路不通，折返回分支点（S${d.attach}）</div>`
   d.tools.forEach(t => {
     inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : (t.v === 'retry' ? '↻' : '')}\n${esc(t.args)}</pre>`
     if (t.res) inner += `<div class="rs">返回：<pre>${esc(t.res)}</pre></div>`
@@ -1171,11 +1176,15 @@ function onHover(e){
   hoverDet = n._id ? n : null
   render()
   const lane = g._lane
-  let inner = `<div class="th">${laneName(lane)} S${n.step} · ${g._isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路'} · ${vlabel(n.v)}${n.v === 'error' ? '（被打回）' : ''}</div>`
+  let inner = `<div class="th">${laneName(lane)} ${n.label ?? ('S' + n.step)} · ${g._isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : (n.label !== undefined ? '子代理支路' : '探索支路')} · ${vlabel(n.v)}${n.v === 'error' ? '（被打回）' : ''}</div>`
   if (n.v !== 'answer'){
     if (n.why) inner += `<div class="rs">判定依据：${esc(n.why)}</div>`
     inner += `<div class="rs">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))}（${(n.e - n.s).toFixed(1)}s）· ${rzLabel(n)}</div>`
-    if (!g._isMain) inner += `<div class="back">↩ 此路不通，折返回分支点（S${n.attach}）</div>`
+    if (!g._isMain){
+      inner += n.label !== undefined
+        ? `<div class="back">⤴ 由主干 S${n.attach} 派生的子代理任务${n.live ? '，仍在运行' : '，完成后结果汇回主干'}</div>`
+        : `<div class="back">↩ 此路不通，折返回分支点（S${n.attach}）</div>`
+    }
     if (g._nAtt) inner += `<div class="back">⦿ 分支原点：${g._nAtt} 条探索支路从这里出发并折返</div>`
     n.tools.forEach(t => {
       inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : (t.v === 'retry' ? '↻' : '')}\n${esc(t.args)}</pre>`
@@ -1231,13 +1240,17 @@ function openPanel(n, lane, isMain){
   pinnedDet = n._id ? n : null
   panelTexts = []
   panelJump = null
-  document.getElementById('panelTitle').textContent = `${laneName(lane)} S${n.step}`
+  document.getElementById('panelTitle').textContent = `${laneName(lane)} ${n.label ?? ('S' + n.step)}`
   const chip = document.getElementById('panelChip')
-  chip.textContent = (isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : '探索支路') + ' · ' + vlabel(n.v)
+  chip.textContent = (isMain ? (n.v === 'answer' ? '最终回答' : '主干推进') : (n.label !== undefined ? '子代理支路' : '探索支路')) + ' · ' + vlabel(n.v)
   chip.style.background = VCOLOR[n.v] ?? '#9aa4b8'
   let inner = `<div class="prow">时段 ${fmtT(wallClock(n.s))} → ${fmtT(wallClock(n.e))} · 耗时 ${(n.e - n.s).toFixed(1)}s · ${rzLabel(n)}${n.turn != null ? ' · 第 ' + n.turn + ' 轮' : ''}</div>`
   if (n.why) inner += `<div class="prow">判定依据：${esc(n.why)}</div>`
-  if (!isMain) inner += `<div class="prow" style="color:#d97706">↩ 此路不通，自分支点 S${n.attach} 出发并折返</div>`
+  if (!isMain){
+    inner += n.label !== undefined
+      ? `<div class="prow">⤴ 由主干 S${n.attach} 派生的子代理任务${n.live ? '，仍在运行' : '，完成后结果汇回主干'}</div>`
+      : `<div class="prow" style="color:#d97706">↩ 此路不通，自分支点 S${n.attach} 出发并折返</div>`
+  }
   if (liveMode){
     const jumpTool = (n.tools ?? []).find(tl => tl.callId)
     if (jumpTool !== undefined || n.seq != null){

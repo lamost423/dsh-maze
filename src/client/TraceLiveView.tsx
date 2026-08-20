@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
+import { SubagentMazeSource } from './subagent-lanes.ts'
 import { postThemeTo, watchHostTheme } from './theme-sync.ts'
 import css from './TraceLiveView.module.css'
 
@@ -29,8 +31,9 @@ const JUMP_SEEK_INTERVAL_MS = 100
  */
 function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
   const scrollport = frame.closest('[data-conversation-scroll]')
-  const column = scrollport?.parentElement
-  if (scrollport === null || scrollport === undefined || column === null || column === undefined) return
+  if (scrollport === null) return
+  const column = scrollport.parentElement
+  if (column === null) return
   const chatTab = column.querySelector('[role="tablist"] [role="tab"]')
   if (chatTab instanceof HTMLElement) chatTab.click()
   const selector = msg.callId !== undefined
@@ -62,9 +65,13 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
  * trace-jump messages back; this component answers them by switching the
  * column to the Chat view and revealing the step's row.
  */
-export function TraceLiveView({ useSession, t }: TraceLiveViewProps) {
+export function TraceLiveView({ useSession, sessionId, sessions, t }: TraceLiveViewProps) {
   const snapshot = useSession(s => s)
-  const data = useMemo<MazeData | null>(() => snapshotToMazeData(snapshot), [snapshot])
+  // One roster per (service, session); disposed with the view or on session switch.
+  const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
+  useEffect(() => () => { source.dispose() }, [source])
+  const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
+  const data = useMemo<MazeData | null>(() => snapshotToMazeData(snapshot, children), [snapshot, children])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data
@@ -117,5 +124,8 @@ export function TraceLiveView({ useSession, t }: TraceLiveViewProps) {
   )
 }
 
-/** Live view props: the conversation view runtime kit plus locale copy. */
-export type TraceLiveViewProps = ConvViewProps & PropsLocale<'traceCompare'>
+/** Live view props: the conversation view runtime kit, the sessions service, and locale copy. */
+export type TraceLiveViewProps = ConvViewProps & PropsLocale<'traceCompare'> & {
+  /** Root sessions service; supplies the subagent child roster and projections. */
+  sessions: ISessions
+}

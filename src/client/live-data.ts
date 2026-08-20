@@ -2,9 +2,10 @@
  * Live maze data converter: ConversationSnapshot (the session's real-time
  * observable) → the same maze payload the upload page renders. Verdict and
  * main/detour partitioning mirror the upload page's logic so both modes
- * share one visual language.
+ * share one visual language. dsh subagent child sessions fold in as one
+ * aggregated detour node each, on the parent's clock.
  */
-import type { ConversationNode, ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 
 /** One tool event in the maze model. */
@@ -33,6 +34,8 @@ export interface MazeTool {
 /** One maze node (main step or detour branch). */
 export interface MazeNode {
   step: number
+  /** Display label overriding the page's `S<step>` composition (subagent nodes). */
+  label?: string
   /** 1-based conversation turn; the page breaks the main path between turns. */
   turn?: number
   /** Session-log seq of the source assistant node; fallback jump anchor (`dsh-message-<seq>`). */
@@ -77,6 +80,21 @@ export interface MazeData {
   lanes: MazeLane[]
 }
 
+/** One dsh subagent child session folded into the parent's live maze. */
+export interface ChildSessionMaze {
+  /** Child session id (dedup key; not rendered). */
+  id: string
+  /** Human-facing child label, shown in the detour node's verdict text. */
+  label: string
+  /** Child still running: the node stays live and reads as in-flight. */
+  running: boolean
+  /** The child's own conversation snapshot; times share the parent's clock. */
+  conversation: ConversationSnapshot
+}
+
+/** Child detour steps start here so they never collide with parent step ids. */
+const CHILD_STEP_BASE = 100_000
+
 function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
   const out: string[] = []
@@ -84,15 +102,35 @@ function contentText(blocks: readonly { type?: string; text?: string }[] | undef
   return out.join('').replace(/\s+/g, ' ').trim()
 }
 
+/** Latest wall-clock event time in a conversation, or null while empty. */
+function lastActivityTime(snap: ConversationSnapshot): number | null {
+  let last: number | null = null
+  for (const n of snap.nodes) {
+    const t = (n as { time?: number }).time
+    if (typeof t === 'number') last = last === null ? t : Math.max(last, t)
+  }
+  return last
+}
+
+/** Scanned, verdict-settled rows of one conversation on a caller-chosen clock. */
+interface ScanResult {
+  rows: MazeNode[]
+  /** The in-flight partial row, when present; always last in `rows`. */
+  liveRow: MazeNode | null
+  /** Dropped stale pre-window steps (see MazeLane.preWindow). */
+  preWindow: number
+}
+
 /**
- * Convert the live session snapshot into maze data. Returns null while the
- * session has no usable conversation nodes yet.
+ * Scan one conversation snapshot into verdict-settled maze rows.
+ * @param snap - the conversation to scan.
+ * @param rel - wall-clock ms → maze seconds, chosen by the caller so a child
+ * session can share its parent's axis.
+ * @returns rows in step order with settled verdicts.
  */
-export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null {
-  const nodes = snap.nodes as readonly ConversationNode[]
+function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanResult {
+  const nodes = snap.nodes
   const firstUser = nodes.find(n => n.kind === 'user')
-  const anchor = firstUser !== undefined ? firstUser.time : (nodes[0]?.time ?? Date.now())
-  const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
   interface PendingTool { tool: MazeTool }
   const rows: MazeNode[] = []
@@ -136,7 +174,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         } else if (b.kind === 'tool-call') {
           const tool: MazeTool = {
             k: 't', name: b.name, s, e: null,
-            args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok',
+            args: b.argsRaw, res: '', err: false, dur: 0, v: 'ok',
             callId: b.callId,
           }
           tools.push(tool)
@@ -152,8 +190,9 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
       }
     } else if (n.kind === 'tool-result') {
       const idx = pending.findIndex(p => p.tool.callId === n.callId)
-      if (idx >= 0) {
-        const p = pending.splice(idx, 1)[0]!
+      const p = idx >= 0 ? pending[idx] : undefined
+      if (p !== undefined) {
+        pending.splice(idx, 1)
         p.tool.e = rel(n.time)
         p.tool.res = contentText(n.content)
         p.tool.err = n.isError
@@ -163,7 +202,7 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
         p.tool.why = tv.why
         p.tool.resFull = p.tool.res.slice(0, 5000)
         p.tool.res = p.tool.res.slice(0, 380)
-        const toolEnd = p.tool.e ?? p.tool.s
+        const toolEnd = p.tool.e
         if (cur !== null) cur.e = Math.max(cur.e, toolEnd)
       }
     }
@@ -179,16 +218,14 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     for (const b of snap.partial.blocks) {
       if (b.kind === 'reasoning') { rz += 1; rzTxt += b.text }
       else if (b.kind === 'tool-call') {
-        tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw ?? '', res: '', err: false, dur: 0, v: 'ok', callId: b.callId })
+        tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw, res: '', err: false, dur: 0, v: 'ok', callId: b.callId })
       }
     }
     if (rz > 0 || tools.length > 0) {
-      liveRow = cur = pushStep(now, now + 0.1, tools, rz, rzTxt)
+      liveRow = pushStep(now, now + 0.1, tools, rz, rzTxt)
       liveRow.live = true
     }
   }
-
-  if (rows.length === 0) return null
 
   // Settle verdicts now that every arrived tool-result is paired. Pending
   // tools (no result yet) do not vote, so a step only becomes a detour once
@@ -217,6 +254,64 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
     }
   }
 
+  return { rows, liveRow, preWindow }
+}
+
+/**
+ * Fold one child session into a single aggregated detour node: the node's
+ * span is the child's activity span, its sub-bars are the child's judged
+ * tool calls, and the verdict line names the child.
+ * @param child - child roster row plus its conversation on the parent clock.
+ * @param index - roster position, offset into the reserved child step range.
+ * @returns the detour node, or null while the child has no usable rows.
+ */
+function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number) => number): MazeNode | null {
+  const { rows, liveRow } = scanRows(child.conversation, rel)
+  if (rows.length === 0) return null
+  const tools = rows.flatMap(r => r.tools)
+  const s = Math.min(...rows.map(r => r.s))
+  const e = Math.max(...rows.map(r => r.e))
+  const rz = rows.reduce((n, r) => n + r.rz, 0)
+  const rzTxt = rows.map(r => r.rzTxt).filter(t => t !== '').join(' ')
+  const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
+  const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
+  const settledRows = rows.filter(r => r !== liveRow)
+  const lastSettled = settledRows[settledRows.length - 1]
+  const v: MazeNode['v'] = child.running ? 'ok' : lastSettled?.v === 'error' ? 'error' : 'ok'
+  const state = child.running ? ' · 运行中' : lastSettled?.v === 'error' ? ' · 以错误收尾' : ''
+  const short = child.label.length > 12 ? `${child.label.slice(0, 12)}…` : child.label
+  return {
+    step: CHILD_STEP_BASE + index,
+    label: `子代理 ${short}`,
+    s, e, tools, rz,
+    rzTxt: rzTxt.slice(0, 240),
+    rzTxtFull: rzTxt.slice(0, 2000),
+    ...(rzTok === null ? {} : { rzTok }),
+    ...(outTok === null ? {} : { outTok }),
+    v,
+    why: `子代理「${child.label}」· ${String(rows.length)} 步 · ${String(tools.length)} 次工具调用${state}`,
+    ...(child.running ? { live: true } : {}),
+  }
+}
+
+/**
+ * Convert the live session snapshot into maze data. Returns null while the
+ * session has no usable conversation nodes yet.
+ * @param snap - the current session's conversation snapshot.
+ * @param children - dsh subagent child sessions to fold in as detour nodes.
+ */
+export function snapshotToMazeData(
+  snap: ConversationSnapshot,
+  children: readonly ChildSessionMaze[] = [],
+): MazeData | null {
+  const nodes = snap.nodes
+  const firstUser = nodes.find(n => n.kind === 'user')
+  const anchor = firstUser !== undefined ? firstUser.time : (nodes[0]?.time ?? Date.now())
+  const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
+
+  const { rows, preWindow } = scanRows(snap, rel)
+  if (rows.length === 0) return null
+
   // Partition main path vs detours (mirror of the upload page).
   const main: MazeNode[] = []
   const detours: MazeNode[] = []
@@ -228,11 +323,49 @@ export function snapshotToMazeData(snap: ConversationSnapshot): MazeData | null 
       detours.push({ ...r, attach: lastMain?.step ?? 0 })
     }
   }
+
+  // Child sessions: one aggregated detour per child, anchored where the
+  // parent spawned it — the main step containing the child's start, with the
+  // spawning subagent tool call's row seq as the chat-jump anchor.
+  let childEnd = 0
+  children.forEach((child, i) => {
+    // Mirror the parent's pre-window discipline: a settled child whose whole
+    // activity predates the visible window would clamp to the axis origin and
+    // pile up at the left edge; a running child stays regardless.
+    const lastT = lastActivityTime(child.conversation)
+    if (!child.running && (lastT === null || lastT < anchor)) return
+    const node = childDetourNode(child, i, rel)
+    if (node === null) return
+    let attach = 0
+    let turn: number | undefined
+    for (const m of main) {
+      if (m.s <= node.s) { attach = m.step; turn = m.turn } else break
+    }
+    let spawnSeq: number | undefined
+    let spawnS = -1
+    for (const r of rows) {
+      for (const t of r.tools) {
+        if (t.name.startsWith('subagent') && t.s <= node.s + 1 && t.s > spawnS) {
+          spawnS = t.s
+          spawnSeq = r.seq
+          turn = r.turn
+        }
+      }
+    }
+    detours.push({
+      ...node,
+      attach,
+      ...(turn === undefined ? {} : { turn }),
+      ...(spawnSeq === undefined ? {} : { seq: spawnSeq }),
+    })
+    childEnd = Math.max(childEnd, node.e)
+  })
+
   const toolsCount = rows.reduce((n, r) => n + r.tools.length, 0)
   const rzCount = rows.reduce((n, r) => n + r.rz, 0)
   const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
   const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
-  const T = Math.max(...rows.map(r => r.e), 0.1)
+  const T = Math.max(...rows.map(r => r.e), childEnd, 0.1)
   // requestConfig is only present on assistant nodes whose request header fell
   // inside the snapshot window; take the latest carrier so the current model shows.
   let model: string | null = null

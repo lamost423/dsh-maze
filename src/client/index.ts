@@ -2,6 +2,7 @@
  * Trace Compare browser plugin: sidebar footer trigger plus center-column
  * surface hosting the self-contained maze upload page.
  */
+import { createElement } from 'react'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -9,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TraceCompareTrigger } from './TraceCompareTrigger.tsx'
 import { TraceCompareSurface } from './TraceCompareSurface.tsx'
-import { TraceLiveView } from './TraceLiveView.tsx'
+import { TraceLiveView, type TraceLiveViewProps } from './TraceLiveView.tsx'
 import { en, zh, type TraceCompareKey } from './locales.ts'
 import { createTraceCompareViewStore } from './store.ts'
 
@@ -27,8 +28,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const NS = 'traceCompare'
 
-/** Required services for slot composition and localized copy. */
-export const inject = ['slots', 'locale']
+/** Required services for slot composition, the subagent child roster, and localized copy. */
+export const inject = ['slots', 'locale', 'sessions']
 
 /** Mount the trigger, center surface, and live per-session view with one apply-scoped viewing store. */
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
@@ -49,13 +50,17 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     locale: NS,
     store: viewStore,
   }, TraceCompareSurface))
+  // The sessions service rides a closure component: the slot kit owns the
+  // per-session props while the plugin owns its service dependency.
+  const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions'>) =>
+    createElement(TraceLiveView, { ...props, sessions: ctx.sessions })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'trace-live',
     order: 20,
     locale: NS,
     label: () => t('view.live'),
-  }, TraceLiveView))
+  }, BoundTraceLiveView))
   return async () => {
     // The view store carries no disposables; the registrations own their teardown.
   }

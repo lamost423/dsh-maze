@@ -60,4 +60,4 @@ export declare function argSimilarity(a: string, b: string): number
  * @param calls 时间序的已结算工具调用
  * @returns 命中簇数
  */
-export declare function markRetryClusters<T extends { name: string; args: string; v: string; why?: string }>(calls: T[]): number
+export declare function markRetryClusters(calls: { name: string; args: string; v: string; why?: string }[]): number
