@@ -238,15 +238,15 @@ const I18N = {
     lgOut: '出程探索', lgOutTitle: '从分支点出发的探索',
     lgBack: '回程折返', lgBackTitle: '失败后折返分支点',
     lgAnswer: '最终回答', lgIdle: '⏸ 空闲已折叠',
-    lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连',
+    lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连；标注为本轮耗时（不含轮间等待）',
     lgAnchor: '手动锚点', lgAnchorTitle: '🔗 添加 · 点线删除',
     modelUnknown: '未知模型', modelNoHeader: '(模型未知：请求头在窗口外)', modelNone: '(未知模型)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' 轮 · ' : ''}${st.steps} 步（主干 ${st.main} / 支路 ${st.detours}）· ${st.tools} 次工具调用 · ${laneTokLabel(st)} · 总耗时 ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ 另有 ${n} 步更早历史未加载`,
     turnLabel: n => `第 ${n} 轮`,
-    alignLabel: (turn, a, b, d) => `第 ${turn} 轮回答：1st ${a} ↔ 2nd ${b}（Δ${d}）`,
+    alignLabel: (turn, a, b, d) => `第 ${turn} 轮耗时：1st ${a} ↔ 2nd ${b}（Δ${d}）`,
     alignDet: (a, b) => ` · 支路 ${a}↔${b}`,
-    rzTok: n => '推理 ' + n.toLocaleString() + ' tok', rzSeg: n => n.toLocaleString() + ' 段推理',
+    rzTok: n => '推理 ' + n.toLocaleString() + ' tok', rzSeg: n => '推理 ' + n.toLocaleString() + ' 段（日志未报 token 用量）',
     outTok: n => '输出 ' + n.toLocaleString() + ' tok',
     statsCard: st => `主干 ${st.main} 步 + 支路 ${st.detours} 步 = ${st.steps} 步 · ${st.tools} 次工具调用 · ${laneTokLabel(st)} · 总耗时 <b>${fmtT(st.T)}</b>`,
     invTurnCol: '轮次', invLaneCol: i => `第 ${i} 会话支路`, invDiffCol: '差额', invTotal: '合计',
@@ -315,15 +315,15 @@ const I18N = {
     lgOut: 'Outbound exploration', lgOutTitle: 'Exploration leaving a branch point',
     lgBack: 'Return backtrack', lgBackTitle: 'Backtrack to the branch point after a failure',
     lgAnswer: 'Final answer', lgIdle: '⏸ idle collapsed',
-    lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn',
+    lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn; labels show per-turn time (inter-turn waits excluded)',
     lgAnchor: 'Manual anchor', lgAnchorTitle: '🔗 add · click a line to delete',
     modelUnknown: 'unknown model', modelNoHeader: '(model unknown: request header outside the window)', modelNone: '(unknown model)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' turns · ' : ''}${st.steps} steps (main ${st.main} / detours ${st.detours}) · ${st.tools} tool calls · ${laneTokLabel(st)} · total ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ ${n} earlier steps not loaded`,
     turnLabel: n => `Turn ${n}`,
-    alignLabel: (turn, a, b, d) => `Turn ${turn} answer: 1st ${a} ↔ 2nd ${b} (Δ${d})`,
+    alignLabel: (turn, a, b, d) => `Turn ${turn} time: 1st ${a} ↔ 2nd ${b} (Δ${d})`,
     alignDet: (a, b) => ` · detours ${a}↔${b}`,
-    rzTok: n => 'reasoning ' + n.toLocaleString() + ' tok', rzSeg: n => n.toLocaleString() + ' reasoning chunks',
+    rzTok: n => 'reasoning ' + n.toLocaleString() + ' tok', rzSeg: n => 'reasoning ' + n.toLocaleString() + ' chunks (no token usage in log)',
     outTok: n => 'output ' + n.toLocaleString() + ' tok',
     statsCard: st => `main ${st.main} + detours ${st.detours} = ${st.steps} steps · ${st.tools} tool calls · ${laneTokLabel(st)} · total <b>${fmtT(st.T)}</b>`,
     invTurnCol: 'Turn', invLaneCol: i => `Session ${i} detours`, invDiffCol: 'Delta', invTotal: 'Total',
@@ -619,7 +619,8 @@ function buildData(fileTexts){
     const T = Math.round(rows[rows.length - 1].e * 10) / 10
     return { key: 'l' + (i + 1), model, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
-  const Tmax = Math.max(...lanes.map(l => l.stats.T), 460)
+  // 轴跨度贴合内容：短会话不再被 460s 固定下限压扁在左侧（×1.04 给右缘旗标留呼吸位）。
+  const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
   return { Tmax, lanes }
 }
 
@@ -643,6 +644,16 @@ function turnDetourStats(lane, wall){
 function turnEndNodes(lane){
   const m = new Map()
   for (const n of lane.main) m.set(n.turn ?? 1, n)
+  return m
+}
+
+/** 每轮的起点时刻（主干与支路里该轮最早的节点开始）：Map(turn → s)。对齐线用它算"本轮耗时"。 */
+function turnStartTimes(lane){
+  const m = new Map()
+  for (const n of [...lane.main, ...lane.detours]){
+    const t = n.turn ?? 1
+    if (!m.has(t) || n.s < m.get(t)) m.set(t, n.s)
+  }
   return m
 }
 
@@ -927,12 +938,14 @@ function build(){
     }
   }
 
-  // 轮次对齐线（双泳道）：每一轮取两边的回答节点互连，标注墙钟时差与该轮支路差额。
+  // 轮次对齐线（双泳道）：每一轮取两边的回答节点互连，标注两边"本轮耗时"（该轮起点 →
+  // 回答完成，墙钟计；轮与轮之间等用户输入的空闲不计入，避免污染对比）与该轮支路差额。
   // 只连两边都有的轮次；只在一边出现的轮次交给支路盘点面板呈现（缺席本身就是信号）。
   if (DATA.lanes.length === 2){
     const [lA, lB] = DATA.lanes
     const y1 = LAYOUT[lA.key].mainY, y2 = LAYOUT[lB.key].mainY
     const endA = turnEndNodes(lA), endB = turnEndNodes(lB)
+    const startA = turnStartTimes(lA), startB = turnStartTimes(lB)
     const detA = turnDetourStats(lA, wallClock), detB = turnDetourStats(lB, wallClock)
     for (const turn of unionTurns(DATA.lanes)){
       const na = endA.get(turn), nb = endB.get(turn)
@@ -943,7 +956,8 @@ function build(){
       const t1 = el('text', { x: x(na.e) + 6, y: y1 - 6, class: 'mk-flag', fill: MAIN_COLOR.l1 }); t1.textContent = '⚑'
       const t2 = el('text', { x: x(nb.e) - 6, y: y2 - 6, class: 'mk-flag', fill: MAIN_COLOR.l2, 'text-anchor': 'end' }); t2.textContent = '⚑'
       g.appendChild(t1); g.appendChild(t2)
-      const wa = wallClock(na.e), wb = wallClock(nb.e)
+      const wa = wallClock(na.e) - wallClock(startA.get(turn) ?? na.s)
+      const wb = wallClock(nb.e) - wallClock(startB.get(turn) ?? nb.s)
       const dA = detA.get(turn), dB = detB.get(turn)
       const lab = el('text', { x: (x(na.e) + x(nb.e)) / 2, y: (y1 + y2) / 2 - 8, 'text-anchor': 'middle', class: 'mslabel' })
       lab.textContent = tr('alignLabel')(turn, fmtT(wa), fmtT(wb), fmtT(Math.abs(wb - wa)))
