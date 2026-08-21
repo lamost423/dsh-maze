@@ -2,6 +2,24 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.5.1 — 2026-08-21
+
+对比可读性三连修：
+
+- **加载自适应**：时间轴去掉 460 秒固定下限，短会话（如 72s/43s 双会话对比）不再被压扁在左侧、对齐标注挤成一团；Tmax 贴合内容跨度（×1.04 给右缘旗标留呼吸位）。
+- **本轮耗时口径**：轮次对齐线从「会话开始算起的累计墙钟」改标「本轮耗时」（该轮最早节点 → 回答完成）：轮与轮之间等用户输入的空闲不再计入，两次运行的速度对比不再被空闲污染。图例悬停注明口径。
+- **推理量标签自解释**：无 usage 真值时从「N 段推理」改为「推理 N 段（日志未报 token 用量）」——中转站日志常缺 `reasoningTokens`，与原厂日志并排时单位不同，标签自带原因。
+
+_EN: Three compare-readability fixes — the axis's 460s floor is retired (short sessions fit the viewport on load); turn-alignment labels switch to per-turn time (turn start → answer done, inter-turn user-input waits excluded); the reasoning-volume fallback without usage is self-explaining ("reasoning N chunks (no token usage in log)")._
+
+## v0.5.0 — 2026-08-20
+
+**界面双语。**
+
+整页 UI 中英双语：嵌入宿主时经 postMessage 实时跟随 dsh 的语言设置（同主题跟随的通道模式），独立打开按浏览器语言兜底。判定依据从成品文案改为语言无关的结构化键值 `{k, p}`，展示端按当前语言集中渲染——切语言即时生效，已加载的会话数据无需重新解析。仓库 README 调换为中文默认（英文在 README.en.md）。
+
+_EN: The whole UI ships bilingual (zh/en), live-following the dsh host's language setting via postMessage (same channel pattern as theme following) with a browser-language fallback standalone. Verdict rationales become language-neutral structured `{k, p}` keys rendered in the current language — switching is instant, no re-parse. The repo README flips to Chinese-default with English in README.en.md._
+
 ## v0.4.0 — 2026-08-20
 
 **子代理执行折入实时迷宫。**

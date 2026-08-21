@@ -29,7 +29,7 @@ Two surfaces, one visual language:
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
 - **Search & filter**: a toolbar with a failures/retries-only toggle, per-tool filtering, and full-text search over commands and results (including the 5000-char panel text); non-matching nodes and arcs fade to 15% opacity with a live hit count. Filter state survives live-mode rebuilds.
-- **Turn alignment lines** (two-session compare, since v0.3.0): each turn's answer nodes are auto-connected with a comparison line labeled with both wall-clock arrival times, the delta, and that turn's detour counts (e.g. "Turn 3 answer: 1st 4m ↔ 2nd 6m (Δ2m) · detours 4↔0"). Only turns present in both runs get a line — the old corpus-specific "model list result" regex milestone is retired.
+- **Turn alignment lines** (two-session compare, since v0.3.0): each turn's answer nodes are auto-connected with a comparison line labeled with each side's per-turn time (turn start → answer done; inter-turn waits for user input are excluded, since v0.5.1), the delta, and that turn's detour counts (e.g. "Turn 3 time: 1st 4m ↔ 2nd 6m (Δ2m) · detours 4↔0"). Only turns present in both runs get a line — the old corpus-specific "model list result" regex milestone is retired.
 - **Manual anchors** (two-session compare): after "🔗 add anchor", click one node in each lane to pin a comparison line with its time delta; click the line to delete, Esc cancels picking. Useful for pinning semantically equivalent moments that sit in different turns.
 - **Detour inventory** (two-session compare): "📋 detour inventory" opens a per-turn table — each side's detour step count, wall-clock time, verdict breakdown (✗ failure / ↻ blind retry / · dead end) and the verdict-time gap (e.g. "session 2 wasted 48.4s more"); clicking a row zooms to that turn and keeps only its detours visible. A turn present on one side only shows "—" — the absence itself is signal.
 - **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined; **exports are always light-background** regardless of the page's current theme (built for sharing).
@@ -44,7 +44,7 @@ Timeline honesty rules:
 - Step identity is turn-qualified (`S15·47`), so multi-turn sessions attach detours to the right nodes.
 - Durations, tool timings, and totals stay wall-clock; only the axis is compressed.
 - **The live tab renders only the conversation's loaded event window** (honestly labeled since v0.2.3): stale steps from earlier turns leaking into the window edge are dropped and noted as "⏮ N earlier steps not loaded" instead of piling at 0 s and inflating stats; for the whole session, download the log and use the upload view.
-- **Tokens are real** (since v0.2.2): reasoning/output tokens come from the session log's `assistant/message` `usage` (the old "reasoning N tok" counted streaming chunks, not tokens). Logs without usage fall back to an honest "N reasoning segments" label.
+- **Tokens are real** (since v0.2.2): reasoning/output tokens come from the session log's `assistant/message` `usage` (the old "reasoning N tok" counted streaming chunks, not tokens). Logs without usage fall back to an honest, self-explaining "reasoning N chunks (no token usage in log)" label — relay logs often omit reasoning-token fields, and side by side with official-API logs the differing units used to confuse (since v0.5.1).
 
 Verdict honesty rules (since v0.2.1):
 
@@ -71,7 +71,7 @@ dsh plugin --profile web add dsh-trace-compare
 dsh web
 ```
 
-Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/dsh-trace-compare-0.4.0.tgz`
+Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.5.1/dsh-trace-compare-0.5.1.tgz`
 
 To install from a checkout instead:
 
@@ -99,6 +99,10 @@ Whether a step stays on the main path or becomes a branch is decided by its wors
 4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
 
 On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
+
+### v0.5.1 - Three compare-readability fixes (2026-08-21)
+
+Short sessions were squashed into the left edge by the axis's fixed 460s floor, with alignment labels piling into a jumble — the floor is retired and the axis now fits the content span on load. Turn-alignment labels switch from "cumulative wall clock since session start" to per-turn time (turn start → answer done), so inter-turn waits for user input no longer pollute the speed comparison. The reasoning-volume fallback without usage data is now self-explaining: "reasoning N chunks (no token usage in log)". [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.5.1)
 
 ### v0.5.0 - Bilingual UI following the host language (2026-08-20)
 
