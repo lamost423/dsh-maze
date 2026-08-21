@@ -2,6 +2,16 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.5.3 — 2026-08-21
+
+**长会话布局修复：迷宫不再随会话时长挤成一条竖线。**
+
+- **支路槽位贪心复用**：支路泳道从「每条独占一层」改为按横向占位（出程弧、条形、回程弧、标签）贪心装箱——前一条支路画完的槽位可被后续支路复用，首选方向仍按序号上下交替保持原有观感。层数从「支路总数的一半」塌缩到「同一时段真正互相重叠的支路数」，画布高度基本与会话时长无关（4.2h/455 步/96 支路的实测会话：viewH 4159 → 1439）。
+- **布局随缩放窗口重算**：装箱、布局、画布高度全部挪进 build() 按当前窗口重算——整图态挤在同一时段的支路，放大到单轮后自动重新摊开。
+- 同槽相邻支路的下方标签复用原有的行内防重叠抑制，不互相叠字。
+
+_EN: Long-session layout fix — detour lanes switch from one-slot-per-detour to greedy interval packing on each detour's horizontal footprint (out-arc, bar, back-arc, label), so slot count collapses to the true concurrent overlap and viewH stays flat regardless of session length (real 4.2h/455-step/96-detour session: viewH 4159 → 1439). Packing/layout/canvas height now recompute per build against the current zoom window, so detours crowded at full view re-spread when zoomed into a turn._
+
 ## v0.5.2 — 2026-08-21
 
 浮层加可见关闭按钮（右上角 ✕，带「关闭（Esc）」提示）。v0.5.0 起对比面板挂 `shell.overlay` 全屏盖住侧栏后，界面上没有任何可见出口，只能靠碰运气知道 Esc——实际用户第一次就被困住了。Esc 与切换会话自动关闭的行为保持不变。

@@ -765,17 +765,18 @@ let LAYOUT = {}
 let LANE_GAP = 40
 
 function computeLayout(lanes){
-  // Lane geometry grows with the detour count so no curve can leave the canvas:
-  // mainY sits below the band header plus all up-detour lanes, regionBottom
-  // clears all down-detour lanes, and the next lane starts below that.
+  // Lane geometry grows with the packed slot count from assignLanes (not the
+  // raw detour count) so no curve can leave the canvas: mainY sits below the
+  // band header plus all up-detour slots, regionBottom clears all down-detour
+  // slots, and the next lane starts below that.
   // parH reserves the parallel-tool sub-bar zone directly under the main path
-  // (one 9px row per concurrent call); down-detour lanes and below-row labels
+  // (one 9px row per concurrent call); down-detour slots and below-row labels
   // shift past it.
   const layout = {}
   let regionTop = 34
   lanes.forEach(l => {
-    const up = Math.ceil(l.detours.length / 2)
-    const down = Math.floor(l.detours.length / 2)
+    const up = l._slotsUp ?? 0
+    const down = l._slotsDown ?? 0
     const maxPar = Math.max(0, ...l.main.map(n => n.tools.length >= 2 ? n.tools.length : 0))
     const parH = maxPar > 0 ? maxPar * 9 + 8 : 0
     const mainY = regionTop + 34 + up * LANE_GAP + 48
@@ -865,12 +866,49 @@ const msEls = []
 const labRows = {}
 const wEst = s => s.length * 6.2 + 6
 
+/**
+ * Greedy interval packing of detours into vertical slots: a slot is reusable
+ * once its previous occupant's full horizontal footprint — out-arc from the
+ * attach point, bar, back-arc bulge, below-bar label — has cleared a safety
+ * gap, in current-window pixel coordinates. Long sessions collapse from
+ * one-slot-per-detour to max-concurrent-overlap, so viewH stays flat instead
+ * of shrinking the whole maze into a sliver. First-choice side still
+ * alternates below/above by detour index to keep the familiar look when
+ * slots are free. Runs per build (footprints depend on the zoom window);
+ * computeLayout then sizes the band from _slotsUp/_slotsDown, and _y is
+ * assigned afterwards by assignDetourY.
+ */
 function assignLanes(lane){
-  let up = 0, down = 0
+  const downEnd = [], upEnd = []   // per-slot rightmost occupied x
+  const GAPX = 26
   lane.detours.forEach((d, i) => {
-    if (i % 2 === 0){ up += 1; d._lane = up } else { down += 1; d._lane = -down }
-    // 正向（主干下方）支路让过并行分行区
-    d._y = LAYOUT[lane.key].mainY + d._lane * LANE_GAP + (d._lane > 0 ? LAYOUT[lane.key].parH : 0)
+    const attach = lane.main.find(n => n.step === d.attach)
+    const ax = x(attach ? attach.e : d.s)
+    const left = Math.min(ax, x(d.s)) - 8
+    // 右边界盖住三样：回程弧右鼓包(x(e)+~30)、出程弧控制点(ax+90 的贝塞尔实际最右
+    // 不超 ax+~70)、条形中点下方的标签(可能带工具后缀,多留 30)。
+    const labelHalf = wEst(nodeLabel(d)) / 2 + 30
+    const right = Math.max(x(d.e) + 34, ax + 70, (x(d.s) + x(d.e)) / 2 + labelHalf)
+    for (let k = 0; ; k++){
+      const useDown = (k + i) % 2 === 0
+      const arr = useDown ? downEnd : upEnd
+      const s = Math.floor(k / 2)
+      if (arr[s] === undefined || arr[s] + GAPX <= left){
+        arr[s] = right
+        d._lane = useDown ? s + 1 : -(s + 1)
+        break
+      }
+    }
+  })
+  lane._slotsDown = downEnd.length
+  lane._slotsUp = upEnd.length
+}
+
+/** 支路 y 定位：槽位 × 槽距；主干下方槽让过并行分行区。须在 computeLayout 之后调用。 */
+function assignDetourY(lane){
+  const lay = LAYOUT[lane.key]
+  lane.detours.forEach(d => {
+    d._y = lay.mainY + d._lane * LANE_GAP + (d._lane > 0 ? lay.parH : 0)
   })
 }
 
@@ -881,6 +919,12 @@ function build(){
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   pathEls.length = 0; nodeEls.length = 0; markEls.length = 0; msEls.length = 0
   for (const k of Object.keys(labRows)) delete labRows[k]
+  // 装箱 → 布局 → 画布高度全按当前缩放窗口重算：整图态支路密集共用少数槽位,
+  // 放大到局部后同批支路自动重新摊开。
+  DATA.lanes.forEach(assignLanes)
+  LAYOUT = computeLayout(DATA.lanes)
+  DATA.viewH = Math.max(...DATA.lanes.map(l => LAYOUT[l.key].regionBottom)) + 30
+  DATA.lanes.forEach(assignDetourY)
   svg.setAttribute('viewBox', `0 0 1560 ${DATA.viewH}`)
 
   const defs = el('defs', {})
@@ -971,7 +1015,6 @@ function build(){
   }
 
   DATA.lanes.forEach(lane => {
-    assignLanes(lane)
     const lay = LAYOUT[lane.key]
     const mainC = MAIN_COLOR[lane.key]
     const isFlash = lane.key === 'l1'
@@ -1071,7 +1114,7 @@ function build(){
     }
   })
 
-  drawAnchors(gTime)   // 锚点端点可挂在支路上，须等 assignLanes 给出 _y 后再画
+  drawAnchors(gTime)   // 锚点端点可挂在支路上，须等 assignDetourY 给出 _y 后再画
 
   const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: SVGC.milestone, 'stroke-width': 2 })
   gTime.appendChild(cur)
@@ -1351,7 +1394,8 @@ function drawNode(parent, lane, n, y, isMain, idx){
       g.appendChild(bar)
     })
   }
-  const rowKey = isMain ? (idx % 2 ? 'u' : 'd') : ('det-' + (n._id ?? idx))
+  // 支路标签按槽位共行：复用同一槽的相邻支路靠 labRows 抑制标签重叠。
+  const rowKey = isMain ? (idx % 2 ? 'u' : 'd') : ('det' + (n._lane ?? idx))
   const labY = isMain ? y + (idx % 2 ? -17 : 28 + parH) : y + 24
   const lab = el('text', { x: cx, y: labY, 'text-anchor': 'middle', class: 'nlabel' })
   let toolTxt = ''
@@ -1812,8 +1856,6 @@ function renderData(data, opts){
     const s = Math.max(0, Math.min(VIEW.t0, TMAX - span))
     VIEW = span >= TMAX - 1e-9 ? null : { t0: s, t1: s + span }
   }
-  LAYOUT = computeLayout(DATA.lanes)
-  DATA.viewH = Math.max(...DATA.lanes.map(l => LAYOUT[l.key].regionBottom)) + 30
   renderLegend()
   renderStats()
   document.body.classList.add('hasdata')   // 页头收紧：说明/大上传区/统计卡让位给迷宫
