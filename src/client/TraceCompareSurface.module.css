@@ -10,3 +10,22 @@
   border:0;
   background:#f4f5f7;
 }
+.close{
+  position:absolute;
+  top:10px;
+  right:12px;
+  z-index:2;
+  width:30px;
+  height:30px;
+  border:1px solid #d6dae2;
+  border-radius:8px;
+  background:#fff;
+  color:#374151;
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,0.12);
+}
+.close:hover{
+  background:#eef1f5;
+}

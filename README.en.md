@@ -71,7 +71,7 @@ dsh plugin --profile web add dsh-trace-compare
 dsh web
 ```
 
-Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.5.1/dsh-trace-compare-0.5.1.tgz`
+Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.5.2/dsh-trace-compare-0.5.2.tgz`
 
 To install from a checkout instead:
 

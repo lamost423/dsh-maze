@@ -2,6 +2,12 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.5.2 — 2026-08-21
+
+浮层加可见关闭按钮（右上角 ✕，带「关闭（Esc）」提示）。v0.5.0 起对比面板挂 `shell.overlay` 全屏盖住侧栏后，界面上没有任何可见出口，只能靠碰运气知道 Esc——实际用户第一次就被困住了。Esc 与切换会话自动关闭的行为保持不变。
+
+_EN: The overlay surface gains a visible close button (top-right ✕, titled "Close (Esc)"). Since v0.5.0 the compare surface mounts on `shell.overlay`, covering the sidebar with no visible exit — first-time users got stuck unless they guessed Esc. Esc and close-on-session-switch behavior unchanged._
+
 ## v0.5.1 — 2026-08-21
 
 对比可读性三连修：

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import type { PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createTraceCompareViewStore } from './store.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
@@ -12,7 +12,7 @@ import css from './TraceCompareSurface.module.css'
  * isolated iframe. The page parses uploaded session logs and renders the
  * exploration maze on a shared timeline; nothing here reaches the host.
  */
-export function TraceCompareSurface({ useStore, actions, useSessions, locale }: TraceCompareSurfaceProps) {
+export function TraceCompareSurface({ useStore, actions, useSessions, locale, t }: TraceCompareSurfaceProps) {
   const open = useStore(state => state.open)
   const srcDoc = useMemo(() => MAZE_PAGE_HTML, [])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -59,6 +59,15 @@ export function TraceCompareSurface({ useStore, actions, useSessions, locale }: 
   if (!open) return null
   return (
     <div className={css.frame}>
+      <button
+        type="button"
+        className={css.close}
+        title={t('surface.close')}
+        aria-label={t('surface.close')}
+        onClick={() => { actions.close() }}
+      >
+        ✕
+      </button>
       <iframe
         ref={iframeRef}
         title="trace-compare"
@@ -75,6 +84,7 @@ export function TraceCompareSurface({ useStore, actions, useSessions, locale }: 
 export type TraceCompareSurfaceProps =
   PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createTraceCompareViewStore>>
+  & PropsLocale<'traceCompare'>
   & {
     /** 宿主 locale 服务：iframe 页面文案跟随其 active 语言。 */
     locale: LocaleRuntime

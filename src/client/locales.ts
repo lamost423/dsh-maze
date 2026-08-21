@@ -8,6 +8,7 @@ export const zh = {
   'title': 'Trace 对比',
   'subtitle': '上传 session log，可视化模型探索路径',
   'view.live': '实时迷宫',
+  'surface.close': '关闭（Esc）',
   'live.empty': '会话还没有可可视化的执行轨迹',
 } satisfies Record<string, string>
 
@@ -22,5 +23,6 @@ export const en = {
   'title': 'Trace Compare',
   'subtitle': 'Upload session logs and visualize agent exploration paths',
   'view.live': 'Live Maze',
+  'surface.close': 'Close (Esc)',
   'live.empty': 'No execution trace to visualize in this session yet',
 } satisfies Record<TraceCompareKey, string>
