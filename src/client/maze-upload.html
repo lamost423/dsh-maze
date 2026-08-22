@@ -7,23 +7,23 @@
 <style>
   :root{
     --bg:#f2f4f8; --bg-grad:linear-gradient(180deg,#f7f8fb 0%,#eef1f6 100%);
-    --panel:#ffffff; --panel2:#f6f8fb; --line:#e6e9f0; --txt:#1b2434; --dim:#6e7a91;
+    --panel:#ffffff; --panel2:#f6f8fb; --line:#e6e9f0; --txt:#1b2434; --dim:#5f6b85;
     --llm:#2563eb; --bash:#0f9488; --grep:#7c3aed; --read:#059669; --web:#d97706; --other:#0891b2;
-    --err:#dc2626; --dead:#9aa4b8; --retry:#8892a6; --ans:#16a34a; --main-f:#2563eb; --main-p:#7c3aed;
-    --milestone:#d97706; --mslabel-txt:#92400e; --anchor:#0e7490;
-    --hover:#eef1f6; --sel:#e3ecfe; --border:#d9dee8; --codebg:#f9fafd; --code:#3a4354;
+    --err:#c0453f; --dead:#98a1ad; --retry:#88919f; --ans:#3f7d55; --main-f:#2d6a8f; --main-p:#a06a35;
+    --milestone:#7d8896; --mslabel-txt:#5f6b7a; --anchor:#2f8a99;
+    --hover:#eef1f6; --sel:#dfeaf1; --border:#d9dee8; --codebg:#f9fafd; --code:#3a4354;
     --grid:#e9edf3; --seam:#eef1f6; --seam-edge:#c7cedb; --seam-txt:#b45309;
-    --turnsep:#94a3b8; --turnsep-txt:#64748b; --backarc:#9aa4b8; --lane1-title:#1d4ed8; --lane2-title:#6d28d9;
-    --nlabel:#46536a; --tick:#9aa4b8; --tick-big:#5b6b85; --nodeline:#ffffff; --hl:#1f2937;
-    --lane1-bg:rgba(37,99,235,.04); --lane1-edge:rgba(37,99,235,.15); --lane1-head:rgba(37,99,235,.065);
-    --lane2-bg:rgba(124,58,237,.04); --lane2-edge:rgba(124,58,237,.15); --lane2-head:rgba(124,58,237,.065);
+    --turnsep:#94a3b8; --turnsep-txt:#64748b; --backarc:#9aa4b8; --lane1-title:#245c7e; --lane2-title:#8b5a2b;
+    --nlabel:#46536a; --tick:#6b7689; --tick-big:#4a5a75; --nodeline:#ffffff; --hl:#1f2937;
+    --lane1-bg:rgba(45,106,143,.045); --lane1-edge:rgba(45,106,143,.15); --lane1-head:rgba(45,106,143,.07);
+    --lane2-bg:rgba(160,106,53,.045); --lane2-edge:rgba(160,106,53,.15); --lane2-head:rgba(160,106,53,.07);
     --glass:rgba(255,255,255,.86); --glass-brd:rgba(23,32,48,.08);
     --shadow-sm:0 1px 2px rgba(15,23,42,.05);
     --shadow-md:0 2px 6px rgba(15,23,42,.05),0 12px 32px -12px rgba(15,23,42,.10);
     --shadow-lg:0 4px 16px rgba(15,23,42,.08),0 24px 64px -24px rgba(15,23,42,.22);
     --panel-shadow-l:-12px 0 40px rgba(15,23,42,.12); --panel-shadow-r:12px 0 40px rgba(15,23,42,.12);
-    --ring:rgba(37,99,235,.20);
-    --btn-primary:#2563eb; --btn-primary-h:#1d4ed8;
+    --ring:rgba(45,106,143,.20);
+    --btn-primary:#2d6a8f; --btn-primary-h:#245c7e;
     --chev:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%236e7a91' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   }
   /* 暗色主题：宿主经 postMessage {kind:'trace-theme'} 切换（iframe srcDoc 读不到宿主 DOM）。
@@ -31,21 +31,21 @@
   :root[data-theme="dark"]{
     --bg:#0d1219; --bg-grad:linear-gradient(180deg,#111825 0%,#0b1017 100%);
     --panel:#151c27; --panel2:#1a2330; --line:#273041; --txt:#dde4f0; --dim:#8e9bb3;
-    --err:#ef5350; --dead:#7f8ca3; --retry:#9aa8c0; --ans:#2eb85c; --main-f:#5b8ef7; --main-p:#a07df2;
-    --milestone:#e8a13c; --mslabel-txt:#e0b566; --anchor:#3cc5dd;
-    --hover:#212c3d; --sel:#28395a; --border:#333f54; --codebg:#111823; --code:#c3cddd;
+    --err:#e0645e; --dead:#7e879c; --retry:#97a1ba; --ans:#5fae7c; --main-f:#6aa8cc; --main-p:#cf9a5e;
+    --milestone:#93a0b0; --mslabel-txt:#a9b5c4; --anchor:#4fb0c0;
+    --hover:#212c3d; --sel:#22384a; --border:#333f54; --codebg:#111823; --code:#c3cddd;
     --grid:#1e2735; --seam:#182130; --seam-edge:#39455a; --seam-txt:#e0a35c;
-    --turnsep:#5d6b82; --turnsep-txt:#8b99b0; --backarc:#7f8ca3; --lane1-title:#7fa6ff; --lane2-title:#bfa1ff;
+    --turnsep:#5d6b82; --turnsep-txt:#8b99b0; --backarc:#7f8ca3; --lane1-title:#8cc0dd; --lane2-title:#e0b077;
     --nlabel:#aab6ca; --tick:#77839a; --tick-big:#93a0b6; --nodeline:#0d1219; --hl:#f2f6ff;
-    --lane1-bg:rgba(91,142,247,.055); --lane1-edge:rgba(91,142,247,.22); --lane1-head:rgba(91,142,247,.09);
-    --lane2-bg:rgba(160,125,242,.055); --lane2-edge:rgba(160,125,242,.22); --lane2-head:rgba(160,125,242,.09);
+    --lane1-bg:rgba(106,168,204,.06); --lane1-edge:rgba(106,168,204,.22); --lane1-head:rgba(106,168,204,.09);
+    --lane2-bg:rgba(207,154,94,.06); --lane2-edge:rgba(207,154,94,.22); --lane2-head:rgba(207,154,94,.09);
     --glass:rgba(21,28,39,.85); --glass-brd:rgba(255,255,255,.07);
     --shadow-sm:0 1px 2px rgba(0,0,0,.28);
     --shadow-md:0 2px 8px rgba(0,0,0,.32),0 12px 32px -12px rgba(0,0,0,.5);
     --shadow-lg:0 4px 16px rgba(0,0,0,.4),0 24px 64px -24px rgba(0,0,0,.65);
     --panel-shadow-l:-12px 0 40px rgba(0,0,0,.5); --panel-shadow-r:12px 0 40px rgba(0,0,0,.5);
-    --ring:rgba(91,142,247,.28);
-    --btn-primary:#3b71e8; --btn-primary-h:#4d80f0;
+    --ring:rgba(106,168,204,.28);
+    --btn-primary:#3b7fa6; --btn-primary-h:#4a92ba;
     --chev:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%238e9bb3' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   }
   *{box-sizing:border-box; margin:0; padding:0}
@@ -64,6 +64,11 @@
   #drop.hover{border-color:var(--main-f); background:var(--hover); box-shadow:0 0 0 3px var(--ring)}
   #drop b{color:var(--main-f)}
   /* 出数据后页头收紧：说明隐藏、上传区收成细条、统计卡隐藏（同信息已画在泳道带内）、图例压缩 */
+  /* 页头并行化：标题、上传入口、文件名收进同一行，全宽横带条数减半，迷宫多拿约 70px 高度 */
+  body.hasdata .topbar{display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px}
+  body.hasdata .topbar h1{flex:0 0 auto}
+  body.hasdata .topbar #drop{flex:0 1 auto}
+  body.hasdata .topbar .files{flex:1 1 auto; margin-top:0}
   body.hasdata{padding:10px 24px 12px}
   body.hasdata h1{font-size:13px}
   body.hasdata .sub{display:none}
@@ -74,29 +79,32 @@
   body.hasdata .files{margin-top:6px}
   .files{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
   .fchip{background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4.5px 8px 4.5px 12px; font-size:11.5px; display:flex; align-items:center; gap:7px; box-shadow:var(--shadow-sm)}
-  .fchip .x{cursor:pointer; color:var(--dim); font-weight:700; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; transition:background .15s, color .15s}
-  .fchip .x:hover{color:var(--err); background:rgba(220,38,38,.10)}
-  .fchip.err{border-color:rgba(220,38,38,.35); color:var(--err); background:rgba(220,38,38,.07)}
+  .fchip .x{cursor:pointer; color:var(--dim); font-weight:700; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; transition:background .15s, color .15s}
+  .fchip .x:hover{color:var(--err); background:rgba(192,69,63,.10)}
+  .fchip.err{border-color:rgba(192,69,63,.35); color:var(--err); background:rgba(192,69,63,.07)}
   .stats{display:flex; gap:10px; flex-wrap:wrap; margin:12px 0}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 15px; min-width:210px; box-shadow:var(--shadow-sm)}
   .card b{font-size:13.5px; letter-spacing:-.01em}
   .card .m{color:var(--dim); font-size:10.5px}
   .card .key{color:var(--dim); margin-left:8px; font-size:10.5px}
-  .legend{display:flex; gap:14px; flex-wrap:wrap; margin:8px 0; color:var(--dim); font-size:11px}
-  .lg{display:inline-flex; align-items:center; gap:5px}
+  /* 图例压成单行横滚：换行时桌面吃 44px、375px 下吃 152px，全是常看不常点的参照信息 */
+  .legend{display:flex; gap:14px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:8px 0; color:var(--dim); font-size:11px}
+  .legend::-webkit-scrollbar{display:none}
+  .lg{display:inline-flex; align-items:center; gap:5px; flex:0 0 auto}
   .ln{width:20px; height:0; border-top:2px solid #fff; display:inline-block; border-radius:1px}
   .ln.mf{border-color:var(--main-f)} .ln.mp{border-color:var(--main-p)}
   .ln.dt{border-color:var(--dead); border-top-style:dashed}
-  .ln.bk{border-color:#9aa4b8; border-top-style:dotted}
+  .ln.bk{border-color:var(--backarc); border-top-style:dotted}
   .sw{width:13px; height:9px; border-radius:3px; display:inline-block}
   .sw.er{background:var(--err)} .sw.de{background:var(--dead)} .sw.rt{background:var(--retry)} .sw.an{background:var(--ans)} .sw.ms{background:var(--milestone)}
   .flt-dim{opacity:.15 !important}
   #fltbar .fltlab{display:flex; align-items:center; gap:5px; white-space:nowrap}
-  #fltbar input[type="search"]{flex:0 1 260px; min-width:120px; padding:4px 11px; border:1px solid var(--border); border-radius:9px; font:inherit; font-size:12px; background:var(--panel); color:var(--txt); transition:border-color .15s, box-shadow .15s}
+  #fltbar input[type="search"]{flex:1 1 220px; min-width:120px; max-width:320px; padding:4px 11px; border:1px solid var(--border); border-radius:9px; font:inherit; font-size:12px; background:var(--panel); color:var(--txt); transition:border-color .15s, box-shadow .15s}
   #fltbar input[type="search"]:focus{outline:none; border-color:var(--main-f); box-shadow:0 0 0 3px var(--ring)}
   #fltbar #fltCount{color:var(--dim); white-space:nowrap}
-  /* 工具条：ghost 控件（默认无框，悬停浮起），只有主操作「播放」是实心主色 */
-  .controls{display:flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:4px 10px; margin-bottom:8px; position:sticky; top:0; z-index:50; box-shadow:var(--shadow-sm)}
+  /* 工具条：ghost 控件（默认无框，悬停浮起），只有主操作「播放」是实心主色。
+     flex-wrap 必开：body overflow:hidden 下溢出的控件不是"要横滚"而是彻底够不着（375px 实测 2.06× 溢出）。 */
+  .controls{display:flex; align-items:center; flex-wrap:wrap; gap:6px 7px; min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:4px 10px; margin-bottom:8px; position:sticky; top:0; z-index:50; box-shadow:var(--shadow-sm)}
   .controls button{background:transparent; color:var(--txt); border:1px solid transparent; border-radius:8px; padding:3px 10px; font-size:12px; font-weight:500; cursor:pointer; transition:background .15s, color .15s, transform .06s}
   .controls button:hover{background:var(--hover)}
   .controls button:active{transform:translateY(1px)}
@@ -107,13 +115,24 @@
   .controls select{appearance:none; -webkit-appearance:none; background:transparent var(--chev) no-repeat right 6px center; color:var(--txt); border:1px solid transparent; border-radius:8px; padding:3px 20px 3px 8px; font:inherit; font-size:12px; cursor:pointer; transition:background .15s}
   .controls select:hover{background-color:var(--hover)}
   #curTime{font-variant-numeric:tabular-nums; min-width:58px; text-align:center; color:var(--main-f); font-weight:600; font-size:11.5px; background:var(--panel2); border-radius:7px; padding:2px 8px}
-  #seek{flex:1; accent-color:var(--main-f)}
+  #seek{flex:1 1 180px; min-width:120px; height:22px; accent-color:var(--main-f)}
   /* 过滤条：去面板底，退成安静的一行 */
   #fltbar{background:transparent; border-color:transparent; box-shadow:none; padding:0 6px; margin-bottom:6px; font-size:12px}
   #fltbar input[type="search"]{border-color:var(--line)}
-  /* The maze scales to whatever space is left: viewBox + meet fit, no scrolling in either axis. */
+  /* The maze scales to whatever space is left: viewBox + meet fit（内容不高时）。 */
   .svgwrap{overflow:hidden; flex:1 1 0; min-height:120px; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:var(--shadow-md); position:relative}
+  /* 内层滚动容器：整图 meet fit 在内容偏高时会把迷宫压到十几个百分点（实测 1560×1889
+     塞进 1230×450 = 0.24×，文字全糊、七成画布空白）。低于可读下限时改按宽度铺满、
+     纵向滚动——时间轴是语义主轴必须占满宽度，泳道方向本就是可滚的列表。
+     详情/盘点面板留在 .svgwrap 上不进滚动层，否则会跟着内容滚走。 */
+  .svgscroll{position:absolute; inset:0; overflow:hidden}
+  /* 滚动模式下轴头会随内容滚走，时间参照就没了。把刻度文字复制到一条钉住的轴条上，
+     不透明底盖住底下同位置的那份；主 SVG 里仍保留刻度，导出的 SVG/PNG 不受影响。 */
+  .axisbar{position:absolute; left:0; right:0; top:0; display:none; background:var(--panel); border-bottom:1px solid var(--line); pointer-events:none; z-index:5}
+  .svgwrap.scroll .axisbar{display:block}
+  .svgwrap.scroll .svgscroll{overflow-y:auto; overflow-x:hidden}
   #svg{width:100%; height:100%; display:block; cursor:grab}
+  .svgwrap.scroll #svg{height:auto}
   #svg.panning{cursor:grabbing}
   /* 固定详情面板：盖在 svgwrap 右侧，点节点/支路打开（毛玻璃，迷宫在底下隐约可见） */
   #panel{position:absolute; top:0; right:0; bottom:0; width:410px; max-width:78%; background:var(--glass); backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5); border-left:1px solid var(--glass-brd); box-shadow:var(--panel-shadow-l); display:none; flex-direction:column; z-index:60}
@@ -136,7 +155,7 @@
   #panel .jump{display:inline-block; margin:8px 0 0; border:1px solid var(--main-f); background:var(--sel); color:var(--lane1-title); border-radius:9px; font-size:11.5px; font-weight:600; cursor:pointer; padding:3.5px 12px; transition:background .15s}
   #panel .jump:hover{background:var(--hover)}
   #panel .rzfull{color:var(--dim); background:var(--codebg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-top:10px; max-height:160px; overflow:auto; user-select:text}
-  .zoomhint{color:var(--dim); font-size:10.5px; opacity:.6}
+  .zoomhint{color:var(--dim); font-size:10.5px}
   svg text{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB",sans-serif}
   .node{cursor:pointer}
   .node .nbar{stroke:var(--nodeline); stroke-width:1.2}
@@ -158,7 +177,6 @@
   .mk-flag{font-size:11px}
   .msline{stroke:var(--milestone); stroke-dasharray:4 4; stroke-width:1.5}
   .mslabel{font-size:10px; fill:var(--mslabel-txt)}
-  .msbox{fill:#fff7ed; stroke:#fcd34d; stroke-width:1; rx:4}
   .ancline{stroke:var(--anchor); stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
   .anclabel{font-size:10px; fill:var(--anchor); font-weight:600; cursor:pointer}
   .sw.anc{background:var(--anchor)}
@@ -177,15 +195,30 @@
   #invpanel tbody tr[data-turn]:hover{background:var(--hover)}
   #invpanel tr.sel{background:var(--sel)}
   #invpanel tr.total td{color:var(--txt); font-weight:600; background:var(--panel2)}
-  #invpanel .hint{color:var(--dim); font-size:11px; margin:6px 2px 0; opacity:.75}
+  #invpanel .hint{color:var(--dim); font-size:11px; margin:6px 2px 0}
   .controls button.on{background:var(--sel); color:var(--lane1-title)}
   .deadX{font-size:12px; font-weight:700}
   #tip{position:fixed; z-index:100; max-width:600px; max-height:360px; overflow:auto; background:var(--glass); backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5); border:1px solid var(--glass-brd); border-radius:12px; padding:10px 13px; font-size:11.5px; display:none; box-shadow:var(--shadow-lg)}
   #tip .th{color:var(--main-f); font-weight:600; margin-bottom:4px}
   #tip pre{white-space:pre-wrap; word-break:break-all; color:var(--code); font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:11px}
   #tip .rs{margin-top:5px; color:var(--dim)}
-  #tip .back{margin-top:4px; color:#d97706}
-  .errbar{background:rgba(220,38,38,.07); border:1px solid rgba(220,38,38,.35); color:var(--err); border-radius:12px; padding:10px 14px; margin:10px 0; font-size:12.5px; display:none}
+  #tip .back{margin-top:4px; color:var(--dim)}
+  .errbar{background:rgba(192,69,63,.07); border:1px solid rgba(192,69,63,.35); color:var(--err); border-radius:12px; padding:10px 14px; margin:10px 0; font-size:12.5px; display:none}
+  @media (max-width:720px){
+    body{padding:12px 12px 10px}
+    body.hasdata{padding:8px 12px 10px}
+    .controls{padding:5px 8px; gap:6px}
+    #fltbar input[type="search"]{max-width:none}
+    .zoomhint{display:none}
+  }
+  /* 触屏设备把控件抬到 44px 触控下限；指针设备保持紧凑，垂直空间留给迷宫 */
+  @media (pointer:coarse){
+    .controls button, .controls select{min-height:44px; padding-top:10px; padding-bottom:10px}
+    #fltbar input[type="search"]{min-height:44px}
+    #seek{height:44px}
+    .fchip .x{width:32px; height:32px}
+    #fltbar input[type=checkbox]{width:22px; height:22px}
+  }
   /* Live (embedded tab) mode: page chrome off, everything tight — the lane band already carries the stats. */
   body.live{padding:4px 8px 8px}
   body.live h1, body.live .sub, body.live #stats{display:none}
@@ -194,6 +227,7 @@
 </style>
 </head>
 <body>
+<div class="topbar">
 <h1>DSH Session Trace 迷宫时间线</h1>
 <div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比（按轮次自动对齐 + 手动锚点 + 支路盘点）。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
 
@@ -204,6 +238,7 @@
 <!-- No accept filter: names like "xxx.jsonl 2" (macOS duplicates) must stay selectable; format is detected from content. -->
 <input type="file" id="file" multiple hidden>
 <div class="files" id="files"></div>
+</div>
 <div class="errbar" id="errbar"></div>
 
 <div class="stats" id="stats"></div>
@@ -238,7 +273,10 @@
 </div>
 
 <div class="svgwrap" id="svgwrap" style="display:none">
+<div class="svgscroll" id="svgscroll">
 <svg id="svg" viewBox="0 0 1560 1150" preserveAspectRatio="xMidYMin meet"></svg>
+</div>
+<svg class="axisbar" id="axisbar" viewBox="0 0 1560 20" preserveAspectRatio="xMidYMin meet"></svg>
 <div id="panel">
   <div class="ph"><b id="panelTitle"></b><span class="vchip" id="panelChip"></span><button class="pclose" id="panelClose" title="关闭（Esc）">×</button></div>
   <div class="pbody" id="panelBody"></div>
@@ -262,8 +300,10 @@ const I18N = {
     title: 'DSH Session Trace 迷宫时间线',
     sub: '上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比（按轮次自动对齐 + 手动锚点 + 支路盘点）。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。',
     dropHtml: '<b>点击选择或拖拽</b> 1~2 个 session log（.jsonl / .json / .jsonl.zstd）<br><span class="drop-hint">上传 1 个文件 → 单会话展示；上传 2 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>',
+    dropCompact: '<b>＋ 添加或替换文件</b>',
     play: '▶ 播放', pause: '⏸ 暂停', replay: '▶ 重播',
     fit: '⤢ 整图', fitTitle: '复位缩放（双击空白处同效）', zoomhint: '滚轮缩放 · 拖拽平移',
+    zoomhintScroll: '滚轮上下 · ⌘/Ctrl+滚轮缩放 · 拖拽平移',
     fltFail: '只看失败/重试', allTools: '全部工具', searchPh: '搜索命令与返回内容…',
     fltCount: (hit, total) => `命中 ${hit} / ${total} 步`,
     anchorBtn: '🔗 加锚点', anchorTitle: '两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除',
@@ -339,8 +379,10 @@ const I18N = {
     title: 'DSH Session Trace Maze Timeline',
     sub: 'Upload 1 session log (.jsonl / .jsonl.zstd) for a single run, or 2 for a same-axis comparison (per-turn auto alignment + manual anchors + detour inventory). Solid = main path, dashed = exploration detours with ✗/· and backtracks; bar length = step duration. Hover for a quick preview, click for the detail panel; wheel to zoom, drag to pan, double-click to reset.',
     dropHtml: '<b>Click to choose or drag in</b> 1–2 session logs (.jsonl / .json / .jsonl.zstd)<br><span class="drop-hint">1 file → single-session view; 2 files → same-axis comparison; .zstd decompresses in the browser; format is detected from content, any filename works (e.g. macOS copies like “xxx.jsonl 2”)</span>',
+    dropCompact: '<b>＋ Add or replace files</b>',
     play: '▶ Play', pause: '⏸ Pause', replay: '▶ Replay',
     fit: '⤢ Fit', fitTitle: 'Reset zoom (double-click empty space does the same)', zoomhint: 'wheel to zoom · drag to pan',
+    zoomhintScroll: 'wheel to scroll · ⌘/Ctrl+wheel to zoom · drag to pan',
     fltFail: 'Failures/retries only', allTools: 'All tools', searchPh: 'Search commands & results…',
     fltCount: (hit, total) => `${hit} / ${total} steps match`,
     anchorBtn: '🔗 Add anchor', anchorTitle: 'Click one node in each lane to pin a comparison line; click a pinned line to delete it',
@@ -440,11 +482,11 @@ function applyStatic(){
   document.title = tr('title')
   document.querySelector('h1').textContent = tr('title')
   document.querySelector('.sub').textContent = tr('sub')
-  document.getElementById('drop').innerHTML = tr('dropHtml')
+  renderDrop()
   updatePlayBtn()
   const fit = document.getElementById('btnFit')
   fit.textContent = tr('fit'); fit.title = tr('fitTitle')
-  document.querySelector('.zoomhint').textContent = tr('zoomhint')
+  updateZoomHint()
   document.getElementById('fltFailTxt').textContent = tr('fltFail')
   const sel0 = document.getElementById('fltToolSel').options[0]
   if (sel0) sel0.textContent = tr('allTools')
@@ -459,6 +501,12 @@ function applyStatic(){
   document.getElementById('panelClose').title = tr('closeEsc')
   document.getElementById('invClose').title = tr('close')
   document.getElementById('invTitle').textContent = tr('invHeader')
+}
+
+/** 上传入口文案随状态走：出数据后收成一颗添加按钮，不再重复整句上传指引。 */
+function renderDrop(){
+  document.getElementById('drop').innerHTML =
+    document.body.classList.contains('hasdata') ? tr('dropCompact') : tr('dropHtml')
 }
 
 /** 播放按钮按当前播放状态取文案（切语言与各处状态翻转共用）。 */
@@ -831,9 +879,53 @@ function computeLayout(lanes){
 
 /* ============================ 渲染 ============================ */
 const svg = document.getElementById('svg')
+const svgScrollEl = document.getElementById('svgscroll')
+const svgWrapEl = document.getElementById('svgwrap')
 const NS = 'http://www.w3.org/2000/svg'
-const MAIN_COLOR = { l1: '#2563eb', l2: '#7c3aed' }
-const VCOLOR = { error: '#dc2626', deadend: '#9aa4b8', retry: '#8892a6', ok: '#16a34a', answer: '#16a34a' }
+
+/* ==================== 画布适配：整图 fit ↔ 宽度铺满 + 纵向滚动 ====================
+   viewBox + meet fit 在内容偏高时被高度卡死：1560×1889 塞进 1230×450 只有 0.24×，
+   节点文字糊成一片、七成画布留白。缩放跌破可读下限时改为按宽度铺满（时间轴是语义
+   主轴，必须占满宽度），泳道方向交给纵向滚动。 */
+const FIT_FLOOR = 0.5   // 整图 fit 缩放低于此值时 11px 标签实际不足 5.5px
+const axisBarEl = document.getElementById('axisbar')
+const tickLabels = []   // build 期记下的刻度文字，供钉住的轴条复用
+
+function applyFit(){
+  if (!DATA) return
+  const w = svgScrollEl.clientWidth, h = svgScrollEl.clientHeight
+  if (w === 0 || h === 0) return
+  const scroll = Math.min(w / 1560, h / DATA.viewH) < FIT_FLOOR
+  svgWrapEl.classList.toggle('scroll', scroll)
+  svg.style.height = scroll ? Math.round(DATA.viewH * w / 1560) + 'px' : '100%'
+  // 整图模式纵向居中；滚动模式必须顶对齐，否则滚动内容会被挤出容器
+  svg.setAttribute('preserveAspectRatio', scroll ? 'xMidYMin meet' : 'xMidYMid meet')
+  axisBarEl.style.height = Math.round(20 * w / 1560) + 'px'
+  if (scroll) renderAxisBar()
+  updateZoomHint()
+}
+
+/** 钉住轴条：按 build 记下的刻度重画一份（与主 SVG 同一 x 映射，宽度比例一致）。 */
+function renderAxisBar(){
+  while (axisBarEl.firstChild) axisBarEl.removeChild(axisBarEl.firstChild)
+  for (const t of tickLabels){
+    const tx = el('text', { x: t.x, y: 14, 'text-anchor': 'middle', class: t.cls })
+    if (t.fill) tx.setAttribute('fill', t.fill)
+    tx.textContent = t.text
+    axisBarEl.appendChild(tx)
+  }
+}
+
+/** 操作提示随适配模式走：滚动模式下普通滚轮归纵向滚动，缩放让给 ⌘/Ctrl+滚轮。 */
+function updateZoomHint(){
+  const el = document.querySelector('.zoomhint')
+  if (el) el.textContent = svgWrapEl.classList.contains('scroll') ? tr('zoomhintScroll') : tr('zoomhint')
+}
+
+// 容器尺寸变化只需重算适配（支路装箱走 viewBox 单位，与像素宽度无关）
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => applyFit()).observe(svgScrollEl)
+const MAIN_COLOR = { l1: '#2d6a8f', l2: '#a06a35' }
+const VCOLOR = { error: '#c0453f', deadend: '#98a1ad', retry: '#88919f', ok: '#3f7d55', answer: '#3f7d55' }
 
 /* ==================== 主题：CSS 变量单真相源，SVG 属性色经 readPalette 取值 ==================== */
 let THEME = 'light'
@@ -846,6 +938,7 @@ function readPalette(){
   MAIN_COLOR.l1 = v('--main-f'); MAIN_COLOR.l2 = v('--main-p')
   VCOLOR.error = v('--err'); VCOLOR.deadend = v('--dead'); VCOLOR.retry = v('--retry')
   VCOLOR.ok = v('--ans'); VCOLOR.answer = v('--ans')
+  SVGC.nodeline = v('--nodeline')
   SVGC.grid = v('--grid'); SVGC.seam = v('--seam'); SVGC.seamEdge = v('--seam-edge'); SVGC.seamTxt = v('--seam-txt')
   SVGC.turnSep = v('--turnsep'); SVGC.turnSepTxt = v('--turnsep-txt'); SVGC.back = v('--backarc')
   SVGC.lane1 = v('--lane1-title'); SVGC.lane2 = v('--lane2-title'); SVGC.milestone = v('--milestone')
@@ -987,18 +1080,32 @@ function build(){
   const TS = tickStep(viewSpan())
   // Sub-minute tick steps need second precision: fmtT alone renders every
   // deep-zoom label as the same "3m".
+  // 轴标签精度跟着刻度步长走：fmtT 对 ≥10h 只留整数，14h 跨度里连着六枚刻度都写成
+  // "13h"，等于没标。步长小于 1h 时保留一位小数。
+  const axisLab = rt => {
+    if (rt >= 3600) return (rt / 3600).toFixed(TS >= 3600 ? 0 : 1) + 'h'
+    if (rt >= 120) return Math.round(rt / 60) + 'm'
+    return (Math.round(rt * 10) / 10) + 's'
+  }
   const tickLab = TS < 60
     ? rt => rt >= 120 ? Math.floor(rt / 60) + 'm' + String(Math.round(rt % 60)).padStart(2, '0') + 's' : fmtT(rt)
-    : fmtT
+    : axisLab
+  // 折叠时间轴上刻度按活动段分别铺，段与段的标签会撞在一起（实测轴头糊成
+  // "59m1.6m 2m 110s"）。逐个记录上一枚标签的右缘，装不下就只画栅格线不画字。
+  let tickLabRight = -1e9
+  tickLabels.length = 0
   const drawTick = (cx, label, big) => {
     if (cx < X0 - 20 || cx > X0 + AXIS_W + 20) return
     const g = el('g', {})
     g.appendChild(el('line', { x1: cx, y1: 0, x2: cx, y2: DATA.viewH, stroke: SVGC.grid, 'stroke-width': big ? 1 : 0.5 }))
     // Fine steps label only the big ticks: "12m14s"-wide labels on every tick overlap.
-    if (TS >= 60 || big){
+    const half = label.length * 3 + 3
+    if ((TS >= 60 || big) && cx - half >= tickLabRight + 6){
       const tx = el('text', { x: cx, y: 14, 'text-anchor': 'middle', class: big ? 'tick big' : 'tick' })
       tx.textContent = label
       g.appendChild(tx)
+      tickLabels.push({ x: cx, text: label, cls: big ? 'tick big' : 'tick' })
+      tickLabRight = cx + half
     }
     gTicks.appendChild(g)
   }
@@ -1016,9 +1123,16 @@ function build(){
       gTicks.appendChild(el('rect', { x: x0, y: 0, width: Math.max(x1 - x0, 3), height: DATA.viewH, fill: SVGC.seam, opacity: 0.85 }))
       gTicks.appendChild(el('line', { x1: x0, y1: 0, x2: x0, y2: DATA.viewH, stroke: SVGC.seamEdge, 'stroke-dasharray': '3 4' }))
       gTicks.appendChild(el('line', { x1: x1, y1: 0, x2: x1, y2: DATA.viewH, stroke: SVGC.seamEdge, 'stroke-dasharray': '3 4' }))
-      const lb = el('text', { x: (x0 + x1) / 2, y: 14, 'text-anchor': 'middle', class: 'tick big', fill: SVGC.seamTxt })
-      lb.textContent = '⏸ ' + fmtT(gp.skipped)
-      gTicks.appendChild(lb)
+      const lbTxt = '⏸ ' + fmtT(gp.skipped)
+      const lbHalf = lbTxt.length * 3 + 3
+      const lbX = (x0 + x1) / 2
+      if (lbX - lbHalf >= tickLabRight + 6){
+        const lb = el('text', { x: lbX, y: 14, 'text-anchor': 'middle', class: 'tick big', fill: SVGC.seamTxt })
+        lb.textContent = lbTxt
+        gTicks.appendChild(lb)
+        tickLabels.push({ x: lbX, text: lbTxt, cls: 'tick big', fill: SVGC.seamTxt })
+        tickLabRight = lbX + lbHalf
+      }
     }
   } else {
     for (let t = 0; t <= TMAX + 0.001; t += TS){
@@ -1166,6 +1280,7 @@ function build(){
   const cur = el('line', { x1: X0, y1: 0, x2: X0, y2: DATA.viewH, stroke: SVGC.milestone, 'stroke-width': 2 })
   gTime.appendChild(cur)
   window._cursor = cur
+  applyFit()      // viewH 每次重建都会变，适配模式跟着重算
   applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
 }
 
@@ -1272,9 +1387,9 @@ let invSel = null   // 盘点面板选中的轮次；非空时 applyFilter 只�
 function fmtDetCell(g){
   if (!g) return '<td style="color:#b6c0d2">—</td>'
   const by = []
-  if (g.by.error) by.push(`<span style="color:#dc2626">✗${g.by.error}</span>`)
-  if (g.by.retry) by.push(`<span style="color:#8892a6">↻${g.by.retry}</span>`)
-  if (g.by.deadend) by.push(`<span style="color:#9aa4b8">·${g.by.deadend}</span>`)
+  if (g.by.error) by.push(`<span style="color:var(--err)">✗${g.by.error}</span>`)
+  if (g.by.retry) by.push(`<span style="color:var(--retry)">↻${g.by.retry}</span>`)
+  if (g.by.deadend) by.push(`<span style="color:var(--dead)">·${g.by.deadend}</span>`)
   return `<td>${tr('invSteps')(g.n)} · ${fmtT(g.T)}${by.length ? '　' + by.join(' ') : ''}</td>`
 }
 
@@ -1341,6 +1456,8 @@ function serializeSvg(){
     const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number)
     const clone = svg.cloneNode(true)
     clone.setAttribute('xmlns', NS)
+    // 滚动模式给 #svg 设了内联 style.height，克隆里它会盖过下面的 height 属性，导出就变形
+    clone.removeAttribute('style')
     clone.setAttribute('width', vb[2])
     clone.setAttribute('height', vb[3])
     // 页面样式是 <style> 类 + 属性混合，序列化时把全部 CSS 内联进 SVG（body 级选择器在 SVG 内不命中，无害）
@@ -1407,9 +1524,10 @@ function drawNode(parent, lane, n, y, isMain, idx){
   const w = Math.max(bx1 - bx0, 8)
   const rx0 = bx1 - bx0 >= 8 ? bx0 : (bx0 + bx1) / 2 - w / 2
   const cx = rx0 + w / 2
-  g.appendChild(el('rect', { class: 'nbar', x: rx0, y: y - h / 2, width: w, height: h, rx: h / 2, fill: c, opacity: '0', 'stroke-width': 1.2, stroke: '#ffffff' }))
+  g.appendChild(el('rect', { class: 'nbar', x: rx0, y: y - h / 2, width: w, height: h, rx: h / 2, fill: c, opacity: '0' }))
   const wide = w >= 64
-  const icon = el('text', { x: wide ? rx0 + 10 : cx, y: y + 3.5, 'text-anchor': 'middle', class: 'node-icon', fill: '#fff' })
+  // 条内文字用画布底色反压（写死白色在暗色主题的浅色条上只有 2.6:1 对比度）
+  const icon = el('text', { x: wide ? rx0 + 10 : cx, y: y + 3.5, 'text-anchor': 'middle', class: 'node-icon', fill: SVGC.nodeline })
   if (isMain){
     icon.textContent = n.v === 'answer' ? '' : '✓'
     icon.style.fontSize = n.v === 'answer' ? '0' : '10px'
@@ -1420,7 +1538,7 @@ function drawNode(parent, lane, n, y, isMain, idx){
   }
   g.appendChild(icon)
   if (wide){
-    const dur = el('text', { x: cx, y: y + 3, 'text-anchor': 'middle', class: 'node-icon', fill: '#fff' })
+    const dur = el('text', { x: cx, y: y + 3, 'text-anchor': 'middle', class: 'node-icon', fill: SVGC.nodeline })
     dur.style.fontSize = '9px'
     dur.textContent = fmtT(Math.max(n.e - n.s, 0))
     g.appendChild(dur)
@@ -1586,7 +1704,7 @@ function openPanel(n, lane, isMain){
   if (!isMain){
     inner += n.sub
       ? `<div class="prow">${tr('subSpawn')(n.attach, n.live === true)}</div>`
-      : `<div class="prow" style="color:#d97706">${tr('deadReturnPanel')(n.attach)}</div>`
+      : `<div class="prow" style="color:var(--dim)">${tr('deadReturnPanel')(n.attach)}</div>`
   }
   if (liveMode){
     const jumpTool = (n.tools ?? []).find(tl => tl.callId)
@@ -1600,10 +1718,10 @@ function openPanel(n, lane, isMain){
     const res = String(tl.resFull ?? tl.res ?? '')
     const ai = panelTexts.push(args) - 1
     const ri = panelTexts.push(res) - 1
-    inner += `<div class="psec"><div class="pt"><b>${esc(tlabel(tl.name))}</b><span style="color:#7a869e;font-weight:500">${tl.dur != null && tl.e != null ? tl.dur + 's' : tr('running')}${(tl.v === 'error' || tl.err) ? tr('ptFail') : (tl.v === 'retry' ? tr('ptRetry') : '')}</span><button class="cp" data-ci="${ai}">${tr('copyCmd')}</button></div>`
+    inner += `<div class="psec"><div class="pt"><b>${esc(tlabel(tl.name))}</b><span style="color:var(--dim);font-weight:500">${tl.dur != null && tl.e != null ? tl.dur + 's' : tr('running')}${(tl.v === 'error' || tl.err) ? tr('ptFail') : (tl.v === 'retry' ? tr('ptRetry') : '')}</span><button class="cp" data-ci="${ai}">${tr('copyCmd')}</button></div>`
     inner += `<pre class="args">${args ? esc(args) : tr('noArgs')}</pre>`
     if (tl.why) inner += `<div class="pwhy">${tr('whyShort')}${esc(whyText(tl.why, tl.why2))}</div>`
-    if (res) inner += `<div class="pt" style="border-top:1px solid var(--line)">${tr('resultHead')}<span style="color:#7a869e;font-weight:500">${res.length >= 5000 ? tr('chars5000') : tr('charsN')(res.length)}</span><button class="cp" data-ci="${ri}">${tr('copyRes')}</button></div><pre>${esc(res)}</pre>`
+    if (res) inner += `<div class="pt" style="border-top:1px solid var(--line)">${tr('resultHead')}<span style="color:var(--dim);font-weight:500">${res.length >= 5000 ? tr('chars5000') : tr('charsN')(res.length)}</span><button class="cp" data-ci="${ri}">${tr('copyRes')}</button></div><pre>${esc(res)}</pre>`
     inner += `</div>`
   }
   const rz = n.rzTxtFull ?? n.rzTxt
@@ -1692,6 +1810,8 @@ function tAtClientX(cx){
 }
 svg.addEventListener('wheel', e => {
   if (!DATA) return
+  // 滚动模式下普通滚轮归纵向滚动，缩放让给 ⌘/Ctrl+滚轮（画布类应用通行约定）
+  if (svgWrapEl.classList.contains('scroll') && !e.ctrlKey && !e.metaKey) return
   e.preventDefault()
   const span = viewSpan()
   const ns = span * Math.exp(e.deltaY * 0.0018)
@@ -1858,6 +1978,7 @@ function renderFiles(){
 
 function resetView(){
   document.body.classList.remove('hasdata')
+  renderDrop()
   document.getElementById('legend').style.display = 'none'
   document.getElementById('controls').style.display = 'none'
   document.getElementById('fltbar').style.display = 'none'
@@ -1884,6 +2005,18 @@ function apply(){
   renderData(data, { follow: false })
 }
 
+/**
+ * 滚动模式下把视口落到第 1 泳道的主干线：默认 scrollTop=0 停在支路槽区顶端，
+ * 最该先看到的主干反而在屏外。上方留一段让泳道带标题仍可见。
+ */
+function scrollToMain(){
+  if (!DATA || !svgWrapEl.classList.contains('scroll')) return
+  const lay = LAYOUT[DATA.lanes[0].key]
+  if (!lay) return
+  const scale = svgScrollEl.clientWidth / 1560
+  svgScrollEl.scrollTop = Math.max(0, Math.round(lay.mainY * scale - svgScrollEl.clientHeight * 0.42))
+}
+
 /** Render a fully-built maze data payload (upload mode or live mode). */
 function renderData(data, opts){
   opts = opts ?? {}
@@ -1908,6 +2041,7 @@ function renderData(data, opts){
   renderLegend()
   renderStats()
   document.body.classList.add('hasdata')   // 页头收紧：说明/大上传区/统计卡让位给迷宫
+  renderDrop()
   document.getElementById('legend').style.display = 'flex'
   document.getElementById('controls').style.display = 'flex'
   document.getElementById('fltbar').style.display = 'flex'
@@ -1920,12 +2054,16 @@ function renderData(data, opts){
   else if (invPanelEl.classList.contains('show')) renderInventory()
   document.getElementById('svgwrap').style.display = 'block'
   playing = false
-  playEnded = false
+  // 默认直接呈现完整迷宫：t=0 时节点条 opacity 为 0、连线只有 25%，
+  // 上传后满屏近乎空白，非得先找到并按下播放才看得见自己的数据。
+  // 播放是可选回放，不是看图的前置条件——按钮相应显示为「重播」。
+  playEnded = true
   if (timer){ clearInterval(timer); timer = 0 }
   updatePlayBtn()
-  t = opts.follow ? TMAX : 0
+  t = TMAX
   build()
   render()
+  if (!opts.follow) scrollToMain()
 }
 
 /** 泳道统计卡（语言切换与数据刷新共用）。 */
