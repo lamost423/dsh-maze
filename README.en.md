@@ -15,11 +15,15 @@ Two surfaces, one visual language:
 
 - **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2 logs for a same-axis comparison (e.g. flash vs pro on the same task) — answer nodes auto-align per turn, comparison anchors can be pinned by hand, and a per-turn inventory tallies the detour gap between the two runs.
 
-![Trace Compare: shared timeline, verdict-rationale tooltip, pinned detail panel, failures-only filter + search, wheel zoom](assets/trace-compare-v023b.gif)
+![Trace Compare: same task on Flash vs Pro, one timeline — detour inventory, manual anchors, failures-only filter](assets/trace-compare.gif)
 
 - **Live Maze** (per-session conversation tab): the same maze grows in real time while the session executes; detours appear as soon as a tool result settles a step's verdict.
 
-![Live Maze: the maze grows while the session runs; idle waits fold away](assets/live-maze.gif)
+![Live Maze: the whole run inside the session tab — replay it growing, click any step to jump back to the chat](assets/live-maze.gif)
+
+Long sessions stay legible too — a 14-hour, 8.6 MB log, readable edge to edge, ⌘/Ctrl+wheel to dive into any stretch:
+
+![Long-session legibility: width-fill plus vertical scroll with a pinned time axis](assets/long-session.gif)
 
 ## What the maze shows
 

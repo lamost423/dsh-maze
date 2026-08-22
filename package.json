@@ -1,6 +1,6 @@
 {
   "name": "dsh-trace-compare",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Trace Compare for DeepSeek Harness: upload session logs or follow the live session and visualize the agent's exploration maze — main path, detours, and backtracks on one timeline",
   "keywords": [
     "deepseek",

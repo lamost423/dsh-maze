@@ -2,6 +2,15 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.6.1 — 2026-08-23
+
+修一处悬停卡残留，并换上 v0.6.0 新界面录制的全套演示动图。
+
+- **全量重建时收掉悬停卡**：钉锚点的第二次点击、缩放、过滤等都会触发迷宫全量重建，重建把悬停中的节点直接移出 DOM，`mouseleave` 永远不会到达——悬停卡就卡在画面上，直到下次悬停才被顶掉。重建前统一收起。
+- 文档：README 换上新录的演示动图（对比：同一任务 Flash vs Pro；实时迷宫：真实会话页签内重播 + 跳回聊天；新增长会话可读性一节）。
+
+_EN: Fixes a stuck tooltip — anchor-pinning, zooming, and filtering all trigger a full maze rebuild that removes the hovered node from the DOM, so `mouseleave` never fires and the hover card stayed on screen until the next hover. The rebuild now dismisses it. Docs: README ships freshly recorded demos on the v0.6.0 UI (compare: same task on Flash vs Pro; live maze: replay inside a real session tab with jump-back-to-chat; plus a new long-session legibility section)._
+
 ## v0.6.0 — 2026-08-22
 
 **UI 大改版：一次设计评审驱动的全面重做——看得清、拖入即读、去 AI 味配色。**
