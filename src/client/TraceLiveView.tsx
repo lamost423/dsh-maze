@@ -22,6 +22,13 @@ const JUMP_SEEK_TRIES = 40
 const JUMP_SEEK_INTERVAL_MS = 100
 
 /**
+ * 会话级模型名缓存。requestConfig 只挂在「请求头事件落在快照窗口内」的 assistant 节点上，
+ * 而 header 事件很稀疏（实测 150 步的会话只有 3 条），页签开晚了快照里常常没有携带者。
+ * 模块级持有：页签关闭重开、组件卸载重挂都不丢——本次浏览器会话里见过一次就一直能显示。
+ */
+const MODEL_BY_SESSION = new Map<string, string>()
+
+/**
  * Switch this conversation column to the Chat view and reveal the step's row.
  * DOM-routed on purpose: the per-session chat store (view/inspect) is private
  * to ui-conversation's apply scope, so the plugin drives the visible controls
@@ -48,7 +55,7 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
     if (target instanceof HTMLElement) {
       target.scrollIntoView({ block: 'center', behavior: 'smooth' })
       target.animate(
-        [{ boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.75)' }, { boxShadow: '0 0 0 3px rgba(37, 99, 235, 0)' }],
+        [{ boxShadow: '0 0 0 3px rgba(45, 106, 143, 0.75)' }, { boxShadow: '0 0 0 3px rgba(45, 106, 143, 0)' }],
         { duration: 1800, easing: 'ease-out' },
       )
       return
@@ -73,7 +80,18 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t }: Tr
   const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
   useEffect(() => () => { source.dispose() }, [source])
   const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
-  const data = useMemo<MazeData | null>(() => snapshotToMazeData(snapshot, children), [snapshot, children])
+  const data = useMemo<MazeData | null>(() => {
+    const d = snapshotToMazeData(snapshot, children)
+    const lane = d?.lanes[0]
+    if (lane !== undefined) {
+      if (lane.model !== null) MODEL_BY_SESSION.set(sessionId, lane.model)
+      else {
+        const cached = MODEL_BY_SESSION.get(sessionId)
+        if (cached !== undefined) lane.model = cached
+      }
+    }
+    return d
+  }, [snapshot, children, sessionId])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data
