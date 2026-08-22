@@ -3,12 +3,12 @@
   inset:0;
   display:flex;
   z-index:30;
-  background:#f4f5f7;
+  background:#f2f4f8;
 }
 .iframe{
   flex:1;
   border:0;
-  background:#f4f5f7;
+  background:#f2f4f8;
 }
 .close{
   position:absolute;
@@ -17,15 +17,17 @@
   z-index:2;
   width:30px;
   height:30px;
-  border:1px solid #d6dae2;
-  border-radius:8px;
+  border:1px solid #d9dee8;
+  border-radius:9px;
   background:#fff;
-  color:#374151;
+  color:#3a4354;
   font-size:14px;
   line-height:1;
   cursor:pointer;
-  box-shadow:0 1px 4px rgba(0,0,0,0.12);
+  box-shadow:0 1px 2px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.08);
+  transition:background .15s, border-color .15s;
 }
 .close:hover{
-  background:#eef1f5;
+  background:#eef1f6;
+  border-color:#6e7a91;
 }
