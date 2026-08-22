@@ -222,6 +222,8 @@
   /* Live (embedded tab) mode: page chrome off, everything tight — the lane band already carries the stats. */
   body.live{padding:4px 8px 8px}
   body.live h1, body.live .sub, body.live #stats{display:none}
+  /* live 下 topbar 里的东西全被藏了（h1/sub 靠 CSS，drop/files 靠 JS），把空容器连 margin 一起收掉 */
+  body.live .topbar{display:none}
   body.live .legend{margin:2px 0 4px; font-size:11px; gap:10px}
   body.live .controls{margin-bottom:4px; padding:4px 10px}
 </style>
@@ -2157,6 +2159,7 @@ function mazeSignature(data){
 
 window.addEventListener('message', e => {
   if (!e.data || e.data.kind !== 'trace-maze') return
+  const firstLive = !liveMode
   liveMode = true
   drop.style.display = 'none'
   filesBox.style.display = 'none'
@@ -2165,6 +2168,8 @@ window.addEventListener('message', e => {
   if (sig === liveSig) return
   liveSig = sig
   renderData(e.data.data, { follow: true })
+  // 首帧进滚动模式时同样要落到主干线（follow 路径不重定位，避免打断用户正在看的位置）
+  if (firstLive) scrollToMain()
 })
 
 // 主题跟随：宿主读取自身主题后推 {kind:'trace-theme', mode}（照 trace-maze 的 postMessage 模式）

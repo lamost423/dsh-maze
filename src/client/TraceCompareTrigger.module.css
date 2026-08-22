@@ -13,8 +13,8 @@
   cursor:pointer;
   transition:background .15s;
 }
-.trigger:hover{ background:rgba(37,99,235,.08) }
-.trigger[aria-pressed='true']{ color:#1d4ed8; background:rgba(37,99,235,.12) }
+.trigger:hover{ background:rgba(45,106,143,.08) }
+.trigger[aria-pressed='true']{ color:#245c7e; background:rgba(45,106,143,.12) }
 .rail{ width:auto; justify-content:center; padding:7px 0 }
-.rail:hover{ background:rgba(37,99,235,.08) }
+.rail:hover{ background:rgba(45,106,143,.08) }
 .label{ white-space:nowrap }
