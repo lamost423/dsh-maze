@@ -2,6 +2,19 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.6.0 — 2026-08-22
+
+**UI 大改版：一次设计评审驱动的全面重做——看得清、拖入即读、去 AI 味配色。**
+
+- **画布自适应滚动**：整图 fit 在内容偏高时会把迷宫压到十几个百分点（双会话实测 0.24×，节点文字 2.6px 全糊）。缩放跌破可读下限改为按宽度铺满 + 纵向滚动，时间轴刻度钉在顶部不随内容滚走，首帧自动定位到主干线；滚动模式下普通滚轮归滚动、缩放走 ⌘/Ctrl+滚轮。实测双会话 0.24× → 0.79×。
+- **拖入即读**：上传后直接呈现完整迷宫（原先节点条 opacity 0，非得先找到播放键才看得见自己的数据）；播放降级为可选回放，按钮显示「重播」。
+- **全新配色「钢蓝 + 赭褐」**：明确告别靛/紫系（AI 生成界面的招牌色）。两条对比泳道一冷一暖（红绿色盲可分），主干节点用泳道主色、绿色只留每轮最终回答（原先整条主干染绿与图例语义冲突）；轮次对齐线降为中性灰，全图高彩度色从五个收敛到三个。
+- **界面精致化**：设计令牌重构（明暗两套）、毛玻璃浮层（详情/盘点/悬停卡）、ghost 工具条（只有播放键实心）、页头并行化（1280 下页头 259→156px，迷宫多拿高度）、图例单行横滚、泳道标题显示上传文件名、全局字阶下调一档。
+- **可达性与健壮性**：正文/刻度文字对比度提到 WCAG AA；折叠时间轴的刻度标签逐个避让不再互相叠字、轴标签精度随步长（14h 跨度不再连排六个「13h」）；375px 视口横向溢出修复（774→375）；触屏设备控件抬到 44px 触控下限。
+- **实时泳道显示模型名**：`request/header` 不属于会话快照的 surface 事件，浏览器侧从来拿不到模型名。配套宿主 fork 注册 `modelIdentity` 会话投影（宿主侧折叠全量日志），本插件经标准投影钩子探测读取——stock dsh 无此键时自然降级，兼容不变。
+
+_EN: Major UI overhaul from a design review. Canvas adaptively switches to width-fill + vertical scroll with a pinned axis when meet-fit drops below legibility (two-lane real case: 0.24× → 0.79×), first frame lands on the main path. Uploads render the full maze immediately (playback becomes optional replay). New "steel blue + ochre" palette retires the AI-signature indigo/purple: warm/cool lane pair (CVD-safe), lane-colored main-path nodes with green reserved for final answers, neutral turn-alignment lines. Refined chrome: glass overlays, ghost toolbar, parallelized header, single-line legend, filenames in lane titles. Contrast raised to WCAG AA, tick labels self-collide-avoid with step-aware precision, 375px overflow fixed, 44px touch targets. Live lane now shows the model name via a host-fork `modelIdentity` session projection with capability probing — stock dsh degrades gracefully._
+
 ## v0.5.3 — 2026-08-21
 
 **长会话布局修复：迷宫不再随会话时长挤成一条竖线。**
