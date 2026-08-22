@@ -22,13 +22,6 @@ const JUMP_SEEK_TRIES = 40
 const JUMP_SEEK_INTERVAL_MS = 100
 
 /**
- * 会话级模型名缓存。requestConfig 只挂在「请求头事件落在快照窗口内」的 assistant 节点上，
- * 而 header 事件很稀疏（实测 150 步的会话只有 3 条），页签开晚了快照里常常没有携带者。
- * 模块级持有：页签关闭重开、组件卸载重挂都不丢——本次浏览器会话里见过一次就一直能显示。
- */
-const MODEL_BY_SESSION = new Map<string, string>()
-
-/**
  * Switch this conversation column to the Chat view and reveal the step's row.
  * DOM-routed on purpose: the per-session chat store (view/inspect) is private
  * to ui-conversation's apply scope, so the plugin drives the visible controls
@@ -74,24 +67,29 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
  * trace-jump messages back; this component answers them by switching the
  * column to the Chat view and revealing the step's row.
  */
-export function TraceLiveView({ useSession, sessionId, sessions, locale, t }: TraceLiveViewProps) {
+export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useProjection }: TraceLiveViewProps) {
   const snapshot = useSession(s => s)
   // One roster per (service, session); disposed with the view or on session switch.
   const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
   useEffect(() => () => { source.dispose() }, [source])
   const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
+  // 模型名走宿主投影：request/header 不是 surface 事件，永远进不了浏览器侧会话快照
+  //（快照 assistant 节点的 requestConfig 是上游从未接线的预留字段）。宿主 fork 注册的
+  // modelIdentity 投影 host 侧折叠全量日志；stock dsh 没有这个键，读到 undefined 自然降级
+  //（照 SessionFace.open 的 fork 能力探测模式）。键在 rc.6 的投影表类型之外，断言调用。
+  const identityRaw: unknown = (useProjection as (key: string) => unknown)('modelIdentity')
+  const hostModel = ((v: unknown): string | null => {
+    if (v === null || typeof v !== 'object') return null
+    const m = (v as { model?: unknown }).model
+    return typeof m === 'string' && m !== '' ? m : null
+  })(identityRaw)
   const data = useMemo<MazeData | null>(() => {
     const d = snapshotToMazeData(snapshot, children)
     const lane = d?.lanes[0]
-    if (lane !== undefined) {
-      if (lane.model !== null) MODEL_BY_SESSION.set(sessionId, lane.model)
-      else {
-        const cached = MODEL_BY_SESSION.get(sessionId)
-        if (cached !== undefined) lane.model = cached
-      }
-    }
+    // 快照内 requestConfig（若上游未来接线）按请求级更精确，优先；投影兜全量场景。
+    if (lane !== undefined && lane.model === null && hostModel !== null) lane.model = hostModel
     return d
-  }, [snapshot, children, sessionId])
+  }, [snapshot, children, hostModel])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data
