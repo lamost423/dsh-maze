@@ -1055,6 +1055,10 @@ function assignDetourY(lane){
 const xVisible = (s, e) => x(Math.max(e, s)) >= X0 - 60 && x(Math.min(s, e)) <= X0 + AXIS_W + 60
 
 function build(){
+  // 全量重建会移除悬停中的节点，mouseleave 永远不会来——悬停卡随重建一并收掉，
+  // 否则锚点第二击、缩放等触发重建后 tooltip 残留在画面上直到下次悬停。
+  document.getElementById('tip').style.display = 'none'
+  hoverDet = null
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   pathEls.length = 0; nodeEls.length = 0; markEls.length = 0; msEls.length = 0
   for (const k of Object.keys(labRows)) delete labRows[k]
