@@ -10,7 +10,7 @@
 [![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
 
 [![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
-[![Featured on dshfind](https://img.shields.io/badge/featured-dshfind-2d6a8f)](https://github.com/hikariming/dshfind)
+[![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-trace-compare?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-trace-compare?ref=badge)
 [![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
 [![Health check on dsh-suite](https://img.shields.io/badge/health-dsh--suite%20%E2%9C%93-2d6a8f)](https://github.com/whyihaveyou/dsh-suite)
 
