@@ -64,7 +64,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build",
-    "pack:tgz": "pnpm pack --pack-destination artifacts"
+    "pack:tgz": "pnpm pack --pack-destination artifacts",
+    "release:status": "bash scripts/release.sh status",
+    "release:prep": "bash scripts/release.sh prep"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
