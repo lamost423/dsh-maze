@@ -12,7 +12,7 @@
 [![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
 [![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-trace-compare?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-trace-compare?ref=badge)
 [![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
-[![Health check on dsh-suite](https://img.shields.io/badge/health-dsh--suite%20%E2%9C%93-2d6a8f)](https://github.com/whyihaveyou/dsh-suite)
+[![featured on dsh-suite](https://img.shields.io/badge/featured%20on-dsh--suite-4d6bfe)](https://whyihaveyou.github.io/dsh-suite/)
 
 <sub>还被收录于：[fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness)（独立介绍页）· [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins)</sub>
 
