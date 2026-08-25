@@ -9,14 +9,19 @@
     --bg:#f2f4f8; --bg-grad:linear-gradient(180deg,#f7f8fb 0%,#eef1f6 100%);
     --panel:#ffffff; --panel2:#f6f8fb; --line:#e6e9f0; --txt:#1b2434; --dim:#5f6b85;
     --llm:#2563eb; --bash:#0f9488; --grep:#7c3aed; --read:#059669; --web:#d97706; --other:#0891b2;
+    --tok-cache:#a9c6e8; --tok-in:#2563eb; --tok-rz:#d97706; --tok-out:#2f7d5f;
+    --ctx-line:#2d6a8f; --ctx-fill:rgba(45,106,143,.12); --ctx-warn:#d97706; --ctx-crit:#c0453f;
     --err:#c0453f; --dead:#98a1ad; --retry:#88919f; --ans:#3f7d55; --main-f:#2d6a8f; --main-p:#a06a35;
     --milestone:#7d8896; --mslabel-txt:#5f6b7a; --anchor:#2f8a99;
     --hover:#eef1f6; --sel:#dfeaf1; --border:#d9dee8; --codebg:#f9fafd; --code:#3a4354;
     --grid:#e9edf3; --seam:#eef1f6; --seam-edge:#c7cedb; --seam-txt:#b45309;
-    --turnsep:#94a3b8; --turnsep-txt:#64748b; --backarc:#9aa4b8; --lane1-title:#245c7e; --lane2-title:#8b5a2b;
+    --turnsep:#94a3b8; --turnsep-txt:#64748b; --backarc:#9aa4b8;
     --nlabel:#46536a; --tick:#6b7689; --tick-big:#4a5a75; --nodeline:#ffffff; --hl:#1f2937;
-    --lane1-bg:rgba(45,106,143,.045); --lane1-edge:rgba(45,106,143,.15); --lane1-head:rgba(45,106,143,.07);
-    --lane2-bg:rgba(160,106,53,.045); --lane2-edge:rgba(160,106,53,.15); --lane2-head:rgba(160,106,53,.07);
+    --lane1-main:#2d6a8f; --lane1-title:#245c7e; --lane1-bg:rgba(45,106,143,.045); --lane1-edge:rgba(45,106,143,.15); --lane1-head:rgba(45,106,143,.07);
+    --lane2-main:#a06a35; --lane2-title:#8b5a2b; --lane2-bg:rgba(160,106,53,.045); --lane2-edge:rgba(160,106,53,.15); --lane2-head:rgba(160,106,53,.07);
+    --lane3-main:#6d55a3; --lane3-title:#5d4693; --lane3-bg:rgba(109,85,163,.045); --lane3-edge:rgba(109,85,163,.15); --lane3-head:rgba(109,85,163,.07);
+    --lane4-main:#2f7d5f; --lane4-title:#266a50; --lane4-bg:rgba(47,125,95,.045); --lane4-edge:rgba(47,125,95,.15); --lane4-head:rgba(47,125,95,.07);
+    --lane5-main:#a04b62; --lane5-title:#8c3e54; --lane5-bg:rgba(160,75,98,.045); --lane5-edge:rgba(160,75,98,.15); --lane5-head:rgba(160,75,98,.07);
     --glass:rgba(255,255,255,.86); --glass-brd:rgba(23,32,48,.08);
     --shadow-sm:0 1px 2px rgba(15,23,42,.05);
     --shadow-md:0 2px 6px rgba(15,23,42,.05),0 12px 32px -12px rgba(15,23,42,.10);
@@ -32,13 +37,19 @@
     --bg:#0d1219; --bg-grad:linear-gradient(180deg,#111825 0%,#0b1017 100%);
     --panel:#151c27; --panel2:#1a2330; --line:#273041; --txt:#dde4f0; --dim:#8e9bb3;
     --err:#e0645e; --dead:#7e879c; --retry:#97a1ba; --ans:#5fae7c; --main-f:#6aa8cc; --main-p:#cf9a5e;
+    --llm:#60a5fa; --bash:#2dd4bf; --grep:#a78bfa; --read:#34d399; --web:#fbbf24; --other:#22d3ee;
+    --tok-cache:#48627f; --tok-in:#60a5fa; --tok-rz:#e0a35c; --tok-out:#6fbf9a;
+    --ctx-line:#6aa8cc; --ctx-fill:rgba(106,168,204,.16); --ctx-warn:#e0a35c; --ctx-crit:#e0645e;
     --milestone:#93a0b0; --mslabel-txt:#a9b5c4; --anchor:#4fb0c0;
     --hover:#212c3d; --sel:#22384a; --border:#333f54; --codebg:#111823; --code:#c3cddd;
     --grid:#1e2735; --seam:#182130; --seam-edge:#39455a; --seam-txt:#e0a35c;
-    --turnsep:#5d6b82; --turnsep-txt:#8b99b0; --backarc:#7f8ca3; --lane1-title:#8cc0dd; --lane2-title:#e0b077;
+    --turnsep:#5d6b82; --turnsep-txt:#8b99b0; --backarc:#7f8ca3;
     --nlabel:#aab6ca; --tick:#77839a; --tick-big:#93a0b6; --nodeline:#0d1219; --hl:#f2f6ff;
-    --lane1-bg:rgba(106,168,204,.06); --lane1-edge:rgba(106,168,204,.22); --lane1-head:rgba(106,168,204,.09);
-    --lane2-bg:rgba(207,154,94,.06); --lane2-edge:rgba(207,154,94,.22); --lane2-head:rgba(207,154,94,.09);
+    --lane1-main:#6aa8cc; --lane1-title:#8cc0dd; --lane1-bg:rgba(106,168,204,.06); --lane1-edge:rgba(106,168,204,.22); --lane1-head:rgba(106,168,204,.09);
+    --lane2-main:#cf9a5e; --lane2-title:#e0b077; --lane2-bg:rgba(207,154,94,.06); --lane2-edge:rgba(207,154,94,.22); --lane2-head:rgba(207,154,94,.09);
+    --lane3-main:#a68fd8; --lane3-title:#c3b1ec; --lane3-bg:rgba(166,143,216,.06); --lane3-edge:rgba(166,143,216,.22); --lane3-head:rgba(166,143,216,.09);
+    --lane4-main:#6fbf9a; --lane4-title:#8ed4b2; --lane4-bg:rgba(111,191,154,.06); --lane4-edge:rgba(111,191,154,.22); --lane4-head:rgba(111,191,154,.09);
+    --lane5-main:#d98aa0; --lane5-title:#e8aebf; --lane5-bg:rgba(217,138,160,.06); --lane5-edge:rgba(217,138,160,.22); --lane5-head:rgba(217,138,160,.09);
     --glass:rgba(21,28,39,.85); --glass-brd:rgba(255,255,255,.07);
     --shadow-sm:0 1px 2px rgba(0,0,0,.28);
     --shadow-md:0 2px 8px rgba(0,0,0,.32),0 12px 32px -12px rgba(0,0,0,.5);
@@ -161,7 +172,7 @@
   .node .nbar{stroke:var(--nodeline); stroke-width:1.2}
   .node .subbar{stroke-width:.8}
   /* 密集图内的文字标签垫一圈画布底色描边（paint-order 晕圈），压线也可读 */
-  .nlabel,.seg-label,.mslabel,.anclabel{paint-order:stroke fill; stroke:var(--panel); stroke-width:2.5px; stroke-linejoin:round}
+  .nlabel,.seg-label,.mslabel,.anclabel,.trk-label,.trk-cap{paint-order:stroke fill; stroke:var(--panel); stroke-width:2.5px; stroke-linejoin:round}
   .nlabel{font-size:10.5px; fill:var(--nlabel); pointer-events:none; font-weight:600}
   .dur-label{font-size:9px; fill:var(--tick); pointer-events:none}
   .node-icon{pointer-events:none}
@@ -180,14 +191,16 @@
   .ancline{stroke:var(--anchor); stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
   .anclabel{font-size:10px; fill:var(--anchor); font-weight:600; cursor:pointer}
   .sw.anc{background:var(--anchor)}
-  /* 支路盘点面板：盖在 svgwrap 左侧（与右侧详情面板对称），列每轮两泳道支路差额 */
-  #invpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:var(--glass); backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5); border-right:1px solid var(--glass-brd); box-shadow:var(--panel-shadow-r); display:none; flex-direction:column; z-index:60}
-  #invpanel.show{display:flex}
-  #invpanel .ph{display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--line); flex-shrink:0}
-  #invpanel .ph b{font-size:13.5px; color:var(--txt); letter-spacing:-.01em}
-  #invpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:var(--dim); font-size:15px; font-weight:700; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:7px; line-height:1; transition:background .15s, color .15s}
-  #invpanel .pclose:hover{color:var(--err); background:var(--hover)}
-  #invpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
+  /* 左侧覆盖面板家族（支路盘点 / 执行分析 / Agent 图谱）：盖在 svgwrap 左侧，与右侧详情面板对称 */
+  #invpanel,#anapanel,#agpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:var(--glass); backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5); border-right:1px solid var(--glass-brd); box-shadow:var(--panel-shadow-r); display:none; flex-direction:column; z-index:60}
+  #anapanel{width:580px; max-width:88%}
+  #agpanel{width:520px; max-width:84%}
+  #invpanel.show,#anapanel.show,#agpanel.show{display:flex}
+  #invpanel .ph,#anapanel .ph,#agpanel .ph{display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--line); flex-shrink:0}
+  #invpanel .ph b,#anapanel .ph b,#agpanel .ph b{font-size:13.5px; color:var(--txt); letter-spacing:-.01em}
+  #invpanel .pclose,#anapanel .pclose,#agpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:var(--dim); font-size:15px; font-weight:700; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:7px; line-height:1; transition:background .15s, color .15s}
+  #invpanel .pclose:hover,#anapanel .pclose:hover,#agpanel .pclose:hover{color:var(--err); background:var(--hover)}
+  #invpanel .pbody,#anapanel .pbody,#agpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
   #invpanel table{width:100%; border-collapse:collapse}
   #invpanel th{color:var(--dim); font-weight:600; text-align:left; font-size:11px; letter-spacing:.02em}
   #invpanel th,#invpanel td{padding:5.5px 7px; border-bottom:1px solid var(--line); vertical-align:top}
@@ -197,6 +210,42 @@
   #invpanel tr.total td{color:var(--txt); font-weight:600; background:var(--panel2)}
   #invpanel .hint{color:var(--dim); font-size:11px; margin:6px 2px 0}
   .controls button.on{background:var(--sel); color:var(--lane1-title)}
+  /* 执行分析面板组件：摘要卡 / 工具矩阵表 / 失败恢复链 */
+  .analane{margin:8px 2px 2px; font-weight:700; font-size:12.5px; color:var(--txt)}
+  .analane .m{color:var(--dim); font-weight:500; font-size:10.5px; margin-left:6px}
+  .anasec{margin:9px 2px 3px; font-weight:600; font-size:11px; color:var(--dim); letter-spacing:.02em}
+  .anacards{display:flex; gap:7px; flex-wrap:wrap; margin:5px 0}
+  .anacard{flex:1 1 165px; min-width:150px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:7px 10px; box-shadow:var(--shadow-sm)}
+  .anacard .t{color:var(--dim); font-size:10px; margin-bottom:2px; font-weight:600}
+  .anacard .v{font-size:11.5px; line-height:1.5}
+  .anacard .warn{color:var(--err); font-weight:700}
+  .anacard .good{color:var(--ans); font-weight:600}
+  .anatbl{width:100%; border-collapse:collapse; margin:3px 0 6px; font-size:11px}
+  .anatbl th{color:var(--dim); font-weight:600; text-align:right; font-size:10px; padding:3.5px 6px; border-bottom:1px solid var(--line); letter-spacing:.02em}
+  .anatbl td{padding:3.5px 6px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums}
+  .anatbl th:first-child,.anatbl td:first-child{text-align:left}
+  .anatbl td.err{color:var(--err)} .anatbl td.dead{color:var(--dead)} .anatbl td.rt{color:var(--retry)}
+  .okbar{display:inline-block; width:46px; height:5px; border-radius:3px; background:var(--line); vertical-align:1.5px; margin-left:6px; overflow:hidden}
+  .okbar i{display:block; height:100%; background:var(--ans); border-radius:3px}
+  .chain{display:flex; align-items:center; gap:8px; padding:4.5px 6px; border-bottom:1px solid var(--line); cursor:pointer; border-radius:7px; transition:background .12s}
+  .chain:hover{background:var(--hover)}
+  .chain .cid{font-weight:700; color:var(--txt); flex:0 0 auto}
+  .chain .cmeta{color:var(--dim); flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chaintag{font-size:10px; font-weight:700; border-radius:999px; padding:1px 8px; flex:0 0 auto}
+  .chaintag.strategy{color:var(--ans); background:rgba(63,125,85,.13)}
+  .chaintag.switch{color:var(--lane1-title); background:var(--sel)}
+  .chaintag.identical{color:var(--retry); background:rgba(136,145,159,.16)}
+  .chaintag.none{color:var(--err); background:rgba(192,69,63,.11)}
+  .anahint{color:var(--dim); font-size:10.5px; margin:6px 2px 2px}
+  /* Agent 关系图谱（面板内 SVG） */
+  .agname{font-size:11px; font-weight:700; fill:var(--txt)}
+  .agmeta{font-size:9.5px; fill:var(--dim)}
+  .agnode{cursor:pointer}
+  .agnode:hover circle{filter:brightness(1.06)}
+  /* 数据轨道（迷宫内，泳道带底部）：标签同密集图文字加画布底色晕圈 */
+  .trk-label{font-size:9.5px; fill:var(--dim); font-weight:600}
+  .trk-cap{font-size:9px; fill:var(--tick)}
+  .trk-cap.warn{fill:var(--err); font-weight:700}
   .deadX{font-size:12px; font-weight:700}
   #tip{position:fixed; z-index:100; max-width:600px; max-height:360px; overflow:auto; background:var(--glass); backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5); border:1px solid var(--glass-brd); border-radius:12px; padding:10px 13px; font-size:11.5px; display:none; box-shadow:var(--shadow-lg)}
   #tip .th{color:var(--main-f); font-weight:600; margin-bottom:4px}
@@ -231,11 +280,11 @@
 <body>
 <div class="topbar">
 <h1>DSH Session Trace 迷宫时间线</h1>
-<div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比（按轮次自动对齐 + 手动锚点 + 支路盘点）。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
+<div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2~5 个进行同时间轴对比。识别为同一任务的多次跑（首条用户消息一致）时启用对比件：按轮次自动对齐 + 手动锚点 + 支路盘点；任务不同则仅同轴并排。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
 
 <div id="drop">
-  <b>点击选择或拖拽</b> 1~2 个 session log（.jsonl / .json / .jsonl.zstd）<br>
-  <span class="drop-hint">上传 1 个文件 → 单会话展示；上传 2 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>
+  <b>点击选择或拖拽</b> 1~5 个 session log（.jsonl / .json / .jsonl.zstd）<br>
+  <span class="drop-hint">上传 1 个文件 → 单会话展示；2~5 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>
 </div>
 <!-- No accept filter: names like "xxx.jsonl 2" (macOS duplicates) must stay selectable; format is detected from content. -->
 <input type="file" id="file" multiple hidden>
@@ -270,6 +319,9 @@
   <span style="flex:1"></span>
   <button id="btnAnchor" style="display:none" title="两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除">🔗 加锚点</button>
   <button id="btnInv" style="display:none" title="按轮次盘点两条泳道的支路差额">📋 支路盘点</button>
+  <button id="btnTracks" class="on" title="显示/隐藏泳道下方的数据轨道">📊 轨道</button>
+  <button id="btnAna" title="打开执行分析面板">📈 分析</button>
+  <button id="btnAgents" style="display:none" title="主 Agent 与子代理的关系图谱">🕸 Agent</button>
   <button id="btnExpSvg" title="导出当前视图为 SVG">⬇ SVG</button>
   <button id="btnExpPng" title="导出当前视图为 PNG（2x）">⬇ PNG</button>
 </div>
@@ -287,6 +339,14 @@
   <div class="ph"><b id="invTitle">支路盘点（按轮次）</b><button class="pclose" id="invClose" title="关闭">×</button></div>
   <div class="pbody" id="invBody"></div>
 </div>
+<div id="anapanel">
+  <div class="ph"><b id="anaHeaderEl">执行分析</b><button class="pclose" id="anaClose" title="关闭">×</button></div>
+  <div class="pbody" id="anaBody"></div>
+</div>
+<div id="agpanel">
+  <div class="ph"><b id="agHeaderEl">Agent 关系图谱</b><button class="pclose" id="agClose" title="关闭">×</button></div>
+  <div class="pbody" id="agBody"></div>
+</div>
 </div>
 <div id="tip"></div>
 
@@ -300,18 +360,18 @@
 const I18N = {
   zh: {
     title: 'DSH Session Trace 迷宫时间线',
-    sub: '上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2 个进行同时间轴对比（按轮次自动对齐 + 手动锚点 + 支路盘点）。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。',
-    dropHtml: '<b>点击选择或拖拽</b> 1~2 个 session log（.jsonl / .json / .jsonl.zstd）<br><span class="drop-hint">上传 1 个文件 → 单会话展示；上传 2 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>',
+    sub: '上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2~5 个进行同时间轴对比。识别为同一任务的多次跑（首条用户消息一致）时启用对比件：按轮次自动对齐 + 手动锚点 + 支路盘点；任务不同则仅同轴并排。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。',
+    dropHtml: '<b>点击选择或拖拽</b> 1~5 个 session log（.jsonl / .json / .jsonl.zstd）<br><span class="drop-hint">上传 1 个文件 → 单会话展示；2~5 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>',
     dropCompact: '<b>＋ 添加或替换文件</b>',
     play: '▶ 播放', pause: '⏸ 暂停', replay: '▶ 重播',
     fit: '⤢ 整图', fitTitle: '复位缩放（双击空白处同效）', zoomhint: '滚轮缩放 · 拖拽平移',
     zoomhintScroll: '滚轮上下 · ⌘/Ctrl+滚轮缩放 · 拖拽平移',
     fltFail: '只看失败/重试', allTools: '全部工具', searchPh: '搜索命令与返回内容…',
     fltCount: (hit, total) => `命中 ${hit} / ${total} 步`,
-    anchorBtn: '🔗 加锚点', anchorTitle: '两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除',
+    anchorBtn: '🔗 加锚点', anchorTitle: '在任意两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除',
     anchorFirst: '点第一个节点…（再按取消）', anchorSecond: '再点另一会话的节点…',
     anchorDel: '点击删除此锚点',
-    invBtn: '📋 支路盘点', invTitle: '按轮次盘点两条泳道的支路差额', invHeader: '支路盘点（按轮次）',
+    invBtn: '📋 支路盘点', invTitle: '按轮次盘点各泳道的支路差额', invHeader: '支路盘点（按轮次）',
     expSvgTitle: '导出当前视图为 SVG', expPngTitle: '导出当前视图为 PNG（2x）',
     closeEsc: '关闭（Esc）', close: '关闭',
     laneCur: '当前会话', laneN: i => `第 ${i} 会话`,
@@ -323,12 +383,17 @@ const I18N = {
     lgAnswer: '最终回答', lgIdle: '⏸ 空闲已折叠',
     lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连；标注为本轮耗时（不含轮间等待）',
     lgAnchor: '手动锚点', lgAnchorTitle: '🔗 添加 · 点线删除',
+    lgSameTask: n => `⛓ 已识别为同一任务 ×${n}，对比功能启用`,
+    lgSameTaskTitle: '各文件首条用户消息一致，判定为同一任务的多次跑',
+    lgDiffTask: '≠ 任务不同，仅同轴并排（对齐线/盘点已停用）',
+    lgDiffTaskTitle: '各文件首条用户消息不一致；轮次对齐在不同任务间没有意义',
     modelUnknown: '未知模型', modelNoHeader: '(模型未知：会话早期记录未加载)', modelNone: '(未知模型)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' 轮 · ' : ''}${st.steps} 步（主干 ${st.main} / 支路 ${st.detours}）· ${st.tools} 次工具调用 · ${laneTokLabel(st)} · 总耗时 ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ 另有 ${n} 步更早历史未加载`,
     turnLabel: n => `第 ${n} 轮`,
     alignLabel: (turn, a, b, d) => `第 ${turn} 轮耗时：1st ${a} ↔ 2nd ${b}（Δ${d}）`,
     alignDet: (a, b) => ` · 支路 ${a}↔${b}`,
+    alignLabelN: (turn, list) => `第 ${turn} 轮耗时：${list}`,
     rzTok: n => '推理 ' + n.toLocaleString() + ' tok', rzSeg: n => '推理 ' + n.toLocaleString() + ' 段（日志未报 token 用量）',
     outTok: n => '输出 ' + n.toLocaleString() + ' tok',
     statsCard: st => `主干 ${st.main} 步 + 支路 ${st.detours} 步 = ${st.steps} 步 · ${st.tools} 次工具调用 · ${laneTokLabel(st)} · 总耗时 <b>${fmtT(st.T)}</b>`,
@@ -336,7 +401,41 @@ const I18N = {
     invSteps: n => `${n} 步`, invNone: '两边都无支路', invEven: '≈持平',
     invMore: (i, d) => `第 ${i} 会话多耗 ${d}`,
     invHint: '点一行：缩放到该轮并只保留该轮支路（其余淡化），再点同一行取消。支路耗时为墙钟时间；✗ 失败 · ↻ 无效重试 · · 扑空。',
+    tracksBtn: '📊 轨道', tracksTitle: '显示/隐藏泳道下方的数据轨道（工具调用 · Token 脉冲 · 上下文压力）',
+    anaBtn: '📈 分析', anaTitle: '打开执行分析面板（失败恢复 · 工具矩阵 · 耗时分位）', anaHeader: '执行分析',
+    agBtn: '🕸 Agent', agTitle: '主 Agent 与子代理的关系图谱', agHeader: 'Agent 关系图谱',
+    trkTools: '工具调用', trkTok: 'Token 脉冲', trkCtx: '上下文压力',
+    trkTokCap: n => `单步峰值 ${fmtTok(n)} tok`,
+    trkCtxCapPct: (p, w) => `峰值 ${p}%（窗口 ${fmtTok(w)}）`,
+    trkCtxCapAbs: n => `峰值 ${fmtTok(n)} tok（模型窗口未知，示绝对值）`,
+    tokCache: '缓存输入', tokIn: '未缓存输入', tokRz: '推理', tokOutVis: '可见输出', tokTotal: '合计',
+    ctxTipPct: (v, p) => `上下文 ${v.toLocaleString()} tok · 占窗口 ${p}%`,
+    ctxTipAbs: v => `上下文 ${v.toLocaleString()} tok（模型窗口未知）`,
+    cardFail: '工具失败与恢复', cardTime: '时间消耗', cardCtx: '上下文压力',
+    cardFailBody: (f, tot, tool, k) => `${f} 次失败 / ${tot} 次调用${tool ? `，失败最多 ${tool}（${k} 次）` : ''}`,
+    cardFailRec: (rec, f, w) => `${rec}/${f} 次在 ${w} 秒内恢复`,
+    cardFailNone: '没有失败调用',
+    cardFailRate: p => `失败率 ${p}%`,
+    cardTimeBody: (tool, d) => `最长调用 ${tool} · ${d}`,
+    cardTimeShare: p => `工具累计耗时占会话 ${p}%`,
+    cardCtxPct: (v, p) => `最大上下文 ${v.toLocaleString()} tok · 峰值占用 ${p}%`,
+    cardCtxOver: th => `已越过 ${th}% 阈值`,
+    cardCtxUnder: '在安全区',
+    cardCtxAbs: v => `最大上下文 ${v.toLocaleString()} tok（模型窗口未知）`,
+    cardCtxNone: '日志未报 token 用量',
+    mtTool: '工具', mtCalls: '次数', mtOk: '成功', mtErr: '失败', mtDead: '扑空', mtRetry: '盲重试', mtRate: '成功率',
+    mtP50: 'P50', mtP95: 'P95', mtMax: '最长', mtSum: '累计',
+    anaMatrix: '工具结果矩阵', anaDur: '耗时分位（按工具）', anaChains: '失败恢复链',
+    chainsNone: '本会话没有失败调用',
+    chainTag: { identical: '原样重试', strategy: '换参数', switch: '换工具', none: '未恢复' },
+    chainRec: s => `${fmtT(s)} 后回到成功`, chainRecSlow: s => `${fmtT(s)} 后才回到成功`, chainNoRec: '此后再无成功调用',
+    anaChainHint: '恢复 = 失败后任意工具再次成功；标签看失败后的下一次调用是否换了做法（120 秒窗口判「已恢复」）。点一条缩放到该失败并打开详情。',
+    agMain: '主 Agent', agSubNone: '本会话没有子代理任务',
+    agTok: n => `${fmtTok(n)} tok`, agTokNone: '（日志未报 token）',
+    agCalls: n => `${n} 次工具调用`, agRunningTag: '运行中',
+    agHint: '节点大小 = 该 Agent 消耗的 token（输入+缓存+输出）；连线粗细 = 工具调用数。点子代理节点跳到它在时间轴上的位置。',
     subPrefix: '子代理 ', subBranch: '子代理支路', detBranch: '探索支路',
+    evtRetry: '请求失败重试', evtTurnError: '请求终局失败',
     mainStep: '主干推进', finalAnswer: '最终回答', rejected: '（被打回）',
     whyLabel: '判定依据：', whyShort: '判定：',
     spanTo: (a, b) => `时段 ${a} → ${b}`, durP: d => `（${d}s）`,
@@ -355,7 +454,7 @@ const I18N = {
     errParse: m => '解析失败：' + m,
     errNotJsonl: '文件不是有效的 JSONL（每行一个 JSON 对象）',
     errNoSteps: '没有可解析的有效步骤（step/start 事件缺失？）',
-    errMax2: '最多上传 2 个 session log',
+    errMax: '最多上传 5 个 session log',
     errReadFile: (name, m) => `读取文件失败：${name}（${m}）`,
     errZstd: '此浏览器不支持 zstd 解压，请先在终端执行 zstd -d 解压后上传 .jsonl',
     errUrl: (p, m) => `URL 加载失败：${p}（${m}）`,
@@ -375,22 +474,24 @@ const I18N = {
       noTools: () => '无工具调用，输出回答',
       pendingTools: () => '工具结果未返回，暂留主干',
       child: p => `子代理「${p[0]}」· ${p[1]} 步 · ${p[2]} 次工具调用${p[3] === 1 ? ' · 运行中' : p[3] === 2 ? ' · 以错误收尾' : ''}`,
+      llmRetry: p => `请求失败，安排第 ${p[0]}/${p[1]} 次重试，退避等待 ${p[2]}s；失败原因：${p[3]}`,
+      turnError: p => `请求终局失败，不再重试${p[1] ? `（${p[1]}）` : ''}：${p[0]}`,
     },
   },
   en: {
     title: 'DSH Session Trace Maze Timeline',
-    sub: 'Upload 1 session log (.jsonl / .jsonl.zstd) for a single run, or 2 for a same-axis comparison (per-turn auto alignment + manual anchors + detour inventory). Solid = main path, dashed = exploration detours with ✗/· and backtracks; bar length = step duration. Hover for a quick preview, click for the detail panel; wheel to zoom, drag to pan, double-click to reset.',
-    dropHtml: '<b>Click to choose or drag in</b> 1–2 session logs (.jsonl / .json / .jsonl.zstd)<br><span class="drop-hint">1 file → single-session view; 2 files → same-axis comparison; .zstd decompresses in the browser; format is detected from content, any filename works (e.g. macOS copies like “xxx.jsonl 2”)</span>',
+    sub: 'Upload 1 session log (.jsonl / .jsonl.zstd) for a single run, or 2–5 for a same-axis comparison. Runs of the same task (identical first user message) get the full compare kit: per-turn auto alignment + manual anchors + detour inventory; different tasks render side-by-side only. Solid = main path, dashed = exploration detours with ✗/· and backtracks; bar length = step duration. Hover for a quick preview, click for the detail panel; wheel to zoom, drag to pan, double-click to reset.',
+    dropHtml: '<b>Click to choose or drag in</b> 1–5 session logs (.jsonl / .json / .jsonl.zstd)<br><span class="drop-hint">1 file → single-session view; 2–5 files → same-axis comparison; .zstd decompresses in the browser; format is detected from content, any filename works (e.g. macOS copies like “xxx.jsonl 2”)</span>',
     dropCompact: '<b>＋ Add or replace files</b>',
     play: '▶ Play', pause: '⏸ Pause', replay: '▶ Replay',
     fit: '⤢ Fit', fitTitle: 'Reset zoom (double-click empty space does the same)', zoomhint: 'wheel to zoom · drag to pan',
     zoomhintScroll: 'wheel to scroll · ⌘/Ctrl+wheel to zoom · drag to pan',
     fltFail: 'Failures/retries only', allTools: 'All tools', searchPh: 'Search commands & results…',
     fltCount: (hit, total) => `${hit} / ${total} steps match`,
-    anchorBtn: '🔗 Add anchor', anchorTitle: 'Click one node in each lane to pin a comparison line; click a pinned line to delete it',
-    anchorFirst: 'Click the first node… (press again to cancel)', anchorSecond: 'Now click a node in the other session…',
+    anchorBtn: '🔗 Add anchor', anchorTitle: 'Click one node in each of any two lanes to pin a comparison line; click a pinned line to delete it',
+    anchorFirst: 'Click the first node… (press again to cancel)', anchorSecond: 'Now click a node in another session…',
     anchorDel: 'Click to delete this anchor',
-    invBtn: '📋 Detour inventory', invTitle: 'Per-turn tally of both lanes’ detour gap', invHeader: 'Detour inventory (by turn)',
+    invBtn: '📋 Detour inventory', invTitle: 'Per-turn tally of each lane’s detours', invHeader: 'Detour inventory (by turn)',
     expSvgTitle: 'Export the current view as SVG', expPngTitle: 'Export the current view as PNG (2x)',
     closeEsc: 'Close (Esc)', close: 'Close',
     laneCur: 'Current session', laneN: i => `Session ${i}`,
@@ -402,12 +503,17 @@ const I18N = {
     lgAnswer: 'Final answer', lgIdle: '⏸ idle collapsed',
     lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn; labels show per-turn time (inter-turn waits excluded)',
     lgAnchor: 'Manual anchor', lgAnchorTitle: '🔗 add · click a line to delete',
+    lgSameTask: n => `⛓ Same task ×${n} — compare kit enabled`,
+    lgSameTaskTitle: 'Every file opens with the same first user message: treated as runs of one task',
+    lgDiffTask: '≠ Different tasks — side-by-side only (alignment/inventory off)',
+    lgDiffTaskTitle: 'First user messages differ; per-turn alignment is meaningless across different tasks',
     modelUnknown: 'unknown model', modelNoHeader: '(model unknown: earlier history not loaded)', modelNone: '(unknown model)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' turns · ' : ''}${st.steps} steps (main ${st.main} / detours ${st.detours}) · ${st.tools} tool calls · ${laneTokLabel(st)} · total ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ ${n} earlier steps not loaded`,
     turnLabel: n => `Turn ${n}`,
     alignLabel: (turn, a, b, d) => `Turn ${turn} time: 1st ${a} ↔ 2nd ${b} (Δ${d})`,
     alignDet: (a, b) => ` · detours ${a}↔${b}`,
+    alignLabelN: (turn, list) => `Turn ${turn} time: ${list}`,
     rzTok: n => 'reasoning ' + n.toLocaleString() + ' tok', rzSeg: n => 'reasoning ' + n.toLocaleString() + ' chunks (no token usage in log)',
     outTok: n => 'output ' + n.toLocaleString() + ' tok',
     statsCard: st => `main ${st.main} + detours ${st.detours} = ${st.steps} steps · ${st.tools} tool calls · ${laneTokLabel(st)} · total <b>${fmtT(st.T)}</b>`,
@@ -415,7 +521,41 @@ const I18N = {
     invSteps: n => `${n} steps`, invNone: 'No detours on either side', invEven: '≈ even',
     invMore: (i, d) => `Session ${i} spent ${d} more`,
     invHint: 'Click a row: zoom to that turn and keep only its detours (everything else dims); click the same row again to cancel. Detour times are wall-clock; ✗ failed · ↻ blind retry · · no result.',
+    tracksBtn: '📊 Tracks', tracksTitle: 'Show/hide the data tracks under each lane (tool calls · token pulse · context pressure)',
+    anaBtn: '📈 Analyze', anaTitle: 'Open the execution analysis panel (failure recovery · tool matrix · duration percentiles)', anaHeader: 'Execution analysis',
+    agBtn: '🕸 Agents', agTitle: 'Main agent ↔ subagent relationship graph', agHeader: 'Agent graph',
+    trkTools: 'Tool calls', trkTok: 'Token pulse', trkCtx: 'Context pressure',
+    trkTokCap: n => `step peak ${fmtTok(n)} tok`,
+    trkCtxCapPct: (p, w) => `peak ${p}% (window ${fmtTok(w)})`,
+    trkCtxCapAbs: n => `peak ${fmtTok(n)} tok (model window unknown, absolute)`,
+    tokCache: 'cached input', tokIn: 'uncached input', tokRz: 'reasoning', tokOutVis: 'visible output', tokTotal: 'total',
+    ctxTipPct: (v, p) => `context ${v.toLocaleString()} tok · ${p}% of window`,
+    ctxTipAbs: v => `context ${v.toLocaleString()} tok (window unknown)`,
+    cardFail: 'Tool failures & recovery', cardTime: 'Time spent', cardCtx: 'Context pressure',
+    cardFailBody: (f, tot, tool, k) => `${f} failed / ${tot} calls${tool ? `; most-failed ${tool} (×${k})` : ''}`,
+    cardFailRec: (rec, f, w) => `${rec}/${f} recovered within ${w}s`,
+    cardFailNone: 'No failed calls',
+    cardFailRate: p => `failure rate ${p}%`,
+    cardTimeBody: (tool, d) => `longest call ${tool} · ${d}`,
+    cardTimeShare: p => `tools took ${p}% of the session`,
+    cardCtxPct: (v, p) => `max context ${v.toLocaleString()} tok · peak ${p}%`,
+    cardCtxOver: th => `crossed the ${th}% threshold`,
+    cardCtxUnder: 'within the safe zone',
+    cardCtxAbs: v => `max context ${v.toLocaleString()} tok (model window unknown)`,
+    cardCtxNone: 'No token usage in this log',
+    mtTool: 'Tool', mtCalls: 'Calls', mtOk: 'OK', mtErr: 'Failed', mtDead: 'No result', mtRetry: 'Blind retry', mtRate: 'Success',
+    mtP50: 'P50', mtP95: 'P95', mtMax: 'Max', mtSum: 'Total',
+    anaMatrix: 'Tool result matrix', anaDur: 'Duration percentiles (per tool)', anaChains: 'Failure recovery chains',
+    chainsNone: 'No failed calls in this session',
+    chainTag: { identical: 'identical retry', strategy: 'changed args', switch: 'switched tool', none: 'not recovered' },
+    chainRec: s => `back to success after ${fmtT(s)}`, chainRecSlow: s => `back to success only after ${fmtT(s)}`, chainNoRec: 'no successful call afterwards',
+    anaChainHint: 'Recovered = any tool succeeds again after the failure; the tag reflects what the very next call did (120s window counts as "recovered"). Click a row to zoom to that failure and open its details.',
+    agMain: 'Main agent', agSubNone: 'No subagent tasks in this session',
+    agTok: n => `${fmtTok(n)} tok`, agTokNone: '(no token usage in log)',
+    agCalls: n => `${n} tool calls`, agRunningTag: 'running',
+    agHint: 'Node size = tokens consumed by that agent (input+cache+output); edge width = tool call count. Click a subagent node to jump to its span on the timeline.',
     subPrefix: 'Subagent ', subBranch: 'Subagent branch', detBranch: 'Exploration detour',
+    evtRetry: 'Request retry', evtTurnError: 'Request failed for good',
     mainStep: 'Main-path step', finalAnswer: 'Final answer', rejected: ' (rejected)',
     whyLabel: 'Rationale: ', whyShort: 'Verdict: ',
     spanTo: (a, b) => `Span ${a} → ${b}`, durP: d => ` (${d}s)`,
@@ -434,7 +574,7 @@ const I18N = {
     errParse: m => 'Parse failed: ' + m,
     errNotJsonl: 'Not valid JSONL (one JSON object per line)',
     errNoSteps: 'No parseable steps (missing step/start events?)',
-    errMax2: 'At most 2 session logs',
+    errMax: 'At most 5 session logs',
     errReadFile: (name, m) => `Failed to read ${name} (${m})`,
     errZstd: 'This browser cannot decompress zstd; run `zstd -d` in a terminal first, then upload the .jsonl',
     errUrl: (p, m) => `URL load failed: ${p} (${m})`,
@@ -454,6 +594,8 @@ const I18N = {
       noTools: () => 'No tool calls; produced the answer',
       pendingTools: () => 'Tool results pending; kept on the main path for now',
       child: p => `Subagent “${p[0]}” · ${p[1]} steps · ${p[2]} tool calls${p[3] === 1 ? ' · running' : p[3] === 2 ? ' · ended with an error' : ''}`,
+      llmRetry: p => `Request failed — retry ${p[0]}/${p[1]} scheduled after a ${p[2]}s backoff; cause: ${p[3]}`,
+      turnError: p => `Request failed for good, no more retries${p[1] ? ` (${p[1]})` : ''}: ${p[0]}`,
     },
   },
 }
@@ -478,6 +620,13 @@ function nodeLabel(n){
   return n.label ?? ('S' + n.step)
 }
 
+/** 节点类别文案：请求级失败标记有专属类别，其余按主干/子代理/支路。 */
+function nodeKindLabel(n, isMain){
+  if (n.evt) return tr(n.evt === 'retry' ? 'evtRetry' : 'evtTurnError')
+  if (isMain) return n.v === 'answer' ? tr('finalAnswer') : tr('mainStep')
+  return n.sub ? tr('subBranch') : tr('detBranch')
+}
+
 /** 静态界面文案重写：boot 与每次语言切换时调用（动态 SVG/面板由重建覆盖）。 */
 function applyStatic(){
   document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en'
@@ -498,11 +647,21 @@ function applyStatic(){
   ba.textContent = anchorPick ? (anchorPick.first ? tr('anchorSecond') : tr('anchorFirst')) : tr('anchorBtn')
   const bi = document.getElementById('btnInv')
   bi.textContent = tr('invBtn'); bi.title = tr('invTitle')
+  const bt = document.getElementById('btnTracks')
+  bt.textContent = tr('tracksBtn'); bt.title = tr('tracksTitle')
+  const bn = document.getElementById('btnAna')
+  bn.textContent = tr('anaBtn'); bn.title = tr('anaTitle')
+  const bg = document.getElementById('btnAgents')
+  bg.textContent = tr('agBtn'); bg.title = tr('agTitle')
   document.getElementById('btnExpSvg').title = tr('expSvgTitle')
   document.getElementById('btnExpPng').title = tr('expPngTitle')
   document.getElementById('panelClose').title = tr('closeEsc')
   document.getElementById('invClose').title = tr('close')
   document.getElementById('invTitle').textContent = tr('invHeader')
+  document.getElementById('anaClose').title = tr('close')
+  document.getElementById('anaHeaderEl').textContent = tr('anaHeader')
+  document.getElementById('agClose').title = tr('close')
+  document.getElementById('agHeaderEl').textContent = tr('agHeader')
 }
 
 /** 上传入口文案随状态走：出数据后收成一颗添加按钮，不再重复整句上传指引。 */
@@ -528,6 +687,8 @@ function setLang(lang){
     renderStats()
     refreshFltTools()
     if (invPanelEl.classList.contains('show')) renderInventory()
+    if (anaPanelEl.classList.contains('show')) renderAnalysis()
+    if (agPanelEl.classList.contains('show')) renderAgentGraph()
     applyFilter()
     queueBuild()
   }
@@ -541,6 +702,13 @@ function fmtT(t){
   if (t >= 3600) return (t / 3600).toFixed(t >= 36000 ? 0 : 1) + 'h'
   if (t >= 120) return Math.round(t / 60) + 'm'
   return (Math.round(t * 10) / 10) + 's'
+}
+
+/** Token 量的紧凑格式：236793 → "237K"，2958682 → "3.0M"。 */
+function fmtTok(n){
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+  if (n >= 1000) return Math.round(n / 1000) + 'K'
+  return String(n)
 }
 
 /** 步级推理量标签：有 usage 真值用 token，否则诚实按流式段数计（旧标签把段数冒充 token）。 */
@@ -626,15 +794,19 @@ function buildLane(text){
     const tm = (tOf(e) - t0) / 1000
     if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
-      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null }
+      cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null, inTok: null, cacheTok: null }
       rows.push(cur)
       rowByStep.set(cur.step, cur)
     } else if (t === 'assistant/message' && d.usage && typeof d.usage === 'object'){
-      // 真实 token 用量：assistant/message 自带 turn/step 归属（每步一条，防御性累加）
+      // 真实 token 用量：assistant/message 自带 turn/step 归属（每步一条，防御性累加）。
+      // inputTokens 是未命中缓存的输入，cacheReadTokens 是缓存命中——上下文总量 = 两者之和
+      //（2026-08-25 用真实日志验证：cacheReadTokens 随会话单调增长，inputTokens 只有增量波动）。
       const row = rowByStep.get(d.turn != null ? d.turn + '·' + d.step : d.step)
       if (row){
         if (typeof d.usage.reasoningTokens === 'number') row.rzTok = (row.rzTok ?? 0) + d.usage.reasoningTokens
         if (typeof d.usage.outputTokens === 'number') row.outTok = (row.outTok ?? 0) + d.usage.outputTokens
+        if (typeof d.usage.inputTokens === 'number') row.inTok = (row.inTok ?? 0) + d.usage.inputTokens
+        if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = (row.cacheTok ?? 0) + d.usage.cacheReadTokens
       }
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
@@ -651,10 +823,24 @@ function buildLane(text){
       ev.e = tm
       ev.res = resultText(d).replace(/\s+/g, ' ').trim()
       ev.err = d.isError === true || hasErrorFlag(d)
+    } else if (t === 'llm/retry'){
+      // 请求失败后的重试排期：失败的那次请求没有 assistant 输出，不画就是纯空白。
+      // 伪行进 rows（时间序保持），条长 = 退避等待；判定在 buildData 里定死为 error。
+      const delay = (d.delayMs ?? 0) / 1000
+      rows.push({ step: 'r' + rows.length, turn: d.turn, s: tm, e: tm + delay, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
+        evt: 'retry', label: '↻' + (d.retry ?? ''),
+        why: { k: 'llmRetry', p: [d.retry ?? '?', d.mode === 'always' ? '∞' : (d.maxRetries ?? '?'), Math.round(delay * 10) / 10, (d.failure?.message ?? '') + (d.failure?.code ? ' [' + d.failure.code + ']' : '')] } })
+    } else if (t === 'turn/end' && d.reason?.kind === 'error'){
+      // 终局失败（无再重试）：同样没有输出承载，画成时间点标记。
+      rows.push({ step: 'e' + rows.length, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
+        evt: 'turnError', label: '✗',
+        why: { k: 'turnError', p: [d.reason.error?.message ?? '', d.reason.error?.code ?? ''] } })
     }
   }
   const modelHeader = evs.find(e => e.type === 'request/header')
   const model = modelHeader?.data?.header?.config?.model ?? null
+  // 同任务识别的指纹：首条用户消息的文本（空白归一）。
+  const firstUserText = first !== undefined ? resultText(first.data ?? {}).replace(/\s+/g, ' ').trim() : ''
   for (const r of rows){
     const rz = r.rzTxt.replace(/\s+/g, ' ').trim()
     r.rzTxt = rz.slice(0, 240)
@@ -675,7 +861,7 @@ function buildLane(text){
     r.s = Math.round(r.s * 10) / 10
     r.e = Math.round(r.e * 10) / 10
   }
-  return { rows, model, title: model ?? (rows.length ? 'Session' : '?') }
+  return { rows, model, firstUser: firstUserText, title: model ?? (rows.length ? 'Session' : '?') }
 }
 
 /* 判定逻辑（toolVerdict/stepVerdict/markRetryClusters/VERDICT_RULES/SEV）构建期
@@ -684,7 +870,7 @@ function buildLane(text){
 
 function buildData(fileTexts, fileNames){
   const lanes = fileTexts.map((text, i) => {
-    const { rows, model } = buildLane(text)
+    const { rows, model, firstUser } = buildLane(text)
     const fname = fileNames?.[i] ?? null
     // 工具级判定已在 buildLane 的全文上完成；这里做跨步骤盲目重试簇标注（会改工具判定），再步级聚合
     const allEvs = []
@@ -694,26 +880,34 @@ function buildData(fileTexts, fileNames){
     const detours = []
     let lastMain = null
     for (const r of rows){
+      // 请求级失败标记（llm/retry / turn/end error）：判定在解析时定死，直接落支路
+      if (r.evt){
+        detours.push({ step: r.step, turn: r.turn, s: r.s, e: r.e, tools: [], rz: 0, rzTxt: '', v: 'error', evt: r.evt, label: r.label, why: r.why, attach: lastMain ? lastMain.step : 0 })
+        continue
+      }
       const sv = stepVerdict(r.events)
       const v = sv === null ? 'answer' : sv.v
-      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, rzTok: r.rzTok, outTok: r.outTok, v, why: sv === null ? { k: 'noTools' } : sv.why, why2: sv === null ? undefined : sv.why2 }
+      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, rzTok: r.rzTok, outTok: r.outTok, inTok: r.inTok, cacheTok: r.cacheTok, v, why: sv === null ? { k: 'noTools' } : sv.why, why2: sv === null ? undefined : sv.why2 }
       if (v === 'ok' || v === 'answer'){
         main.push(node); lastMain = node
       } else {
         detours.push({ ...node, attach: lastMain ? lastMain.step : 0 })
       }
     }
-    if (main.length === 0) throw new Error(tr('errNoSteps'))
+    // 全程失败的会话（只有失败标记、没有一步成型）也照画——空白比失败更误导
+    if (rows.length === 0) throw new Error(tr('errNoSteps'))
     const tools = rows.reduce((n, r) => n + r.events.length, 0)
     const rz = rows.reduce((n, r) => n + r.rz, 0)
     const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
     const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
-    const T = Math.round(rows[rows.length - 1].e * 10) / 10
-    return { key: 'l' + (i + 1), model, fname, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
+    const T = Math.round(Math.max(...rows.map(r => r.e)) * 10) / 10
+    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
   // 轴跨度贴合内容：短会话不再被 460s 固定下限压扁在左侧（×1.04 给右缘旗标留呼吸位）。
   const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
-  return { Tmax, lanes }
+  // 同任务识别：全部文件首条用户消息一致 → 同一任务的多次跑，对比件（对齐线/锚点/盘点）启用
+  const sameTask = lanes.length >= 2 && lanes.every(l => l.firstUser !== '' && l.firstUser === lanes[0].firstUser)
+  return { Tmax, lanes, sameTask }
 }
 
 /* 轮次聚合（纯数据，对比模式的对齐线与支路盘点共用）。turn 缺失的旧日志统一记第 1 轮。 */
@@ -855,12 +1049,27 @@ const x = t => X0 + (t - viewT0()) / viewSpan() * AXIS_W
 let TMAX = 460
 let LAYOUT = {}
 let LANE_GAP = 40
+let tracksOn = true   // 数据轨道开关（📊 轨道按钮），关掉即回到纯迷宫布局
+
+/**
+ * 该泳道的数据轨道规格：工具调用密度恒在；Token 脉冲与上下文压力只在日志真有
+ * usage 数据时出现（没有就不画，不占高度——诚实规则：不画没有数据支撑的轨道）。
+ * 子代理聚合节点的 token 不进父泳道轨道（那是子代理自己上下文窗口里的量）。
+ */
+function laneTrackSpec(l){
+  if (!tracksOn) return { h: 0, dens: 0, tok: 0, ctx: 0 }
+  const own = [...l.main, ...l.detours].filter(n => !n.sub)
+  const hasTok = own.some(n => n.inTok != null || n.outTok != null || n.rzTok != null)
+  const hasCtx = own.some(n => n.inTok != null || n.cacheTok != null)
+  const dens = 18, tok = hasTok ? 56 : 0, ctx = hasCtx ? 54 : 0
+  return { h: dens + tok + ctx + 8, dens, tok, ctx }
+}
 
 function computeLayout(lanes){
   // Lane geometry grows with the packed slot count from assignLanes (not the
   // raw detour count) so no curve can leave the canvas: mainY sits below the
   // band header plus all up-detour slots, regionBottom clears all down-detour
-  // slots, and the next lane starts below that.
+  // slots plus the data-track zone, and the next lane starts below that.
   // parH reserves the parallel-tool sub-bar zone directly under the main path
   // (one 9px row per concurrent call); down-detour slots and below-row labels
   // shift past it.
@@ -871,9 +1080,11 @@ function computeLayout(lanes){
     const down = l._slotsDown ?? 0
     const maxPar = Math.max(0, ...l.main.map(n => n.tools.length >= 2 ? n.tools.length : 0))
     const parH = maxPar > 0 ? maxPar * 9 + 8 : 0
+    const trk = laneTrackSpec(l)
     const mainY = regionTop + 34 + up * LANE_GAP + 48
-    const regionBottom = mainY + parH + down * LANE_GAP + 58
-    layout[l.key] = { top: regionTop + 24, mainY, up, down, parH, regionTop, regionBottom }
+    const trackTop = mainY + parH + down * LANE_GAP + 44
+    const regionBottom = trackTop + trk.h + (trk.h > 0 ? 12 : 14)
+    layout[l.key] = { top: regionTop + 24, mainY, up, down, parH, regionTop, regionBottom, trk, trackTop }
     regionTop = regionBottom + 66
   })
   return layout
@@ -926,26 +1137,54 @@ function updateZoomHint(){
 
 // 容器尺寸变化只需重算适配（支路装箱走 viewBox 单位，与像素宽度无关）
 if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => applyFit()).observe(svgScrollEl)
-const MAIN_COLOR = { l1: '#2d6a8f', l2: '#a06a35' }
+const MAX_LANES = 5
+const MAIN_COLOR = { l1: '#2d6a8f', l2: '#a06a35', l3: '#6d55a3', l4: '#2f7d5f', l5: '#a04b62' }
+const LANEC = []   // 每条泳道的成套颜色 {main,title,bg,edge,head}，readPalette 按主题填充
 const VCOLOR = { error: '#c0453f', deadend: '#98a1ad', retry: '#88919f', ok: '#3f7d55', answer: '#3f7d55' }
+const laneIdx = key => Number(key.slice(1)) - 1
 
 /* ==================== 主题：CSS 变量单真相源，SVG 属性色经 readPalette 取值 ==================== */
 let THEME = 'light'
 const SVGC = {}   // build 期使用的 SVG 属性色（文本 fill 走 CSS 类，不经此处）
 
-/** 从当前主题的 CSS 变量读入全部 SVG 属性色（含 MAIN_COLOR/VCOLOR），build 前调用。 */
+/** 从当前主题的 CSS 变量读入全部 SVG 属性色（含 MAIN_COLOR/LANEC/VCOLOR），build 前调用。 */
 function readPalette(){
   const cs = getComputedStyle(document.documentElement)
   const v = n => cs.getPropertyValue(n).trim()
-  MAIN_COLOR.l1 = v('--main-f'); MAIN_COLOR.l2 = v('--main-p')
+  LANEC.length = 0
+  for (let i = 1; i <= MAX_LANES; i++){
+    LANEC.push({ main: v(`--lane${i}-main`), title: v(`--lane${i}-title`), bg: v(`--lane${i}-bg`), edge: v(`--lane${i}-edge`), head: v(`--lane${i}-head`) })
+    MAIN_COLOR['l' + i] = LANEC[i - 1].main
+  }
   VCOLOR.error = v('--err'); VCOLOR.deadend = v('--dead'); VCOLOR.retry = v('--retry')
   VCOLOR.ok = v('--ans'); VCOLOR.answer = v('--ans')
   SVGC.nodeline = v('--nodeline')
   SVGC.grid = v('--grid'); SVGC.seam = v('--seam'); SVGC.seamEdge = v('--seam-edge'); SVGC.seamTxt = v('--seam-txt')
   SVGC.turnSep = v('--turnsep'); SVGC.turnSepTxt = v('--turnsep-txt'); SVGC.back = v('--backarc')
-  SVGC.lane1 = v('--lane1-title'); SVGC.lane2 = v('--lane2-title'); SVGC.milestone = v('--milestone')
-  SVGC.lane1Bg = v('--lane1-bg'); SVGC.lane1Edge = v('--lane1-edge'); SVGC.lane1Head = v('--lane1-head')
-  SVGC.lane2Bg = v('--lane2-bg'); SVGC.lane2Edge = v('--lane2-edge'); SVGC.lane2Head = v('--lane2-head')
+  SVGC.milestone = v('--milestone')
+  // 数据轨道用色：工具类别 5 色 + Token 脉冲堆叠 4 色 + 上下文压力曲线/阈值
+  SVGC.cat = { read: v('--read'), search: v('--grep'), shell: v('--bash'), edit: v('--web'), other: v('--other') }
+  SVGC.tokCache = v('--tok-cache'); SVGC.tokIn = v('--tok-in'); SVGC.tokRz = v('--tok-rz'); SVGC.tokOut = v('--tok-out')
+  SVGC.ctxLine = v('--ctx-line'); SVGC.ctxFill = v('--ctx-fill'); SVGC.ctxWarn = v('--ctx-warn'); SVGC.ctxCrit = v('--ctx-crit')
+}
+
+/**
+ * 泳道的上下文窗口（带健全性守卫）：CONTEXT_WINDOWS 表匹配之上，若观测到的
+ * 上下文峰值超过表值，说明表对该模型已过时——此时退回 null（绝对值显示），
+ * 绝不显示超过 100% 的占用（诚实规则：表可能错，观测不会）。
+ */
+function laneWindow(model, peak){
+  const w = contextWindowFor(model)
+  return w != null && peak > w ? null : w
+}
+
+/** 轨道用的工具类别：读取 / 检索 / 命令 / 编辑 / 其他（决定密度轨道刻线颜色）。 */
+function toolCat(name){
+  if (name === 'read' || name === 'read_image') return 'read'
+  if (name === 'grep' || name === 'web_search' || name === 'glob' || name === 'find') return 'search'
+  if (name === 'bash' || name === 'python3' || name === 'curl') return 'shell'
+  if (name === 'write' || name === 'edit' || name === 'todo_write') return 'edit'
+  return 'other'
 }
 
 /**
@@ -965,17 +1204,20 @@ function setTheme(mode, force){
 const TOOL_LABEL = { bash: 'bash', grep: 'grep', read: 'read', web_search: 'web', python3: 'python', curl: 'curl' }
 const tlabel = n => TOOL_LABEL[n] ?? n
 const vlabel = v => ({ error: tr('vError'), deadend: tr('vDead'), retry: tr('vRetry'), ok: tr('vOk'), answer: tr('vAnswer') }[v] ?? v)
-const laneName = lane => DATA.lanes.length === 1 ? tr('laneCur') : tr('laneN')(lane.key === 'l1' ? 1 : 2)
+const laneName = lane => DATA.lanes.length === 1 ? tr('laneCur') : tr('laneN')(laneIdx(lane.key) + 1)
+
+/** 对比件开关：≥2 条泳道且识别为同一任务的多次跑（buildData 的 sameTask）。 */
+const cmpOn = () => DATA != null && DATA.lanes.length >= 2 && DATA.sameTask === true
 
 /** Rebuild the legend from the rendered data: lane entries, then verdict swatches. */
 function renderLegend(){
   const lg = []
   if (DATA.lanes.length === 1){
     const m = DATA.lanes[0].model
-    lg.push(`<span class="lg"><span class="ln mf"></span>${tr('lgMain')(esc(m ?? ''))}</span>`)
+    lg.push(`<span class="lg"><span class="ln" style="border-color:${LANEC[0].main}"></span>${tr('lgMain')(esc(m ?? ''))}</span>`)
   } else {
     DATA.lanes.forEach((l, i) => {
-      lg.push(`<span class="lg"><span class="ln ${i === 0 ? 'mf' : 'mp'}"></span>${tr('lgMainN')(i + 1, esc(l.model ?? ''))}</span>`)
+      lg.push(`<span class="lg"><span class="ln" style="border-color:${LANEC[i]?.main ?? LANEC[0].main}"></span>${tr('lgMainN')(i + 1, esc(l.model ?? ''))}</span>`)
     })
   }
   lg.push(`<span class="lg" title="${tr('lgOutTitle')}"><span class="ln dt"></span>${tr('lgOut')}</span>`)
@@ -985,9 +1227,12 @@ function renderLegend(){
   lg.push(`<span class="lg"><span class="sw rt"></span>${tr('vRetry')}</span>`)
   lg.push(`<span class="lg"><span class="sw an"></span>${tr('lgAnswer')}</span>`)
   if (DATA.timeMap) lg.push(`<span class="lg">${tr('lgIdle')}</span>`)
-  if (DATA.lanes.length === 2){
+  if (cmpOn()){
+    lg.push(`<span class="lg" title="${tr('lgSameTaskTitle')}">${tr('lgSameTask')(DATA.lanes.length)}</span>`)
     lg.push(`<span class="lg" title="${tr('lgAlignTitle')}"><span class="sw ms"></span>${tr('lgAlign')}</span>`)
     lg.push(`<span class="lg" title="${tr('lgAnchorTitle')}"><span class="sw anc"></span>${tr('lgAnchor')}</span>`)
+  } else if (DATA.lanes.length >= 2){
+    lg.push(`<span class="lg" title="${tr('lgDiffTaskTitle')}">${tr('lgDiffTask')}</span>`)
   }
   document.getElementById('legend').innerHTML = lg.join('')
 }
@@ -1146,50 +1391,56 @@ function build(){
     }
   }
 
-  // 轮次对齐线（双泳道）：每一轮取两边的回答节点互连，标注两边"本轮耗时"（该轮起点 →
-  // 回答完成，墙钟计；轮与轮之间等用户输入的空闲不计入，避免污染对比）与该轮支路差额。
-  // 只连两边都有的轮次；只在一边出现的轮次交给支路盘点面板呈现（缺席本身就是信号）。
-  if (DATA.lanes.length === 2){
-    const [lA, lB] = DATA.lanes
-    const y1 = LAYOUT[lA.key].mainY, y2 = LAYOUT[lB.key].mainY
-    const endA = turnEndNodes(lA), endB = turnEndNodes(lB)
-    const startA = turnStartTimes(lA), startB = turnStartTimes(lB)
-    const detA = turnDetourStats(lA, wallClock), detB = turnDetourStats(lB, wallClock)
+  // 轮次对齐线（同任务对比）：每一轮取各泳道的回答节点，相邻泳道两两连线成跨泳道链，
+  // 标注各自"本轮耗时"（该轮起点 → 回答完成，墙钟计；轮与轮之间等用户输入的空闲不计入）。
+  // 只连该轮出现在 ≥2 条泳道的轮次；缺席的泳道交给支路盘点面板呈现（缺席本身就是信号）。
+  if (cmpOn()){
+    const ends = DATA.lanes.map(turnEndNodes)
+    const starts = DATA.lanes.map(turnStartTimes)
+    const dets = DATA.lanes.map(l => turnDetourStats(l, wallClock))
     for (const turn of unionTurns(DATA.lanes)){
-      const na = endA.get(turn), nb = endB.get(turn)
-      if (!na || !nb) continue
-      if (!xVisible(Math.min(na.e, nb.e), Math.max(na.e, nb.e))) continue
+      const pts = []
+      DATA.lanes.forEach((l, i) => {
+        const n = ends[i].get(turn)
+        if (n) pts.push({ i, key: l.key, n, y: LAYOUT[l.key].mainY })
+      })
+      if (pts.length < 2) continue
+      const es = pts.map(p => p.n.e)
+      if (!xVisible(Math.min(...es), Math.max(...es))) continue
       const g = el('g', {})
-      g.appendChild(el('line', { x1: x(na.e), y1: y1, x2: x(nb.e), y2: y2, class: 'msline' }))
-      const t1 = el('text', { x: x(na.e) + 6, y: y1 - 6, class: 'mk-flag', fill: MAIN_COLOR.l1 }); t1.textContent = '⚑'
-      const t2 = el('text', { x: x(nb.e) - 6, y: y2 - 6, class: 'mk-flag', fill: MAIN_COLOR.l2, 'text-anchor': 'end' }); t2.textContent = '⚑'
-      g.appendChild(t1); g.appendChild(t2)
-      const wa = wallClock(na.e) - wallClock(startA.get(turn) ?? na.s)
-      const wb = wallClock(nb.e) - wallClock(startB.get(turn) ?? nb.s)
-      const dA = detA.get(turn), dB = detB.get(turn)
-      const lab = el('text', { x: (x(na.e) + x(nb.e)) / 2, y: (y1 + y2) / 2 - 8, 'text-anchor': 'middle', class: 'mslabel' })
-      lab.textContent = tr('alignLabel')(turn, fmtT(wa), fmtT(wb), fmtT(Math.abs(wb - wa)))
-        + ((dA?.n ?? 0) + (dB?.n ?? 0) > 0 ? tr('alignDet')(dA?.n ?? 0, dB?.n ?? 0) : '')
+      for (let k = 0; k + 1 < pts.length; k++){
+        g.appendChild(el('line', { x1: x(pts[k].n.e), y1: pts[k].y, x2: x(pts[k + 1].n.e), y2: pts[k + 1].y, class: 'msline' }))
+      }
+      for (const p of pts){
+        const f = el('text', { x: x(p.n.e) + 6, y: p.y - 6, class: 'mk-flag', fill: MAIN_COLOR[p.key] }); f.textContent = '⚑'
+        g.appendChild(f)
+        g.appendChild(el('circle', { cx: x(p.n.e), cy: p.y, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
+      }
+      const per = pts.map(p => fmtT(wallClock(p.n.e) - wallClock(starts[p.i].get(turn) ?? p.n.s)))
+      const lab = el('text', { x: (x(pts[0].n.e) + x(pts[1].n.e)) / 2, y: (pts[0].y + pts[1].y) / 2 - 8, 'text-anchor': 'middle', class: 'mslabel' })
+      if (pts.length === 2){
+        const [wa, wb] = [wallClock(pts[0].n.e) - wallClock(starts[pts[0].i].get(turn) ?? pts[0].n.s), wallClock(pts[1].n.e) - wallClock(starts[pts[1].i].get(turn) ?? pts[1].n.s)]
+        const dA = dets[pts[0].i].get(turn), dB = dets[pts[1].i].get(turn)
+        lab.textContent = tr('alignLabel')(turn, per[0], per[1], fmtT(Math.abs(wb - wa)))
+          + ((dA?.n ?? 0) + (dB?.n ?? 0) > 0 ? tr('alignDet')(dA?.n ?? 0, dB?.n ?? 0) : '')
+      } else {
+        lab.textContent = tr('alignLabelN')(turn, per.join(' | '))
+      }
       g.appendChild(lab)
-      g.appendChild(el('circle', { cx: x(na.e), cy: y1, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
-      g.appendChild(el('circle', { cx: x(nb.e), cy: y2, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
-      msEls.push({ el: g, s: Math.max(na.e, nb.e) })
+      msEls.push({ el: g, s: Math.max(...es) })
       gTime.appendChild(g)
     }
   }
 
-  DATA.lanes.forEach(lane => {
+  DATA.lanes.forEach((lane, li) => {
     const lay = LAYOUT[lane.key]
     const mainC = MAIN_COLOR[lane.key]
-    const isFlash = lane.key === 'l1'
-    // 泳道带底色随主题走调色板（readPalette），不再硬编码浅色 rgba
-    const bgFill = isFlash ? SVGC.lane1Bg : SVGC.lane2Bg
-    const bgStr = isFlash ? SVGC.lane1Edge : SVGC.lane2Edge
-    const barFill = isFlash ? SVGC.lane1Head : SVGC.lane2Head
-    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: lay.regionBottom - lay.regionTop, rx: 10, fill: bgFill, stroke: bgStr, 'stroke-width': 1.2 }))
-    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: 30, rx: 10, fill: barFill }))
-    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop + 15, width: AXIS_W + 28, height: 15, fill: barFill }))
-    const title = el('text', { x: X0 + 4, y: lay.regionTop + 20, class: 'lane-name', fill: isFlash ? SVGC.lane1 : SVGC.lane2 })
+    // 泳道带底色随主题走调色板（readPalette 填 LANEC 成套色），按泳道索引取
+    const lc = LANEC[li] ?? LANEC[0]
+    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: lay.regionBottom - lay.regionTop, rx: 10, fill: lc.bg, stroke: lc.edge, 'stroke-width': 1.2 }))
+    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: 30, rx: 10, fill: lc.head }))
+    gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop + 15, width: AXIS_W + 28, height: 15, fill: lc.head }))
+    const title = el('text', { x: X0 + 4, y: lay.regionTop + 20, class: 'lane-name', fill: lc.title })
     // 上传模式带文件名（对比两份日志时「第 N 会话」不足以指认是哪个文件）；实时模式无文件名
     const src = lane.fname ? lane.fname + ' · ' : ''
     title.textContent = `${laneName(lane)}   ${src}${lane.model ?? (lane.preWindow ? tr('modelNoHeader') : tr('modelNone'))}`
@@ -1279,6 +1530,8 @@ function build(){
       gTime.appendChild(f)
       markEls.push({ el: f, s: lastN.e, e: lastN.e + 1 })
     }
+
+    drawTracks(gTime, gStatic, lane, lay)
   })
 
   drawAnchors(gTime)   // 锚点端点可挂在支路上，须等 assignDetourY 给出 _y 后再画
@@ -1290,8 +1543,176 @@ function build(){
   applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
 }
 
+/* ==================== 数据轨道（v0.7）：工具调用密度 / Token 脉冲 / 上下文压力 ====================
+   泳道带底部的横向轨道，与迷宫共享同一 x 时间映射——缩放、平移、空闲折叠、播放全部联动。
+   诚实规则：Token 脉冲与上下文压力只在日志真报了 usage 时出现（没有数据就不画，不占高度）；
+   上下文占用百分比只在模型窗口已知时显示（CONTEXT_WINDOWS 匹配），未知回退绝对 token 数。 */
+
+/** 悬停卡跟随鼠标定位（右/下边缘翻转），新轨道处理器共用。 */
+function placeTip(e){
+  const tip = document.getElementById('tip')
+  let px = e.clientX + 14, py = e.clientY + 14
+  if (px + 640 > window.innerWidth) px = e.clientX - 640
+  if (py + 400 > window.innerHeight) py = e.clientY - 400
+  tip.style.left = px + 'px'; tip.style.top = py + 'px'
+}
+
+function onTokHover(e){
+  const g = e.currentTarget
+  const n = g._tokNode, lane = g._tokLane
+  const parts = []
+  if (n.cacheTok != null) parts.push(tr('tokCache') + ' ' + n.cacheTok.toLocaleString())
+  if (n.inTok != null) parts.push(tr('tokIn') + ' ' + n.inTok.toLocaleString())
+  if (n.rzTok != null) parts.push(tr('tokRz') + ' ' + n.rzTok.toLocaleString())
+  if (n.outTok != null) parts.push(tr('tokOutVis') + ' ' + Math.max(0, n.outTok - (n.rzTok ?? 0)).toLocaleString())
+  const total = (n.cacheTok ?? 0) + (n.inTok ?? 0) + (n.outTok ?? 0)
+  const tip = document.getElementById('tip')
+  tip.innerHTML = `<div class="th">${laneName(lane)} ${nodeLabel(n)} · ${tr('trkTok')}</div>`
+    + `<div class="rs">${parts.map(esc).join(' · ')} · ${esc(tr('tokTotal'))} ${total.toLocaleString()}</div>`
+  tip.style.display = 'block'
+  placeTip(e)
+}
+
+function onCtxHover(e){
+  const dot = e.currentTarget
+  const n = dot._ctxNode, lane = dot._ctxLane, win = dot._ctxWin
+  const v = (n.inTok ?? 0) + (n.cacheTok ?? 0)
+  const tip = document.getElementById('tip')
+  tip.innerHTML = `<div class="th">${laneName(lane)} ${nodeLabel(n)} · ${tr('trkCtx')}</div>`
+    + `<div class="rs">${esc(win ? tr('ctxTipPct')(v, Math.round(v / win * 1000) / 10) : tr('ctxTipAbs')(v))}</div>`
+  tip.style.display = 'block'
+  placeTip(e)
+}
+
+function offTrackHover(){
+  document.getElementById('tip').style.display = 'none'
+}
+
+/**
+ * 画一条泳道的数据轨道。子代理聚合节点不进 Token/上下文轨道（那是子代理自己
+ * 上下文窗口里的量），但其工具调用照进密度轨道——它们真实占用了时间轴。
+ */
+function drawTracks(gTime, gStatic, lane, lay){
+  const trk = lay.trk
+  if (!trk || trk.h === 0) return
+  const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+  const all = [...lane.main, ...lane.detours].filter(n => !n.evt)
+  let y0 = lay.trackTop
+
+  const sep = y => gStatic.appendChild(el('line', { x1: X0 - 14, y1: y, x2: X0 + AXIS_W + 14, y2: y, stroke: SVGC.grid, 'stroke-width': 1 }))
+  const nameText = (text, y) => {
+    const t = el('text', { x: X0 + 2, y, class: 'trk-label' })
+    t.textContent = text
+    gStatic.appendChild(t)
+  }
+  const capText = (text, y, warn) => {
+    const t = el('text', { x: X0 + AXIS_W - 8, y, 'text-anchor': 'end', class: warn ? 'trk-cap warn' : 'trk-cap' })
+    t.textContent = text
+    gStatic.appendChild(t)
+  }
+
+  // 1) 工具调用密度：每次调用一根刻线，颜色 = 工具类别，宽 = 真实时长；悬停即工具详情
+  sep(y0)
+  nameText(tr('trkTools'), y0 + 13)
+  for (const n of all){
+    for (const tl of n.tools){
+      if (tl.s == null) continue
+      const te = tl.e ?? tl.s
+      if (!xVisible(tl.s, te)) continue
+      const bx = x(tl.s)
+      const bar = el('rect', { x: bx, y: y0 + 4, width: Math.max(1.6, x(te) - bx), height: 11, rx: 1, fill: SVGC.cat[toolCat(tl.name)], opacity: .85 })
+      bar._tool = tl; bar._toolNode = n; bar._toolLane = lane
+      bar.addEventListener('mouseenter', onToolHover)
+      bar.addEventListener('mouseleave', offToolHover)
+      gTime.appendChild(bar)
+      markEls.push({ el: bar, s: tl.s, e: tl.s })
+    }
+  }
+  y0 += trk.dens
+
+  // 2) Token 脉冲：每步一根堆叠柱（缓存输入 / 未缓存输入 / 推理 / 可见输出），线性刻度
+  if (trk.tok > 0){
+    sep(y0)
+    const H = trk.tok - 8, yB = y0 + trk.tok - 2
+    const samples = own.filter(n => n.inTok != null || n.outTok != null || n.rzTok != null || n.cacheTok != null)
+    const tot = n => (n.cacheTok ?? 0) + (n.inTok ?? 0) + (n.outTok ?? 0)
+    const mx = Math.max(1, ...samples.map(tot))
+    nameText(tr('trkTok'), y0 + 13)
+    capText(tr('trkTokCap')(mx), y0 + 13)
+    for (const n of samples){
+      if (!xVisible(n.s, n.e)) continue
+      const bx0 = x(n.s)
+      const bw = Math.max(2.5, x(n.e) - bx0)
+      const g = el('g', {})
+      let yy = yB
+      for (const [v, c] of [
+        [n.cacheTok ?? 0, SVGC.tokCache],
+        [n.inTok ?? 0, SVGC.tokIn],
+        [n.rzTok ?? 0, SVGC.tokRz],
+        [Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0)), SVGC.tokOut],
+      ]){
+        if (v <= 0) continue
+        const hh = Math.max(1, v / mx * H)
+        yy -= hh
+        g.appendChild(el('rect', { x: bx0, y: yy, width: bw, height: hh, fill: c }))
+      }
+      g._tokNode = n; g._tokLane = lane
+      g.addEventListener('mouseenter', onTokHover)
+      g.addEventListener('mouseleave', offTrackHover)
+      gTime.appendChild(g)
+      markEls.push({ el: g, s: n.e, e: n.e })
+    }
+    y0 += trk.tok
+  }
+
+  // 3) 上下文压力：折线 + 面积，纵轴 = 未缓存输入 + 缓存命中（即每次请求的真实上下文
+  //    总量）；窗口已知画 70%/90% 阈值线并给百分比，压缩（compaction）呈现为锯齿下落。
+  if (trk.ctx > 0){
+    sep(y0)
+    const H = trk.ctx - 18, yB = y0 + trk.ctx - 5
+    const samples = own.filter(n => n.inTok != null || n.cacheTok != null).sort((a, b) => a.e - b.e)
+    const val = n => (n.inTok ?? 0) + (n.cacheTok ?? 0)
+    const peak = Math.max(1, ...samples.map(val))
+    const win = laneWindow(lane.model, peak)
+    const scaleMax = win ?? peak * 1.08
+    const yOf = v => yB - Math.min(1, v / scaleMax) * H
+    nameText(tr('trkCtx'), y0 + 13)
+    const peakPct = win ? Math.round(peak / win * 1000) / 10 : null
+    capText(win ? tr('trkCtxCapPct')(peakPct, win) : tr('trkCtxCapAbs')(peak), y0 + 13, win != null && peakPct >= 90)
+    if (win){
+      // 阈值标签放左侧（轨道名之后），右上角留给峰值标注——两者曾在右缘撞字
+      for (const [frac, color] of [[0.7, SVGC.ctxWarn], [0.9, SVGC.ctxCrit]]){
+        const ly = yOf(win * frac)
+        gTime.appendChild(el('line', { x1: X0, y1: ly, x2: X0 + AXIS_W, y2: ly, stroke: color, 'stroke-dasharray': '5 4', 'stroke-width': 1, opacity: .7 }))
+        const lt = el('text', { x: X0 + 2, y: ly - 2, class: 'trk-cap' })
+        lt.setAttribute('fill', color)
+        lt.textContent = Math.round(frac * 100) + '%'
+        gTime.appendChild(lt)
+      }
+    }
+    if (samples.length > 0){
+      const pts = samples.map(n => x(n.e).toFixed(1) + ' ' + yOf(val(n)).toFixed(1))
+      const area = el('path', { d: `M ${x(samples[0].e).toFixed(1)} ${yB} L ` + pts.join(' L ') + ` L ${x(samples[samples.length - 1].e).toFixed(1)} ${yB} Z`, fill: SVGC.ctxFill, stroke: 'none' })
+      gTime.appendChild(area)
+      markEls.push({ el: area, s: samples[0].e, e: samples[0].e })
+      const line = el('path', { d: 'M ' + pts.join(' L '), fill: 'none', stroke: SVGC.ctxLine, 'stroke-width': 1.6 })
+      gTime.appendChild(line)
+      pathEls.push({ el: line, s: samples[0].e, e: samples[samples.length - 1].e, base: '' })
+      for (const n of samples){
+        if (!xVisible(n.e, n.e)) continue
+        const dot = el('circle', { cx: x(n.e), cy: yOf(val(n)), r: 2.4, fill: SVGC.ctxLine })
+        dot._ctxNode = n; dot._ctxLane = lane; dot._ctxWin = win
+        dot.addEventListener('mouseenter', onCtxHover)
+        dot.addEventListener('mouseleave', offTrackHover)
+        gTime.appendChild(dot)
+        markEls.push({ el: dot, s: n.e, e: n.e })
+      }
+    }
+  }
+}
+
 /* ==================== 手动锚点：页内状态（DATA 之外），build() 尾部重画 ==================== */
-let ANCHORS = []       // [{a:{lane,step}, b:{lane,step}}]，a 恒为 l1 侧
+let ANCHORS = []       // [{a:{lane,step}, b:{lane,step}}]，a 恒为泳道序号小的一侧
 let anchorPick = null  // 选点中：{first: {lane,step}|null}；null = 未在选点
 
 /** 按 {lane,step} 找回节点与其当前绘制 y（主干=mainY，支路=_y）；数据刷新后找不到返回 null。 */
@@ -1305,7 +1726,7 @@ function findAnchorNode(ref){
 }
 
 function drawAnchors(gTime){
-  if (DATA.lanes.length !== 2) return
+  if (!cmpOn()) return
   ANCHORS = ANCHORS.filter(a => findAnchorNode(a.a) && findAnchorNode(a.b))   // 节点随数据刷新消失时静默放弃
   ANCHORS.forEach((a, i) => {
     const pa = findAnchorNode(a.a), pb = findAnchorNode(a.b)
@@ -1314,7 +1735,7 @@ function drawAnchors(gTime){
     const g = el('g', {})
     g.appendChild(el('line', { x1: ax, y1: pa.y, x2: bx, y2: pb.y, class: 'ancline' }))
     const lab = el('text', { x: (ax + bx) / 2 + 8, y: (pa.y + pb.y) / 2 + 4, class: 'anclabel' })
-    lab.textContent = `⚓ S${pa.n.step} ↔ S${pb.n.step}（Δ${fmtT(Math.abs(wallClock(pb.n.e) - wallClock(pa.n.e)))}）✕`
+    lab.textContent = `⚓ ${nodeLabel(pa.n)} ↔ ${nodeLabel(pb.n)}（Δ${fmtT(Math.abs(wallClock(pb.n.e) - wallClock(pa.n.e)))}）✕`
     g.appendChild(lab)
     const tt = el('title', {}); tt.textContent = tr('anchorDel'); g.appendChild(tt)
     g.addEventListener('click', ev => { ANCHORS.splice(i, 1); queueBuild(); ev.stopPropagation() })
@@ -1327,7 +1748,7 @@ function startAnchorPick(){ anchorPick = { first: null }; btnAnchor.classList.ad
 function stopAnchorPick(){ anchorPick = null; btnAnchor.classList.remove('on'); btnAnchor.textContent = tr('anchorBtn') }
 btnAnchor.addEventListener('click', () => { anchorPick ? stopAnchorPick() : startAnchorPick() })
 
-/** 选点模式下的节点点击：同泳道重选，异泳道成锚。 */
+/** 选点模式下的节点点击：同泳道重选，异泳道成锚（任意两条泳道之间都可钉）。 */
 function pickAnchorNode(n, laneKey){
   const ref = { lane: laneKey, step: n.step }
   if (!anchorPick.first || anchorPick.first.lane === laneKey){
@@ -1335,7 +1756,7 @@ function pickAnchorNode(n, laneKey){
     btnAnchor.textContent = tr('anchorSecond')
     return
   }
-  ANCHORS.push(anchorPick.first.lane === 'l1' ? { a: anchorPick.first, b: ref } : { a: ref, b: anchorPick.first })
+  ANCHORS.push(laneIdx(anchorPick.first.lane) <= laneIdx(laneKey) ? { a: anchorPick.first, b: ref } : { a: ref, b: anchorPick.first })
   stopAnchorPick()
   queueBuild()
 }
@@ -1406,19 +1827,21 @@ function fmtDetDiff(dT, any){
 }
 
 function renderInventory(){
-  if (!DATA || DATA.lanes.length !== 2) return
-  const [lA, lB] = DATA.lanes
-  const detA = turnDetourStats(lA, wallClock), detB = turnDetourStats(lB, wallClock)
+  if (!cmpOn()) return
+  const stats = DATA.lanes.map(l => turnDetourStats(l, wallClock))
+  const totals = DATA.lanes.map(() => ({ n: 0, T: 0 }))
+  const two = DATA.lanes.length === 2   // 差额列只对两条泳道有意义；N 泳道各列并排即为盘点
   let rows = ''
-  const ta = { n: 0, T: 0 }, tb = { n: 0, T: 0 }
   for (const turn of unionTurns(DATA.lanes)){
-    const a = detA.get(turn), b = detB.get(turn)
-    if (a){ ta.n += a.n; ta.T += a.T }
-    if (b){ tb.n += b.n; tb.T += b.T }
-    rows += `<tr data-turn="${turn}"${turn === invSel ? ' class="sel"' : ''}><td>${tr('turnLabel')(turn)}</td>${fmtDetCell(a)}${fmtDetCell(b)}<td>${fmtDetDiff((b?.T ?? 0) - (a?.T ?? 0), a || b)}</td></tr>`
+    const gs = stats.map(m => m.get(turn))
+    gs.forEach((g, i) => { if (g){ totals[i].n += g.n; totals[i].T += g.T } })
+    rows += `<tr data-turn="${turn}"${turn === invSel ? ' class="sel"' : ''}><td>${tr('turnLabel')(turn)}</td>${gs.map(fmtDetCell).join('')}`
+      + (two ? `<td>${fmtDetDiff((gs[1]?.T ?? 0) - (gs[0]?.T ?? 0), gs[0] || gs[1])}</td>` : '') + `</tr>`
   }
-  invBody.innerHTML = `<table><thead><tr><th>${tr('invTurnCol')}</th><th>${tr('invLaneCol')(1)}</th><th>${tr('invLaneCol')(2)}</th><th>${tr('invDiffCol')}</th></tr></thead><tbody>${rows}`
-    + `<tr class="total"><td>${tr('invTotal')}</td><td>${tr('invSteps')(ta.n)} · ${fmtT(ta.T)}</td><td>${tr('invSteps')(tb.n)} · ${fmtT(tb.T)}</td><td>${ta.n + tb.n > 0 ? fmtDetDiff(tb.T - ta.T, true) : tr('invNone')}</td></tr></tbody></table>`
+  const anyN = totals.reduce((n, t) => n + t.n, 0)
+  invBody.innerHTML = `<table><thead><tr><th>${tr('invTurnCol')}</th>${DATA.lanes.map((_, i) => `<th>${tr('invLaneCol')(i + 1)}</th>`).join('')}${two ? `<th>${tr('invDiffCol')}</th>` : ''}</tr></thead><tbody>${rows}`
+    + `<tr class="total"><td>${tr('invTotal')}</td>${totals.map(t => `<td>${tr('invSteps')(t.n)} · ${fmtT(t.T)}</td>`).join('')}`
+    + (two ? `<td>${anyN > 0 ? fmtDetDiff(totals[1].T - totals[0].T, true) : tr('invNone')}</td>` : '') + `</tr></tbody></table>`
     + `<div class="hint">${tr('invHint')}</div>`
 }
 
@@ -1449,7 +1872,255 @@ function closeInv(){
 document.getElementById('invClose').addEventListener('click', closeInv)
 document.getElementById('btnInv').addEventListener('click', () => {
   if (invPanelEl.classList.contains('show')) closeInv()
-  else { renderInventory(); invPanelEl.classList.add('show') }
+  else { closeAna(); closeAg(); renderInventory(); invPanelEl.classList.add('show') }
+})
+
+/* ==================== 执行分析面板（v0.7）：摘要卡 / 工具矩阵 + 耗时分位 / 失败恢复链 ====================
+   全部数字都是对已解析判定数据的确定性聚合，不调 LLM；失败恢复链的分类
+   （原样重试/换参数/换工具/未恢复）来自 verdict.js 的 analyzeFailureChains。 */
+const anaPanelEl = document.getElementById('anapanel')
+const anaBody = document.getElementById('anaBody')
+let anaRefs = []   // 失败链行 → { node, laneKey }，点击缩放定位用
+
+/** 该泳道时间序的已结算工具调用（带节点引用）；子代理聚合与请求级失败标记不参与工具统计。 */
+function laneCalls(lane){
+  const out = []
+  for (const n of [...lane.main, ...lane.detours]){
+    if (n.sub || n.evt) continue
+    for (const tl of n.tools){
+      if (tl.e == null && tl.dur == null) continue   // 实时模式 in-flight 调用不进统计
+      out.push({ tl, n })
+    }
+  }
+  out.sort((a, b) => (a.tl.s ?? 0) - (b.tl.s ?? 0))
+  return out
+}
+
+/** 最近邻分位数（P50/P95）。 */
+function percentile(arr, p){
+  if (arr.length === 0) return 0
+  const v = [...arr].sort((a, b) => a - b)
+  return v[Math.min(v.length - 1, Math.max(0, Math.ceil(p / 100 * v.length) - 1))]
+}
+
+function renderAnalysis(){
+  if (!DATA) return
+  anaRefs = []
+  let h = ''
+  DATA.lanes.forEach(lane => {
+    const calls = laneCalls(lane)
+    // 恢复链在墙钟坐标上算（compressTimeline 把节点时间改成了折叠坐标，恢复耗时必须是真实秒数）
+    const chains = analyzeFailureChains(calls.map(c => ({
+      name: c.tl.name, args: c.tl.args ?? '', v: c.tl.v,
+      s: wallClock(c.tl.s), e: c.tl.e != null ? wallClock(c.tl.e) : null,
+    })))
+    const m = new Map()
+    for (const { tl } of calls){
+      const g = m.get(tl.name) ?? { calls: 0, ok: 0, error: 0, deadend: 0, retry: 0, durs: [] }
+      g.calls += 1
+      g[tl.v] = (g[tl.v] ?? 0) + 1
+      g.durs.push(tl.dur ?? 0)
+      m.set(tl.name, g)
+    }
+    const fails = chains.length
+    const rec = chains.filter(c => c.recovered).length
+    let mostTool = null, mostN = 0
+    for (const [name, g] of m) if (g.error > mostN){ mostN = g.error; mostTool = name }
+    let longTool = null, longD = 0, sumD = 0
+    for (const { tl } of calls){
+      const d = tl.dur ?? 0
+      sumD += d
+      if (d > longD){ longD = d; longTool = tl.name }
+    }
+    const share = lane.stats.T > 0 ? Math.round(sumD / lane.stats.T * 100) : 0
+    const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+    const ctxSamples = own.filter(n => n.inTok != null || n.cacheTok != null)
+    const ctxPeak = ctxSamples.length > 0 ? Math.max(...ctxSamples.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
+    const win = ctxPeak != null ? laneWindow(lane.model, ctxPeak) : null
+
+    if (DATA.lanes.length > 1) h += `<div class="analane">${laneName(lane)}<span class="m">${esc(lane.fname ?? lane.model ?? '')}</span></div>`
+    h += `<div class="anacards">`
+    h += `<div class="anacard"><div class="t">${tr('cardFail')}</div><div class="v">`
+      + (fails === 0 ? `<span class="good">${tr('cardFailNone')}</span>`
+        : `${tr('cardFailBody')(fails, calls.length, mostTool ? esc(tlabel(mostTool)) : '', mostN)}<br>`
+          + `${tr('cardFailRec')(rec, fails, ANALYSIS_RULES.RECOVERY_WINDOW)} · `
+          + `<span class="${fails / Math.max(1, calls.length) > 0.1 ? 'warn' : ''}">${tr('cardFailRate')(Math.round(fails / Math.max(1, calls.length) * 100))}</span>`)
+      + `</div></div>`
+    h += `<div class="anacard"><div class="t">${tr('cardTime')}</div><div class="v">`
+      + (longTool ? tr('cardTimeBody')(esc(tlabel(longTool)), fmtT(longD)) + '<br>' : '')
+      + tr('cardTimeShare')(share) + `</div></div>`
+    h += `<div class="anacard"><div class="t">${tr('cardCtx')}</div><div class="v">`
+      + (ctxPeak == null ? tr('cardCtxNone')
+        : win != null
+          ? (() => {
+              const p = Math.round(ctxPeak / win * 1000) / 10
+              return tr('cardCtxPct')(ctxPeak, p) + '<br>'
+                + (p >= 90 ? `<span class="warn">${tr('cardCtxOver')(90)}</span>`
+                  : p >= 70 ? `<span class="warn">${tr('cardCtxOver')(70)}</span>`
+                  : `<span class="good">${tr('cardCtxUnder')}</span>`)
+            })()
+          : tr('cardCtxAbs')(ctxPeak))
+      + `</div></div>`
+    h += `</div>`
+
+    const names = [...m.keys()].sort((a, b) => m.get(b).calls - m.get(a).calls)
+    h += `<div class="anasec">${tr('anaMatrix')} · ${tr('anaDur')}</div><table class="anatbl"><thead><tr>`
+      + `<th>${tr('mtTool')}</th><th>${tr('mtCalls')}</th><th>${tr('mtOk')}</th><th>${tr('mtErr')}</th><th>${tr('mtDead')}</th><th>${tr('mtRetry')}</th><th>${tr('mtRate')}</th>`
+      + `<th>${tr('mtP50')}</th><th>${tr('mtP95')}</th><th>${tr('mtMax')}</th></tr></thead><tbody>`
+    for (const name of names){
+      const g = m.get(name)
+      const rate = Math.round(g.ok / g.calls * 100)
+      h += `<tr><td>${esc(tlabel(name))}</td><td>${g.calls}</td><td>${g.ok}</td>`
+        + `<td class="err">${g.error > 0 ? g.error : ''}</td><td class="dead">${g.deadend > 0 ? g.deadend : ''}</td><td class="rt">${g.retry > 0 ? g.retry : ''}</td>`
+        + `<td>${rate}%<span class="okbar"><i style="width:${rate}%"></i></span></td>`
+        + `<td>${fmtT(percentile(g.durs, 50))}</td><td>${fmtT(percentile(g.durs, 95))}</td><td>${fmtT(Math.max(0, ...g.durs))}</td></tr>`
+    }
+    h += `</tbody></table>`
+
+    h += `<div class="anasec">${tr('anaChains')}</div>`
+    if (chains.length === 0) h += `<div class="anahint">${tr('chainsNone')}</div>`
+    else {
+      // 未恢复的排最前，其余按恢复耗时降序——最该看的失败在最上面
+      const order = [...chains].sort((a, b) =>
+        a.recovered !== b.recovered ? (a.recovered ? 1 : -1) : (b.recoverSec ?? Infinity) - (a.recoverSec ?? Infinity))
+      for (const c of order){
+        const ref = calls[c.i]
+        const ai = anaRefs.push({ node: ref.n, laneKey: lane.key }) - 1
+        const recTxt = c.recoverSec == null ? tr('chainNoRec') : c.recovered ? tr('chainRec')(c.recoverSec) : tr('chainRecSlow')(c.recoverSec)
+        h += `<div class="chain" data-ai="${ai}"><span class="cid">${esc(nodeLabel(ref.n))}</span>`
+          + `<span class="cmeta">${esc(tlabel(c.name))} · ${esc(String(ref.tl.args ?? '').slice(0, 60))} · ${esc(recTxt)}</span>`
+          + `<span class="chaintag ${c.mode}">${esc(tr('chainTag')[c.mode])}</span></div>`
+      }
+      h += `<div class="anahint">${tr('anaChainHint')}</div>`
+    }
+  })
+  anaBody.innerHTML = h
+}
+
+/** 分析/图谱面板共用的「缩放到节点并打开详情」。 */
+function zoomToNode(ref){
+  const lane = DATA.lanes.find(l => l.key === ref.laneKey)
+  if (!lane) return
+  const n = ref.node
+  const span = Math.max((n.e - n.s) * 4, 20)
+  const mid = (n.s + n.e) / 2
+  setViewWindow(mid - span / 2, mid + span / 2)
+  openPanel(n, lane, lane.main.includes(n))
+}
+
+anaBody.addEventListener('click', ev => {
+  const row = ev.target.closest('.chain[data-ai]')
+  if (!row) return
+  const ref = anaRefs[+row.dataset.ai]
+  if (ref) zoomToNode(ref)
+})
+
+function closeAna(){ anaPanelEl.classList.remove('show') }
+document.getElementById('anaClose').addEventListener('click', closeAna)
+document.getElementById('btnAna').addEventListener('click', () => {
+  if (anaPanelEl.classList.contains('show')) closeAna()
+  else { closeInv(); closeAg(); renderAnalysis(); anaPanelEl.classList.add('show') }
+})
+
+/* ==================== Agent 关系图谱（v0.7，UI 选项）：主 Agent 与子代理的星形总览 ====================
+   与时间轴子代理支路互补的另一种视角：节点大小 = 该 Agent 消耗的 token（输入+缓存+输出），
+   连线粗细 = 工具调用数。数据齐备靠 v0.4.0 的子代理折入；无 token 真值时按调用数定大小并注明。 */
+const agPanelEl = document.getElementById('agpanel')
+const agBody = document.getElementById('agBody')
+let agRefs = []
+
+/** 一个节点消耗的总 token（输入+缓存+输出）；日志未报任何一项时 null。 */
+function agTokOf(n){
+  if (n.inTok == null && n.cacheTok == null && n.outTok == null) return null
+  return (n.inTok ?? 0) + (n.cacheTok ?? 0) + (n.outTok ?? 0)
+}
+
+function renderAgentGraph(){
+  if (!DATA) return
+  agRefs = []
+  agBody.innerHTML = ''
+  let any = false
+  DATA.lanes.forEach((lane, li) => {
+    const subs = lane.detours.filter(d => d.sub)
+    if (subs.length === 0) return
+    any = true
+    if (DATA.lanes.length > 1){
+      const t = document.createElement('div')
+      t.className = 'analane'
+      t.textContent = laneName(lane)
+      agBody.appendChild(t)
+    }
+    const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+    const mainTok = own.some(n => agTokOf(n) != null) ? own.reduce((s, n) => s + (agTokOf(n) ?? 0), 0) : null
+    const W = 492, CY = 190, R = 132
+    const cx = W / 2
+    const maxTok = Math.max(1, ...subs.map(s => agTokOf(s) ?? 0))
+    const maxCalls = Math.max(1, ...subs.map(s => s.tools.length))
+    const lc = LANEC[li] ?? LANEC[0]
+    const svgEl = el('svg', { viewBox: `0 0 ${W} 390`, width: '100%' })
+    const pos = subs.map((s, i) => {
+      const ang = -Math.PI / 2 + i * 2 * Math.PI / subs.length
+      return { x: cx + Math.cos(ang) * R, y: CY + Math.sin(ang) * R }
+    })
+    subs.forEach((s, i) => {
+      const w = 1.2 + 4.5 * (s.tools.length / maxCalls)
+      svgEl.appendChild(el('line', { x1: cx, y1: CY, x2: pos[i].x, y2: pos[i].y, stroke: SVGC.back, 'stroke-width': w, opacity: .75, ...(s.live ? { 'stroke-dasharray': '5 4' } : {}) }))
+    })
+    const g0 = el('g', {})
+    g0.appendChild(el('circle', { cx, cy: CY, r: 34, fill: lc.head, stroke: lc.main, 'stroke-width': 2 }))
+    const t0 = el('text', { x: cx, y: CY - 3, 'text-anchor': 'middle', class: 'agname' })
+    t0.textContent = tr('agMain')
+    const t0b = el('text', { x: cx, y: CY + 11, 'text-anchor': 'middle', class: 'agmeta' })
+    t0b.textContent = mainTok != null ? tr('agTok')(mainTok) : tr('agTokNone')
+    g0.appendChild(t0); g0.appendChild(t0b)
+    svgEl.appendChild(g0)
+    subs.forEach((s, i) => {
+      const tok = agTokOf(s)
+      const frac = tok != null ? tok / maxTok : Math.min(1, s.tools.length / maxCalls) * 0.5
+      const r = 15 + 17 * Math.sqrt(Math.min(1, frac))
+      const g = el('g', { class: 'agnode' })
+      g.appendChild(el('circle', { cx: pos[i].x, cy: pos[i].y, r, fill: lc.bg, stroke: s.live ? SVGC.back : lc.main, 'stroke-width': 1.6, ...(s.live ? { 'stroke-dasharray': '5 4' } : {}) }))
+      const above = pos[i].y <= CY
+      const tn = el('text', { x: pos[i].x, y: above ? pos[i].y - r - 17 : pos[i].y + r + 13, 'text-anchor': 'middle', class: 'agname' })
+      tn.textContent = nodeLabel(s)
+      const tm = el('text', { x: pos[i].x, y: above ? pos[i].y - r - 5 : pos[i].y + r + 25, 'text-anchor': 'middle', class: 'agmeta' })
+      tm.textContent = (tok != null ? tr('agTok')(tok) + ' · ' : '') + tr('agCalls')(s.tools.length) + (s.live ? ' · ' + tr('agRunningTag') : '')
+      g.appendChild(tn); g.appendChild(tm)
+      g.setAttribute('data-ai', String(agRefs.push({ node: s, laneKey: lane.key }) - 1))
+      svgEl.appendChild(g)
+    })
+    agBody.appendChild(svgEl)
+    if (mainTok == null && subs.every(s => agTokOf(s) == null)){
+      const d = document.createElement('div')
+      d.className = 'anahint'
+      d.textContent = tr('agTokNone')
+      agBody.appendChild(d)
+    }
+  })
+  const hint = document.createElement('div')
+  hint.className = 'anahint'
+  hint.textContent = any ? tr('agHint') : tr('agSubNone')
+  agBody.appendChild(hint)
+}
+
+agBody.addEventListener('click', ev => {
+  const g = ev.target.closest('[data-ai]')
+  if (!g) return
+  const ref = agRefs[+g.getAttribute('data-ai')]
+  if (ref) zoomToNode(ref)
+})
+
+function closeAg(){ agPanelEl.classList.remove('show') }
+document.getElementById('agClose').addEventListener('click', closeAg)
+document.getElementById('btnAgents').addEventListener('click', () => {
+  if (agPanelEl.classList.contains('show')) closeAg()
+  else { closeInv(); closeAna(); renderAgentGraph(); agPanelEl.classList.add('show') }
+})
+
+document.getElementById('btnTracks').addEventListener('click', () => {
+  tracksOn = !tracksOn
+  document.getElementById('btnTracks').classList.toggle('on', tracksOn)
+  queueBuild()
 })
 
 /* ==================== 导出：当前视图 SVG / PNG（2x），固定浅色底 ==================== */
@@ -1538,8 +2209,9 @@ function drawNode(parent, lane, n, y, isMain, idx){
     icon.textContent = n.v === 'answer' ? '' : '✓'
     icon.style.fontSize = n.v === 'answer' ? '0' : '10px'
   } else {
-    icon.textContent = n.v === 'error' ? '✗' : (n.v === 'retry' ? '↻' : (n.v === 'deadend' ? '·' : '○'))
-    icon.style.fontSize = n.v === 'error' ? '11px' : '12px'
+    // 请求重试标记（evt='retry'）判定虽是 error，图标用 ↻ 表达「失败后在等重试」
+    icon.textContent = n.evt === 'retry' ? '↻' : n.v === 'error' ? '✗' : (n.v === 'retry' ? '↻' : (n.v === 'deadend' ? '·' : '○'))
+    icon.style.fontSize = n.v === 'error' && n.evt !== 'retry' ? '11px' : '12px'
     icon.style.fontWeight = '700'
   }
   g.appendChild(icon)
@@ -1614,13 +2286,14 @@ function offArcHover(){
   render()
 }
 function showTipFor(d){
-  const lane = d._laneKey === 'l1' ? DATA.lanes[0] : DATA.lanes[1]
+  const lane = DATA.lanes.find(l => l.key === d._laneKey) ?? DATA.lanes[0]
   const tip = document.getElementById('tip')
   const sub = d.sub === true
-  let inner = `<div class="th">${laneName(lane)} ${nodeLabel(d)} · ${sub ? tr('subBranch') : tr('detBranch')} · ${vlabel(d.v)}${d.v === 'error' ? tr('rejected') : ''}</div>`
+  let inner = `<div class="th">${laneName(lane)} ${nodeLabel(d)} · ${nodeKindLabel(d, false)} · ${vlabel(d.v)}${d.v === 'error' && !d.evt ? tr('rejected') : ''}</div>`
   if (d.why) inner += `<div class="rs">${tr('whyLabel')}${esc(whyText(d.why, d.why2))}</div>`
-  inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(d.s)), fmtT(wallClock(d.e)))}${tr('durP')((d.e - d.s).toFixed(1))} · ${rzLabel(d)}</div>`
-  inner += sub
+  inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(d.s)), fmtT(wallClock(d.e)))}${tr('durP')((d.e - d.s).toFixed(1))}${d.evt ? '' : ' · ' + rzLabel(d)}</div>`
+  inner += d.evt ? ''
+    : sub
     ? `<div class="back">${tr('subSpawn')(d.attach, d.live === true)}</div>`
     : `<div class="back">${tr('outCurve')(d.attach, fmtT(wallClock(d.s)), fmtT(wallClock(d.e)))}</div>`
       + `<div class="back">${tr('deadReturn')(d.attach)}</div>`
@@ -1637,11 +2310,11 @@ function onHover(e){
   hoverDet = n._id ? n : null
   render()
   const lane = g._lane
-  let inner = `<div class="th">${laneName(lane)} ${nodeLabel(n)} · ${g._isMain ? (n.v === 'answer' ? tr('finalAnswer') : tr('mainStep')) : (n.sub ? tr('subBranch') : tr('detBranch'))} · ${vlabel(n.v)}${n.v === 'error' ? tr('rejected') : ''}</div>`
+  let inner = `<div class="th">${laneName(lane)} ${nodeLabel(n)} · ${nodeKindLabel(n, g._isMain)} · ${vlabel(n.v)}${n.v === 'error' && !n.evt ? tr('rejected') : ''}</div>`
   if (n.v !== 'answer'){
     if (n.why) inner += `<div class="rs">${tr('whyLabel')}${esc(whyText(n.why, n.why2))}</div>`
-    inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))}${tr('durP')((n.e - n.s).toFixed(1))} · ${rzLabel(n)}</div>`
-    if (!g._isMain){
+    inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))}${tr('durP')((n.e - n.s).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}</div>`
+    if (!g._isMain && !n.evt){
       inner += n.sub
         ? `<div class="back">${tr('subSpawn')(n.attach, n.live === true)}</div>`
         : `<div class="back">${tr('deadReturn')(n.attach)}</div>`
@@ -1703,11 +2376,11 @@ function openPanel(n, lane, isMain){
   panelJump = null
   document.getElementById('panelTitle').textContent = `${laneName(lane)} ${nodeLabel(n)}`
   const chip = document.getElementById('panelChip')
-  chip.textContent = (isMain ? (n.v === 'answer' ? tr('finalAnswer') : tr('mainStep')) : (n.sub ? tr('subBranch') : tr('detBranch'))) + ' · ' + vlabel(n.v)
+  chip.textContent = nodeKindLabel(n, isMain) + ' · ' + vlabel(n.v)
   chip.style.background = isMain && n.v === 'ok' ? MAIN_COLOR[lane.key] : (VCOLOR[n.v] ?? '#9aa4b8')
-  let inner = `<div class="prow">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))} · ${tr('took')((n.e - n.s).toFixed(1))} · ${rzLabel(n)}${n.turn != null ? tr('turnSuffix')(n.turn) : ''}</div>`
+  let inner = `<div class="prow">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))} · ${tr('took')((n.e - n.s).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}${n.turn != null ? tr('turnSuffix')(n.turn) : ''}</div>`
   if (n.why) inner += `<div class="prow">${tr('whyLabel')}${esc(whyText(n.why, n.why2))}</div>`
-  if (!isMain){
+  if (!isMain && !n.evt){
     inner += n.sub
       ? `<div class="prow">${tr('subSpawn')(n.attach, n.live === true)}</div>`
       : `<div class="prow" style="color:var(--dim)">${tr('deadReturnPanel')(n.attach)}</div>`
@@ -1786,7 +2459,7 @@ function onArcClick(e){
   if (suppressClick) return
   const d = e.currentTarget._det
   if (anchorPick){ pickAnchorNode(d, d._laneKey); e.stopPropagation(); return }
-  openPanel(d, d._laneKey === 'l1' ? DATA.lanes[0] : DATA.lanes[1], false)
+  openPanel(d, DATA.lanes.find(l => l.key === d._laneKey) ?? DATA.lanes[0], false)
   e.stopPropagation()
 }
 
@@ -1860,6 +2533,8 @@ window.addEventListener('keydown', e => {
   if (anchorPick){ stopAnchorPick(); return }
   if (panelEl.classList.contains('show')){ closePanel(); return }
   if (invPanelEl.classList.contains('show')){ closeInv(); return }
+  if (anaPanelEl.classList.contains('show')){ closeAna(); return }
+  if (agPanelEl.classList.contains('show')){ closeAg(); return }
   parent.postMessage({ kind: 'trace-esc' }, '*')
 })
 
@@ -1993,6 +2668,8 @@ function resetView(){
   VIEW = null
   closePanel()
   closeInv()
+  closeAna()
+  closeAg()
   ANCHORS = []
   if (anchorPick) stopAnchorPick()
   while (svg.firstChild) svg.removeChild(svg.firstChild)
@@ -2052,12 +2729,18 @@ function renderData(data, opts){
   document.getElementById('controls').style.display = 'flex'
   document.getElementById('fltbar').style.display = 'flex'
   refreshFltTools()
-  // 对比专属控件只在双泳道出现；盘点面板开着时随数据刷新重算
-  const two = DATA.lanes.length === 2
-  btnAnchor.style.display = two ? '' : 'none'
-  document.getElementById('btnInv').style.display = two ? '' : 'none'
-  if (!two) closeInv()
+  // 对比专属控件只在「同任务多次跑」时出现（cmpOn）；盘点面板开着时随数据刷新重算
+  const cmp = cmpOn()
+  btnAnchor.style.display = cmp ? '' : 'none'
+  document.getElementById('btnInv').style.display = cmp ? '' : 'none'
+  if (!cmp) closeInv()
   else if (invPanelEl.classList.contains('show')) renderInventory()
+  // Agent 图谱按钮只在真有子代理数据时出现（stock dsh 缺子会话能力时自然隐藏）
+  const hasSubs = DATA.lanes.some(l => l.detours.some(d => d.sub))
+  document.getElementById('btnAgents').style.display = hasSubs ? '' : 'none'
+  if (!hasSubs) closeAg()
+  else if (agPanelEl.classList.contains('show')) renderAgentGraph()
+  if (anaPanelEl.classList.contains('show')) renderAnalysis()
   document.getElementById('svgwrap').style.display = 'block'
   playing = false
   // 默认直接呈现完整迷宫：t=0 时节点条 opacity 为 0、连线只有 25%，
@@ -2118,8 +2801,8 @@ async function decodeFile(f){
 
 async function handleFiles(files){
   if (files.length === 0) return
-  if (loaded.length + files.length > 2){
-    showErr(tr('errMax2'))
+  if (loaded.length + files.length > MAX_LANES){
+    showErr(tr('errMax'))
     return
   }
   clearErr()
@@ -2153,8 +2836,9 @@ function mazeSignature(data){
     for (const arr of [l.main, l.detours]){
       for (const n of arr){
         if (n.live){ parts.push('L' + n.tools.length); continue }
-        // rzTok 在 assistant/message 终结时一次性到位（流式期间恒空），进签名不会引发重画风暴
-        parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length + ':' + (n.rzTok != null ? 1 : 0))
+        // rzTok/inTok 在 assistant/message 终结时一次性到位（流式期间恒空），进签名不会引发重画风暴；
+        // inTok 单独进签名：非推理模型 rzTok 恒空，token 轨道要等 usage 到位后重画一次
+        parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length + ':' + (n.rzTok != null ? 1 : 0) + (n.inTok != null ? 1 : 0))
       }
     }
   }
@@ -2196,10 +2880,10 @@ readPalette()
 setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark'
   : typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 
-/* URL-direct load hook: ?load1=<path>&load2=<path> (dev/embed convenience). */
+/* URL-direct load hook: ?load1=<path>…&load5=<path> (dev/embed convenience). */
 ;(async () => {
   const params = new URLSearchParams(location.search)
-  const paths = [params.get('load1'), params.get('load2')].filter(Boolean)
+  const paths = Array.from({ length: MAX_LANES }, (_, i) => params.get('load' + (i + 1))).filter(Boolean)
   for (const p of paths){
     try {
       const r = await fetch(p)

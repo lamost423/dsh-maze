@@ -162,6 +162,28 @@ describe('snapshotToMazeData', () => {
     expect(bare.stats.outTok).toBeNull()
   })
 
+  it('carries input/cache tokens per step for the token-pulse and context-pressure tracks', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        // inputTokens 是未命中缓存的输入，cacheReadTokens 是缓存命中——上下文总量 = 两者之和
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 15852, outputTokens: 887, cacheReadTokens: 384 }, blocks: [
+          { kind: 'text', text: 'a' },
+        ] },
+        { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { inputTokens: 3118, outputTokens: 385, cacheReadTokens: 17024 }, blocks: [
+          { kind: 'text', text: 'b' },
+        ] },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.main.map(n => n.inTok)).toEqual([15852, 3118])
+    expect(lane.main.map(n => n.cacheTok)).toEqual([384, 17024])
+    // usage 没报这两项时字段缺席（页面据此不画轨道，不猜数）
+    const bare = snapshotToMazeData(syntheticSnapshot())!.lanes[0]!
+    expect(bare.main.every(n => n.inTok == null && n.cacheTok == null)).toBe(true)
+  })
+
   it('drops pre-window stale assistant nodes and counts them as preWindow', () => {
     const snap = {
       partial: null,
@@ -210,6 +232,33 @@ describe('snapshotToMazeData', () => {
     expect(byCall.get('a')!.v).toBe('ok')      // 引用在正文深处，不算这条命令失败
     expect(byCall.get('b')!.v).toBe('error')   // 末尾 stderr 追加段
     expect(byCall.get('c')!.v).toBe('error')   // 开头真实报错
+  })
+
+  it('renders request-level failures: model-retry and turn-error become error detours', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        // 请求一上来就失败，安排 30s 退避重试——此前这段在图上是纯空白
+        { kind: 'model-retry', seq: 3, time: t0 + 1000, retryId: 'r1', turn: 1, step: 1, provider: 'p', mode: 'normal', policyKey: 'k', retry: 1, maxRetries: 5, delayMs: 30_000, failure: { message: 'HTTP 500', code: 'SERVER_ERROR' }, retryState: 'started' },
+        { kind: 'assistant', seq: 11, time: t0 + 40_000, timing: { stepStartTime: t0 + 35_000 }, blocks: [
+          { kind: 'text', text: 'recovered' },
+        ] },
+        { kind: 'turn-error', seq: 12, time: t0 + 50_000, turn: 2, step: 1, message: 'retries exhausted', code: 'RETRY_EXHAUSTED' },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    const retry = lane.detours.find(n => n.evt === 'retry')!
+    expect(retry.v).toBe('error')
+    expect(retry.label).toBe('↻1')
+    expect(retry.why).toEqual({ k: 'llmRetry', p: [1, 5, 30, 'HTTP 500 [SERVER_ERROR]'] })
+    expect(retry.e - retry.s).toBeCloseTo(30, 1)   // 条长 = 退避等待窗口
+    const te = lane.detours.find(n => n.evt === 'turnError')!
+    expect(te.v).toBe('error')
+    expect(te.why).toEqual({ k: 'turnError', p: ['retries exhausted', 'RETRY_EXHAUSTED'] })
+    // 恢复后的正常回答仍在主干；失败标记不挤占真实步骤的 S 编号
+    expect(lane.main.some(n => n.v === 'answer')).toBe(true)
+    expect(lane.main.find(n => n.v === 'answer')!.step).toBe(1)
   })
 
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {

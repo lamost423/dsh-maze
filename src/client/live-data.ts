@@ -56,6 +56,10 @@ export interface MazeNode {
   rzTok?: number | null
   /** 该步真实输出 token（含推理），同上口径。 */
   outTok?: number | null
+  /** 该步未命中缓存的输入 token（usage.inputTokens 是 cache-miss 口径；实测缓存命中另记）。 */
+  inTok?: number | null
+  /** 该步缓存命中的输入 token（usage.cacheReadTokens）；上下文总量 = inTok + cacheTok。 */
+  cacheTok?: number | null
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
   /** 步级结构化判定依据（最坏工具的依据；展示端按界面语言渲染）。 */
   why?: VerdictWhy
@@ -63,12 +67,18 @@ export interface MazeNode {
   why2?: VerdictWhy
   /** True marks an aggregated subagent child node (display composes its label). */
   sub?: true
+  /**
+   * 请求级失败标记：'retry' = llm/retry（失败后安排重试，条长 = 退避等待），
+   * 'turnError' = turn/end error（终局失败，无再重试）。这类节点没有工具与推理，
+   * 判定固定为 error，不参与步级聚合——否则空 tools 会被误判成 answer。
+   */
+  evt?: 'retry' | 'turnError'
   attach?: number
 }
 
-/** One lane (one session). */
+/** One lane (one session). Upload mode goes up to l5; live mode is always l1. */
 export interface MazeLane {
-  key: 'l1' | 'l2'
+  key: string
   model: string | null
   /**
    * 被丢弃的窗口外陈旧步数：对话快照是事件窗口，窗口内可能残留早于首条用户消息的
@@ -101,6 +111,9 @@ export interface ChildSessionMaze {
 
 /** Child detour steps start here so they never collide with parent step ids. */
 const CHILD_STEP_BASE = 100_000
+
+/** Request-failure marker steps start here (offset by node seq — unique and replay-stable). */
+const EVT_STEP_BASE = 200_000
 
 function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
@@ -190,10 +203,12 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
       }
       cur = pushStep(s, rel(n.time), tools, rz, rzTxt, n.seq)
       // usage 在节点契约上是 unknown（源自 assistant/message 事件），运行期窄化后取真实 token
-      const u = n.usage as { reasoningTokens?: unknown; outputTokens?: unknown } | null | undefined
+      const u = n.usage as { reasoningTokens?: unknown; outputTokens?: unknown; inputTokens?: unknown; cacheReadTokens?: unknown } | null | undefined
       if (u !== null && typeof u === 'object') {
         if (typeof u.reasoningTokens === 'number') cur.rzTok = u.reasoningTokens
         if (typeof u.outputTokens === 'number') cur.outTok = u.outputTokens
+        if (typeof u.inputTokens === 'number') cur.inTok = u.inputTokens
+        if (typeof u.cacheReadTokens === 'number') cur.cacheTok = u.cacheReadTokens
       }
     } else if (n.kind === 'tool-result') {
       const idx = pending.findIndex(p => p.tool.callId === n.callId)
@@ -212,6 +227,31 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
         const toolEnd = p.tool.e
         if (cur !== null) cur.e = Math.max(cur.e, toolEnd)
       }
+    } else if (n.kind === 'model-retry') {
+      // 请求失败后的重试排期：模型没吐出任何内容就挂了，快照里不会有对应 assistant
+      // 节点——不画的话这段失败 + 退避在图上是纯空白（最误导的一类"什么都没发生"）。
+      // 条长 = 退避等待窗口。
+      if (firstUser !== undefined && n.time < firstUser.time) continue
+      const s = rel(n.time)
+      const fail = `${n.failure.message}${n.failure.code === '' ? '' : ` [${n.failure.code}]`}`
+      rows.push({
+        step: EVT_STEP_BASE + n.seq, turn: Math.max(turn, 1), seq: n.seq,
+        s, e: Math.max(rel(n.time + n.delayMs), s),
+        tools: [], rz: 0, rzTxt: '',
+        v: 'error', evt: 'retry', label: `↻${n.retry}`,
+        why: { k: 'llmRetry', p: [n.retry, n.mode === 'always' ? '∞' : n.maxRetries, Math.round(n.delayMs / 100) / 10, fail] },
+      })
+    } else if (n.kind === 'turn-error') {
+      // 终局失败（无再重试）：同样没有 assistant 节点承载，画成时间点标记。
+      if (firstUser !== undefined && n.time < firstUser.time) continue
+      const s = rel(n.time)
+      rows.push({
+        step: EVT_STEP_BASE + n.seq, turn: Math.max(turn, 1), seq: n.seq,
+        s, e: s,
+        tools: [], rz: 0, rzTxt: '',
+        v: 'error', evt: 'turnError', label: '✗',
+        why: { k: 'turnError', p: [n.message, n.code ?? ''] },
+      })
     }
   }
 
@@ -247,6 +287,7 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
   markRetryClusters(settled)
   for (const r of rows) {
     if (r === liveRow) continue
+    if (r.evt !== undefined) continue   // 请求级失败标记：判定在构造时定死，不参与聚合
     if (r.tools.length === 0) {
       r.v = 'answer'
       r.why = { k: 'noTools' }
@@ -283,6 +324,8 @@ function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number
   const rzTxt = rows.map(r => r.rzTxt).filter(t => t !== '').join(' ')
   const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
   const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
+  const inTok = rows.some(r => r.inTok != null) ? rows.reduce((n, r) => n + (r.inTok ?? 0), 0) : null
+  const cacheTok = rows.some(r => r.cacheTok != null) ? rows.reduce((n, r) => n + (r.cacheTok ?? 0), 0) : null
   const settledRows = rows.filter(r => r !== liveRow)
   const lastSettled = settledRows[settledRows.length - 1]
   const v: MazeNode['v'] = child.running ? 'ok' : lastSettled?.v === 'error' ? 'error' : 'ok'
@@ -298,6 +341,8 @@ function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number
     rzTxtFull: rzTxt.slice(0, 2000),
     ...(rzTok === null ? {} : { rzTok }),
     ...(outTok === null ? {} : { outTok }),
+    ...(inTok === null ? {} : { inTok }),
+    ...(cacheTok === null ? {} : { cacheTok }),
     v,
     why: { k: 'child', p: [child.label, rows.length, tools.length, state] },
     ...(child.running ? { live: true } : {}),

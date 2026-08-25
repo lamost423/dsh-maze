@@ -94,6 +94,75 @@ export function argSimilarity(a, b){
   return inter / (ta.size + tb.size - inter)
 }
 
+/* ==================== 分析层（v0.7）：失败恢复链 + 模型上下文窗口 ==================== */
+
+export const ANALYSIS_RULES = {
+  /** 失败恢复窗口（秒）：失败后任意工具在此窗口内出现成功调用即算「已恢复」。 */
+  RECOVERY_WINDOW: 120,
+  /** 恢复方式分类：失败后下一次同工具调用的参数相似度 ≥ 此值判「原样重试」，否则「换参数」。 */
+  IDENTICAL_SIMILARITY: 0.6,
+}
+
+/**
+ * 失败恢复链分析（纯读取，不改任何判定）：对时间序已结算调用，给每个失败调用
+ * 定出「失败之后发生了什么」。mode 看失败后的下一次调用：
+ *   'identical' = 同工具且参数相似度 ≥ 阈值（原样重试）
+ *   'strategy'  = 同工具但参数明显变了（换参数）
+ *   'switch'    = 换了别的工具
+ *   'none'      = 之后再无任何调用（失败收尾）
+ * recover 取失败后第一次成功调用（任意工具）：恢复 = 执行回到成功推进，
+ * recoverSec 为失败起点到该次成功开始的墙钟秒数，超出 RECOVERY_WINDOW 也如实给出。
+ * calls 须按时间序传入 {name, args, v, s, e}；返回数组与失败调用一一对应（带原下标 i）。
+ */
+export function analyzeFailureChains(calls){
+  const chains = []
+  for (let i = 0; i < calls.length; i++){
+    if (calls[i].v !== 'error') continue
+    const next = calls[i + 1] ?? null
+    let mode = 'none'
+    if (next !== null){
+      if (next.name !== calls[i].name) mode = 'switch'
+      else mode = argSimilarity(calls[i].args, next.args) >= ANALYSIS_RULES.IDENTICAL_SIMILARITY ? 'identical' : 'strategy'
+    }
+    let recoverSec = null
+    for (let j = i + 1; j < calls.length; j++){
+      if (calls[j].v === 'ok'){ recoverSec = Math.max(0, Math.round((calls[j].s - calls[i].s) * 10) / 10); break }
+    }
+    chains.push({ i, name: calls[i].name, s: calls[i].s, mode, recoverSec,
+      recovered: recoverSec !== null && recoverSec <= ANALYSIS_RULES.RECOVERY_WINDOW })
+  }
+  return chains
+}
+
+/**
+ * 模型 → 上下文窗口（token）。上下文压力轨道用它把绝对输入量换算成占用百分比；
+ * 匹配不到时返回 null，轨道诚实回退为绝对 token 数（不猜窗口）。
+ * 数值取各家公开文档口径（2026-08），新模型按需补行——只加确定的，不加猜的。
+ */
+export const CONTEXT_WINDOWS = [
+  [/deepseek-v4/i, 1_000_000],   // V4 系列（pro/flash）官方 1M：https://huggingface.co/blog/deepseekv4
+  [/deepseek/i, 128_000],        // V3 线与 deepseek-chat/reasoner
+  [/kimi|moonshot/i, 256_000],
+  [/qwen/i, 128_000],
+  [/glm/i, 128_000],
+  [/gpt-5/i, 400_000],
+  [/gpt-4\.1/i, 1_000_000],
+  [/gpt-4o|o[34]-mini|o3\b/i, 128_000],
+  [/claude/i, 200_000],
+  [/gemini/i, 1_000_000],
+]
+
+/**
+ * 按模型名解析上下文窗口。
+ * @param model 模型名（可空）
+ * @returns 窗口 token 数；未知模型返回 null
+ */
+export function contextWindowFor(model){
+  if (!model) return null
+  for (const [re, win] of CONTEXT_WINDOWS) if (re.test(model)) return win
+  return null
+}
+
 /**
  * 盲目重试簇标注（借 AgentLens 的确定性检测）：时间序上连续的「同工具 + 参数相似」
  * 调用簇，且簇内至少一次失败，才算盲目重试——不加失败约束会把「连续编辑同一文件」

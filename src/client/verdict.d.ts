@@ -17,7 +17,7 @@ export interface VerdictInput {
 export interface VerdictWhy {
   k: 'errFlag' | 'errStrong' | 'errWeak' | 'writeOk' | 'searchEmpty' | 'searchNoHit'
     | 'searchOk' | 'exitNoOut' | 'exitOk' | 'retryCtx' | 'retryCluster'
-    | 'noTools' | 'pendingTools' | 'child'
+    | 'noTools' | 'pendingTools' | 'child' | 'llmRetry' | 'turnError'
   p?: (string | number)[]
 }
 
@@ -73,3 +73,41 @@ export declare function argSimilarity(a: string, b: string): number
  * @returns 命中簇数
  */
 export declare function markRetryClusters(calls: { name: string; args: string; v: string; why?: VerdictWhy; why2?: VerdictWhy }[]): number
+
+/** 分析层常量（失败恢复窗口 / 原样重试相似度门槛）。 */
+export declare const ANALYSIS_RULES: {
+  RECOVERY_WINDOW: number
+  IDENTICAL_SIMILARITY: number
+}
+
+/** analyzeFailureChains 的单条结论：一个失败调用之后发生了什么。 */
+export interface FailureChain {
+  /** 该失败调用在传入数组中的下标。 */
+  i: number
+  name: string
+  /** 失败调用的开始时刻（与传入坐标同系）。 */
+  s: number
+  /** 失败后的下一步：原样重试 / 换参数 / 换工具 / 再无调用。 */
+  mode: 'identical' | 'strategy' | 'switch' | 'none'
+  /** 失败起点到下一次成功调用（任意工具）开始的秒数；此后再无成功为 null。 */
+  recoverSec: number | null
+  /** recoverSec 落在 RECOVERY_WINDOW 内。 */
+  recovered: boolean
+}
+
+/**
+ * 失败恢复链分析（纯读取，不改判定）：对每个失败调用给出恢复方式与恢复耗时。
+ * @param calls 时间序的已结算工具调用（需带 s/e 时间）
+ * @returns 与失败调用一一对应的结论数组
+ */
+export declare function analyzeFailureChains(calls: readonly { name: string; args: string; v: string; s: number; e: number | null }[]): FailureChain[]
+
+/** 模型名模式 → 上下文窗口 token 数（匹配不到的模型不猜，走绝对值回退）。 */
+export declare const CONTEXT_WINDOWS: [RegExp, number][]
+
+/**
+ * 按模型名解析上下文窗口。
+ * @param model 模型名（可空）
+ * @returns 窗口 token 数；未知模型返回 null
+ */
+export declare function contextWindowFor(model: string | null | undefined): number | null

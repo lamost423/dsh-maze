@@ -2,6 +2,25 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## 未发布
+
+**分析层三件套（执行分析面板 / 泳道数据轨道 / Agent 关系图谱）+ 请求级失败可见化 + 对比扩到 5 个文件（同任务智能识别）。**
+
+- **执行分析面板（📈 分析）**：摘要三卡（工具失败与恢复 / 时间消耗 / 上下文压力）+ 工具结果矩阵（成功/失败/扑空/盲重试/成功率，附 P50/P95/最长耗时分位）+ 失败恢复链——每个失败调用之后发生了什么：原样重试 / 换参数 / 换工具 / 未恢复（分类看失败后的下一次调用；恢复 = 失败后任意工具在 120 秒内再次成功，超窗如实标注）；点一条缩放到该失败并打开详情面板。全部数字是对已判定数据的确定性聚合，不调 LLM，规则在 `verdict.js` 的 `analyzeFailureChains`/`ANALYSIS_RULES`。
+- **泳道数据轨道（📊 轨道，可开关）**：泳道带底部三条与迷宫同一时间轴联动（缩放/平移/空闲折叠/播放全跟随）的轨道——**工具调用密度**（每次调用一根刻线，按读取/检索/命令/编辑/其他类别着色，宽 = 真实时长）；**Token 脉冲**（每步堆叠柱：缓存输入/未缓存输入/推理/可见输出——用真实日志验证 `usage.inputTokens` 是未命中缓存口径、`cacheReadTokens` 是命中口径，上下文总量 = 两者之和）；**上下文压力**（折线+面积，模型窗口已知时给占用百分比与 70%/90% 阈值线，压缩呈现为锯齿下落）。窗口表在 `verdict.js` 的 `CONTEXT_WINDOWS`（DeepSeek V4 = 1M 按官方口径收录）；观测峰值超过表值时视为表已过时、自动退回绝对 token 显示——绝不显示超过 100% 的占用。日志没报 usage 就不画后两条轨道，不占高度。
+- **Agent 关系图谱（🕸 Agent，UI 选项）**：主 Agent 与子代理的星形总览——节点大小 = 该 Agent 消耗的 token（输入+缓存+输出，无真值时按调用数并注明），连线粗细 = 工具调用数，运行中的子代理虚线标示；点子代理节点跳到它在时间轴上的位置并打开详情。按钮只在真有子代理数据时出现（依赖 v0.4.0 的子代理折入；stock dsh 无该能力时自然隐藏）。
+- 配套：实时链路每步新增 `inTok`/`cacheTok` 真值（子代理聚合节点同步汇总）；界面双语与明暗主题全量覆盖新面板与轨道。
+
+_EN: The analysis layer arrives as three pieces. **Execution analysis panel (📈)**: three summary cards (tool failures & recovery / time spent / context pressure), a per-tool result matrix (ok/failed/no-result/blind-retry/success rate with P50/P95/max durations), and failure recovery chains — what happened after each failed call: identical retry / changed args / switched tool / not recovered (recovered = any tool succeeds again within 120s; over-window reported honestly); click a row to zoom to that failure. All numbers are deterministic aggregations of judged data — no LLM. **Lane data tracks (📊, toggleable)**: three tracks under each lane band sharing the maze's time axis (zoom/pan/idle-folding/playback all linked) — tool-call density (colored by category), token pulse (stacked cached-input / uncached-input / reasoning / visible-output per step; verified on real logs that `usage.inputTokens` is the cache-miss share and `cacheReadTokens` the hit share), and context pressure (line+area; with a known model window it shows percentage plus 70%/90% thresholds, compaction appears as sawtooth drops). The window table lives in `verdict.js` `CONTEXT_WINDOWS` (DeepSeek V4 = 1M per the official release); when the observed peak exceeds the table value the table is treated as stale and the track falls back to absolute tokens — never a >100% reading. **Agent graph (🕸, a UI option)**: a star overview of the main agent and its subagents — node size = tokens consumed, edge width = tool-call count, running subagents dashed; click a node to jump to its span on the timeline. The button appears only when subagent data exists._
+
+**请求级失败可见化 + 对比扩到 5 个文件（同任务智能识别）。**
+
+- **请求级失败画进迷宫**（实时 + 上传两条链路同口径）：模型没吐出任何内容就失败的请求，此前在图上是纯空白——实测有会话前 2 分 40 秒全在失败重试，图上却像"什么都没发生"。现在 `llm/retry`（失败后安排重试）画成红色支路条，条长 = 退避等待窗口，图标 ↻、标签 ↻N，判定依据带失败原因 / 第几次重试 / 退避时长；`turn/end` 的 `error`（终局失败，无再重试）画成红色 ✗ 点标记。两类标记计入支路统计，退避窗口按活动时间参与空闲折叠判断（不再被折叠掩埋）。全程失败、一步未成的会话也照画。
+- **对比扩到最多 5 个 session log**（原 1~2）：五套泳道配色（明暗主题各一套），图例、泳道带、统计卡、文件上限、`?load1..load5` 直载全部跟进。
+- **同任务智能识别**：按各文件首条用户消息是否一致判定「是不是同一个任务的多次跑」。同任务 → 对比件全量泛化到 N 泳道：轮次对齐线连成跨泳道链（双泳道保留原有差额标注，N 泳道标注各自本轮耗时）、手动锚点可钉任意两条泳道、支路盘点扩成 N 列（差额列仅双泳道显示）；任务不同 → 仅同轴并排，对比件停用。识别结果在图例明示（⛓ 同一任务 ×N / ≠ 任务不同），不默默切换。
+
+_EN: Request-level failures become visible (live + upload, one contract): a request that dies before producing any content used to render as pure blank — a real session spent its first 2m40s failing and retrying while the maze showed "nothing". `llm/retry` now draws as a red detour bar (length = backoff window, ↻ icon, rationale carries cause / attempt / delay); a `turn/end` error (terminal, no more retries) draws as a red ✗ point marker. Backoff windows count as activity for idle folding. Compare now takes up to 5 session logs (was 1–2) with five lane palettes in both themes. Same-task detection (identical first user message) gates the compare kit: same task generalizes it to N lanes (turn alignment as a cross-lane chain, anchors between any two lanes, N-column detour inventory with a delta column at 2 lanes); different tasks render side-by-side only — the verdict is shown in the legend, never silent._
+
 ## v0.6.2 — 2026-08-25
 
 **适配 DSH Desktop 桌面端**（issue #4，感谢 @devyujie 反馈）。
