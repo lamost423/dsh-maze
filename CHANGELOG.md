@@ -2,6 +2,15 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v0.6.2 — 2026-08-25
+
+**适配 DSH Desktop 桌面端**（issue #4，感谢 @devyujie 反馈）。
+
+- **暗色主题切 tab 闪白**：iframe 层背景硬编码浅色、srcDoc 页面首帧按默认浅色变量绘制，暗色要等 onLoad 后 postMessage 才翻转——切 tab 重挂载 iframe 时闪一帧白。三层修掉：iframe / 面板底色跟随宿主暗色标记（`body[data-ds-dark-theme]`）；srcDoc 挂载时预置 `data-theme="dark"` 让首帧即暗色；页面自初始化优先尊重预置属性（否则「宿主暗 + 系统浅」会在解析完成时翻回浅色）。
+- **Trace 对比面板关闭按钮与窗口按钮重叠**：DSH Desktop（Electron）用 titleBarOverlay，原生「最小化 / 最大化 / 关闭」悬浮在页面右上角，正压在面板的 ✕ 上。✕ 的位置加 `env(titlebar-area-*)` 偏移——桌面端自动下移让出窗口按钮区，浏览器里这些变量不存在、走 0px 兜底位置不变。✕ 同时补上暗色配色（此前暗色下仍是白底）。
+
+_EN: DSH Desktop adaptation (issue #4, thanks @devyujie). Dark-theme tab-switch white flash: the iframe layer's background was hardcoded light and the srcDoc page painted its first frame with default light variables (dark only arrived via postMessage after onLoad), so every iframe remount flashed white. Fixed at three layers — iframe/surface backgrounds follow the host's dark attribute, the srcDoc gets `data-theme="dark"` pre-injected at mount so the first frame is already dark, and the page's self-init respects the pre-injected attribute. Close-button overlap: DSH Desktop (Electron) uses titleBarOverlay, floating native window controls over the top-right corner right where the surface's ✕ sits; the ✕ now offsets by `env(titlebar-area-*)` (0px fallback keeps browsers unchanged) and gains proper dark-theme styling._
+
 ## v0.6.1 — 2026-08-23
 
 修一处悬停卡残留，并换上 v0.6.0 新界面录制的全套演示动图。
