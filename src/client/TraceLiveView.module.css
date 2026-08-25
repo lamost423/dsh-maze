@@ -8,6 +8,10 @@
   border:0;
   background:#f2f4f8;
 }
+/* 暗色宿主：iframe 首帧未画出前露的是这层底色，跟浅色硬编码走会闪白（issue #4）。 */
+:global(body[data-ds-dark-theme]) .iframe{
+  background:#0d1219;
+}
 .empty{
   height:100%;
   display:flex;

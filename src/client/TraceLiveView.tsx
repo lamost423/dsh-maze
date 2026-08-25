@@ -7,7 +7,7 @@ import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { SubagentMazeSource } from './subagent-lanes.ts'
-import { postThemeTo, watchHostTheme } from './theme-sync.ts'
+import { postThemeTo, themedMazeHtml, watchHostTheme } from './theme-sync.ts'
 import css from './TraceLiveView.module.css'
 
 /** trace-jump payload posted by the maze page's detail panel. */
@@ -93,6 +93,10 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useP
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data
+  // srcDoc 按挂载时的宿主主题预置暗色：暗色宿主下切 tab 重挂载 iframe，
+  // 页面默认浅色变量会先画一帧（issue #4 的闪白）。挂载后的主题翻转走
+  // postMessage，不动 srcDoc。
+  const srcDoc = useMemo(() => themedMazeHtml(MAZE_PAGE_HTML), [])
 
   // Push on data change; also re-push once the iframe finished loading.
   useEffect(() => {
@@ -140,7 +144,7 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useP
         ref={iframeRef}
         title="trace-live"
         className={css.iframe}
-        srcDoc={MAZE_PAGE_HTML}
+        srcDoc={srcDoc}
         sandbox="allow-scripts allow-modals allow-downloads"
         onLoad={onLoad}
       />

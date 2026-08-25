@@ -4,7 +4,7 @@ import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-cli
 import type { createTraceCompareViewStore } from './store.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
-import { postThemeTo, watchHostTheme } from './theme-sync.ts'
+import { postThemeTo, themedMazeHtml, watchHostTheme } from './theme-sync.ts'
 import css from './TraceCompareSurface.module.css'
 
 /**
@@ -14,7 +14,10 @@ import css from './TraceCompareSurface.module.css'
  */
 export function TraceCompareSurface({ useStore, actions, useSessions, locale, t }: TraceCompareSurfaceProps) {
   const open = useStore(state => state.open)
-  const srcDoc = useMemo(() => MAZE_PAGE_HTML, [])
+  // srcDoc 按本次打开时的宿主主题预置暗色（首帧防闪）；打开期间的主题翻转走
+  // postMessage，不动 srcDoc——改了会整页重载丢状态。以 open 为键：面板常驻
+  // 组件，两次打开之间主题可能已翻转。
+  const srcDoc = useMemo(() => themedMazeHtml(MAZE_PAGE_HTML), [open])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   // Any Session navigation while the surface is open — sidebar selection or a
   // new Session — switches the conversation beneath this opaque surface, so it

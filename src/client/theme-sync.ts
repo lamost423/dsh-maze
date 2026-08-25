@@ -34,3 +34,20 @@ export function watchHostTheme(onChange: () => void): () => void {
   observer.observe(document.body, { attributes: true, attributeFilter: [DARK_ATTRIBUTE] })
   return () => { observer.disconnect() }
 }
+
+/** 迷宫页 `<html>` 起始标签——data-theme 预置的锚点（页面自持文件，标签稳定）。 */
+const MAZE_HTML_TAG = '<html lang="zh-CN">'
+
+/**
+ * 按宿主主题给迷宫页 HTML 预置 `data-theme`，让 srcDoc 首帧就按暗色着色。
+ * postMessage 通道要等 onLoad 才生效，暗色宿主下 iframe 重挂载（切 tab /
+ * 重开面板）会先按页面默认的浅色变量画一帧再翻转——桌面端（issue #4）
+ * 整块内容区闪白。浅色是页面默认态，原样返回。
+ * @param html - 迷宫页完整 HTML。
+ * @param mode - 目标主题；默认取当前宿主主题。
+ * @returns 预置好主题属性的 HTML。
+ */
+export function themedMazeHtml(html: string, mode: 'dark' | 'light' = hostThemeMode()): string {
+  if (mode !== 'dark') return html
+  return html.replace(MAZE_HTML_TAG, '<html lang="zh-CN" data-theme="dark">')
+}

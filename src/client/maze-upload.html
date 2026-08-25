@@ -2189,10 +2189,12 @@ window.addEventListener('message', e => {
   setLang(e.data.lang)
 })
 
-// 初始主题：宿主消息到达前按系统偏好兜底（独立打开/分享场景）；宿主消息一到以宿主为准
+// 初始主题：宿主经 srcDoc 预置的 data-theme 优先（首帧防闪，themedMazeHtml 注入）；
+// 没有预置（独立打开/分享场景）按系统偏好兜底；宿主消息一到以宿主为准
 applyStatic()
 readPalette()
-setTheme(typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark'
+  : typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 
 /* URL-direct load hook: ?load1=<path>&load2=<path> (dev/embed convenience). */
 ;(async () => {
