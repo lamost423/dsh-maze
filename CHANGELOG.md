@@ -2,6 +2,19 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v1.1.0 — 2026-08-26
+
+**观感大版本：空间收紧 + 轨道加高 + Token 脉冲双向 + 行内图例 + 柱形定版。**
+
+- **空间收紧**：无上方支路时泳道头到主干 82→58px、主干到轨道 44→36、轨道底垫减半、顶部起步 34→30；信箱留白收编——内容缩放后比容器矮时容器高度贴内容，迷宫框不再上下空一条。
+- **轨道加高**：密度 18→40（新增独立标题行）、Token 56→92、上下文 70→100——省出的空转高度全部给数据区。
+- **Token 脉冲双向 + 柱形定版**：基线之上未缓存输入（缓存命中作上半区半透明背景、自有刻度），基线之下推理+可见输出走独立刻度——输入动辄上万、输出常只有几百，同向堆叠时输出永远被压扁，上下分开后两边各自撑满。读数柱宽 = min(步长−缝, 10px) 钉步中点：密集会话自动呈细尖峰、稀疏会话保底存在感；时长语义由迷宫胶囊条承担，不重复编码。
+- **行内图例 + 计数**：每条轨道标题行带彩点图例（密度轨道按类别计数、Token 轨道四层、上下文阈值标签），随双语与主题；`run_code`/`node` 归入命令类。
+- **柱间留缝**：密度色条与 Token 柱步步可分（太窄时放弃留缝保可见），缓存背景保持连续当参照带。
+- 全套演示素材（主视觉 / 六个功能 GIF / 社交预览图）按最终布局用真实会话重录。
+
+_EN: A visual milestone. Tightened idle chrome (lane-header-to-main-path 82→58px with no up-detours, main-to-tracks 44→36, halved bottom padding, letterboxing removed — the canvas hugs its content when shorter than the container). Taller tracks (density 18→40 with its own caption row, token 56→92, context 70→100) — the reclaimed idle height goes to data. Token pulse goes bipolar: uncached input above the baseline (cache hits as a translucent upper-zone backdrop on its own scale), reasoning + visible output below on an independent scale — inputs run to tens of thousands while outputs are often a few hundred, so same-direction stacking always crushed the output. Bar width is now min(step span − gap, 10px), pinned at the step midpoint: dense sessions naturally render as thin spikes, sparse sessions keep presence; duration semantics stay with the maze capsules. Inline legends with per-category counts on every track caption; `run_code`/`node` classified as shell. Inter-bar gaps keep steps distinguishable (cache backdrop stays continuous as a reference band). Every demo asset re-recorded from real sessions on the final layout._
+
 ## v1.0.0 — 2026-08-26
 
 **`dsh-trace-compare` 更名 `dsh-maze`，1.0 里程碑。**

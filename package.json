@@ -1,6 +1,6 @@
 {
   "name": "dsh-maze",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The execution maze for DeepSeek Harness agents: see how the agent actually worked — main path, detours and backtracks on one timeline, with data tracks, deterministic analysis, and multi-session comparison",
   "keywords": [
     "deepseek",
