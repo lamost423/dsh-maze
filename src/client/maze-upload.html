@@ -988,6 +988,22 @@ function unionTurns(lanes){
 /* ==================== 空闲折叠：对话间等待压成细缝 ==================== */
 const IDLE_MIN = 60   // 无活动超过此秒数的区间视为等待，折叠显示
 
+/* 稀疏模式与轨道标注的观感阈值（按 703 调用/686 步的真实会话校准；换语料不顺眼先调这里）。 */
+const SPARSE_RULES = {
+  /** 当前窗口可见步数超过此值进入稀疏模式（标签分级 / 细弧线 / 聚合徽标）。 */
+  VISIBLE_STEPS: 90,
+  /** 聚合徽标：支路中心点像素间距 ≤ 此值归为同一密集段。 */
+  CLUSTER_GAP_PX: 26,
+  /** 聚合徽标：一段至少这么多条支路才出徽标。 */
+  CLUSTER_MIN: 4,
+  /** 稀疏模式保留标签：失败/扑空/重试步的条宽 ≥ 此值（px）。 */
+  KEEP_FAIL_W: 14,
+  /** 稀疏模式保留标签：任意步的条宽 ≥ 此值（px，长步本身就是信号）。 */
+  KEEP_LONG_W: 70,
+  /** 上下文压缩标注：相邻样本降幅 ≥ 此比例才标「⌄−N%」（0.2 = 掉两成）。 */
+  CTX_DROP: 0.2,
+}
+
 /**
  * Collapse idle stretches (no step/tool activity in any lane) into thin seams.
  * Mutates node/tool times into compressed coordinates, sets data.Tmax to the
@@ -1476,9 +1492,9 @@ function build(){
     // 泳道带底色随主题走调色板（readPalette 填 LANEC 成套色），按泳道索引取
     const lc = LANEC[li] ?? LANEC[0]
     // 稀疏模式：当前窗口内可见步数超过阈值时启用——标签只留要紧的（失败/回答/长步/子代理）、
-    // 支路弧线变细、密集支路收聚合徽标。放大后自动退出，标签逐级补齐。
+    // 支路弧线变细、密集支路收聚合徽标。放大后自动退出，标签逐级补齐。阈值在 SPARSE_RULES。
     lane._sparse = lane.main.filter(n => xVisible(n.s, n.e)).length
-      + lane.detours.filter(d => xVisible(d.s, d.e)).length > 90
+      + lane.detours.filter(d => xVisible(d.s, d.e)).length > SPARSE_RULES.VISIBLE_STEPS
     // 轮次交替底色：偶数轮着 subtle 色带，多轮会话的分轮结构一眼可辨（画在最底层）
     {
       const mainNodes = lane.main
@@ -1607,7 +1623,7 @@ function build(){
       let cur = null
       for (const d of ds){
         const cxp = (x(d.s) + x(d.e)) / 2
-        if (cur !== null && cxp - cur.x1 <= 26){
+        if (cur !== null && cxp - cur.x1 <= SPARSE_RULES.CLUSTER_GAP_PX){
           cur.x1 = Math.max(cur.x1, cxp); cur.n += 1
           cur.s = Math.min(cur.s, d.s); cur.e = Math.max(cur.e, d.e)
         } else {
@@ -1616,7 +1632,7 @@ function build(){
         }
       }
       for (const grp of groups){
-        if (grp.n < 4) continue
+        if (grp.n < SPARSE_RULES.CLUSTER_MIN) continue
         const gx = (grp.x0 + grp.x1) / 2
         const label = '×' + grp.n
         const bw = label.length * 7 + 12
@@ -1834,11 +1850,11 @@ function drawTracks(gTime, gStatic, lane, lay){
         gTime.appendChild(dot)
         markEls.push({ el: dot, s: n.e, e: n.e })
       }
-      // 上下文压缩事件标注：相邻样本掉 ≥20% 即视为一次压缩，锯齿下落点标「⌄−N%」——
-      // 这是排查「模型为什么忘了前面的事」的关键时刻，值得点名；悬停看压缩前后真值。
+      // 上下文压缩事件标注：相邻样本降幅达 SPARSE_RULES.CTX_DROP 即视为一次压缩，
+      // 锯齿下落点标「⌄−N%」——排查「模型为什么忘了前面的事」的关键时刻；悬停看前后真值。
       for (let i = 1; i < samples.length; i++){
         const a = val(samples[i - 1]), b = val(samples[i])
-        if (a <= 0 || b >= a * 0.8) continue
+        if (a <= 0 || b >= a * (1 - SPARSE_RULES.CTX_DROP)) continue
         if (!xVisible(samples[i].e, samples[i].e)) continue
         const p = Math.round((1 - b / a) * 100)
         const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(b) - 7, class: 'trk-cap' })
@@ -2488,7 +2504,7 @@ function drawNode(parent, lane, n, y, isMain, idx){
   const short = nodeLabel(n)
   const full = short + (toolTxt ? ' ' + toolTxt : '')
   const keepInSparse = n.v === 'answer' || n.evt != null || n.sub === true
-    || (n.v !== 'ok' && w >= 14) || w >= 70
+    || (n.v !== 'ok' && w >= SPARSE_RULES.KEEP_FAIL_W) || w >= SPARSE_RULES.KEEP_LONG_W
   if (lane._sparse && !keepInSparse){
     lab.textContent = ''
   } else {
