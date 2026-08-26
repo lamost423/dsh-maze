@@ -63,6 +63,10 @@
   html,body{height:100%}
   body{background-color:var(--bg); background-image:var(--bg-grad); color:var(--txt); font:12.5px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; padding:20px 24px 16px; display:flex; flex-direction:column; overflow:hidden}
   body > :not(#svgwrap){flex-shrink:0}
+  /* v0.7 分析区进主界面：出数据后整页可纵向滚动，迷宫占视口约六成高度，
+     分析卡/散点/矩阵/恢复链/Agent 图谱在其下方的常规文档流里（对齐社区 Trajectory V2 的单页布局）。 */
+  body.hasdata{overflow-y:auto}
+  body.hasdata #svgwrap{flex:0 0 auto; height:clamp(320px, 58vh, 860px)}
   ::-webkit-scrollbar{width:9px; height:9px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:5px; border:2px solid transparent; background-clip:padding-box}
@@ -127,8 +131,8 @@
   .controls select:hover{background-color:var(--hover)}
   #curTime{font-variant-numeric:tabular-nums; min-width:58px; text-align:center; color:var(--main-f); font-weight:600; font-size:11.5px; background:var(--panel2); border-radius:7px; padding:2px 8px}
   #seek{flex:1 1 180px; min-width:120px; height:22px; accent-color:var(--main-f)}
-  /* 过滤条：去面板底，退成安静的一行 */
-  #fltbar{background:transparent; border-color:transparent; box-shadow:none; padding:0 6px; margin-bottom:6px; font-size:12px}
+  /* 过滤条：去面板底，退成安静的一行；页面可滚后不再 sticky（否则与控件条叠在同一 top） */
+  #fltbar{background:transparent; border-color:transparent; box-shadow:none; padding:0 6px; margin-bottom:6px; font-size:12px; position:static}
   #fltbar input[type="search"]{border-color:var(--line)}
   /* The maze scales to whatever space is left: viewBox + meet fit（内容不高时）。 */
   .svgwrap{overflow:hidden; flex:1 1 0; min-height:120px; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:var(--shadow-md); position:relative}
@@ -191,16 +195,14 @@
   .ancline{stroke:var(--anchor); stroke-dasharray:2 3; stroke-width:1.6; cursor:pointer}
   .anclabel{font-size:10px; fill:var(--anchor); font-weight:600; cursor:pointer}
   .sw.anc{background:var(--anchor)}
-  /* 左侧覆盖面板家族（支路盘点 / 执行分析 / Agent 图谱）：盖在 svgwrap 左侧，与右侧详情面板对称 */
-  #invpanel,#anapanel,#agpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:var(--glass); backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5); border-right:1px solid var(--glass-brd); box-shadow:var(--panel-shadow-r); display:none; flex-direction:column; z-index:60}
-  #anapanel{width:580px; max-width:88%}
-  #agpanel{width:520px; max-width:84%}
-  #invpanel.show,#anapanel.show,#agpanel.show{display:flex}
-  #invpanel .ph,#anapanel .ph,#agpanel .ph{display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--line); flex-shrink:0}
-  #invpanel .ph b,#anapanel .ph b,#agpanel .ph b{font-size:13.5px; color:var(--txt); letter-spacing:-.01em}
-  #invpanel .pclose,#anapanel .pclose,#agpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:var(--dim); font-size:15px; font-weight:700; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:7px; line-height:1; transition:background .15s, color .15s}
-  #invpanel .pclose:hover,#anapanel .pclose:hover,#agpanel .pclose:hover{color:var(--err); background:var(--hover)}
-  #invpanel .pbody,#anapanel .pbody,#agpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
+  /* 支路盘点面板：盖在 svgwrap 左侧（与右侧详情面板对称），列每轮各泳道支路差额 */
+  #invpanel{position:absolute; top:0; left:0; bottom:0; width:470px; max-width:80%; background:var(--glass); backdrop-filter:blur(16px) saturate(1.5); -webkit-backdrop-filter:blur(16px) saturate(1.5); border-right:1px solid var(--glass-brd); box-shadow:var(--panel-shadow-r); display:none; flex-direction:column; z-index:60}
+  #invpanel.show{display:flex}
+  #invpanel .ph{display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--line); flex-shrink:0}
+  #invpanel .ph b{font-size:13.5px; color:var(--txt); letter-spacing:-.01em}
+  #invpanel .pclose{margin-left:auto; cursor:pointer; border:none; background:none; color:var(--dim); font-size:15px; font-weight:700; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:7px; line-height:1; transition:background .15s, color .15s}
+  #invpanel .pclose:hover{color:var(--err); background:var(--hover)}
+  #invpanel .pbody{overflow:auto; padding:8px 10px 12px; font-size:12px; flex:1}
   #invpanel table{width:100%; border-collapse:collapse}
   #invpanel th{color:var(--dim); font-weight:600; text-align:left; font-size:11px; letter-spacing:.02em}
   #invpanel th,#invpanel td{padding:5.5px 7px; border-bottom:1px solid var(--line); vertical-align:top}
@@ -210,19 +212,27 @@
   #invpanel tr.total td{color:var(--txt); font-weight:600; background:var(--panel2)}
   #invpanel .hint{color:var(--dim); font-size:11px; margin:6px 2px 0}
   .controls button.on{background:var(--sel); color:var(--lane1-title)}
-  /* 执行分析面板组件：摘要卡 / 工具矩阵表 / 失败恢复链 */
-  .analane{margin:8px 2px 2px; font-weight:700; font-size:12.5px; color:var(--txt)}
-  .analane .m{color:var(--dim); font-weight:500; font-size:10.5px; margin-left:6px}
-  .anasec{margin:9px 2px 3px; font-weight:600; font-size:11px; color:var(--dim); letter-spacing:.02em}
-  .anacards{display:flex; gap:7px; flex-wrap:wrap; margin:5px 0}
-  .anacard{flex:1 1 165px; min-width:150px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:7px 10px; box-shadow:var(--shadow-sm)}
-  .anacard .t{color:var(--dim); font-size:10px; margin-bottom:2px; font-weight:600}
-  .anacard .v{font-size:11.5px; line-height:1.5}
+  /* ==================== 主界面分析区（v0.7.0）：迷宫下方的常规文档流 ==================== */
+  #anasec{display:none; margin-top:12px}
+  body.hasdata #anasec{display:block}
+  .analane{margin:14px 2px 4px; font-weight:700; font-size:13.5px; color:var(--txt)}
+  .analane .m{color:var(--dim); font-weight:500; font-size:11px; margin-left:8px}
+  /* 摘要三卡：编号徽标 + 标题行 + 关键数字行（对齐参照稿的 01/02/03 卡片） */
+  .anacards{display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; margin:8px 0 12px}
+  .anacard{display:flex; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 13px; box-shadow:var(--shadow-sm)}
+  .anacard .num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--main-f); color:var(--main-f); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .anacard .t{color:var(--txt); font-size:12px; font-weight:700; margin-bottom:3px}
+  .anacard .v{font-size:11.5px; line-height:1.6; color:var(--dim)}
   .anacard .warn{color:var(--err); font-weight:700}
   .anacard .good{color:var(--ans); font-weight:600}
-  .anatbl{width:100%; border-collapse:collapse; margin:3px 0 6px; font-size:11px}
-  .anatbl th{color:var(--dim); font-weight:600; text-align:right; font-size:10px; padding:3.5px 6px; border-bottom:1px solid var(--line); letter-spacing:.02em}
-  .anatbl td{padding:3.5px 6px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums}
+  /* 双列块网格：耗时散点 | 工具矩阵；失败恢复链 | Agent 图谱 */
+  .anagrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; align-items:start}
+  @media (max-width:980px){ .anagrid{grid-template-columns:1fr} }
+  .anablock{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 13px 12px; box-shadow:var(--shadow-sm); min-width:0}
+  .anablock > .bt{font-size:12px; font-weight:700; color:var(--txt); margin-bottom:6px; letter-spacing:.01em}
+  .anatbl{width:100%; border-collapse:collapse; font-size:11px}
+  .anatbl th{color:var(--dim); font-weight:600; text-align:right; font-size:10px; padding:4px 6px; border-bottom:1px solid var(--line); letter-spacing:.02em}
+  .anatbl td{padding:4px 6px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums}
   .anatbl th:first-child,.anatbl td:first-child{text-align:left}
   .anatbl td.err{color:var(--err)} .anatbl td.dead{color:var(--dead)} .anatbl td.rt{color:var(--retry)}
   .okbar{display:inline-block; width:46px; height:5px; border-radius:3px; background:var(--line); vertical-align:1.5px; margin-left:6px; overflow:hidden}
@@ -231,13 +241,21 @@
   .chain:hover{background:var(--hover)}
   .chain .cid{font-weight:700; color:var(--txt); flex:0 0 auto}
   .chain .cmeta{color:var(--dim); flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chainwrap{max-height:320px; overflow-y:auto}
   .chaintag{font-size:10px; font-weight:700; border-radius:999px; padding:1px 8px; flex:0 0 auto}
   .chaintag.strategy{color:var(--ans); background:rgba(63,125,85,.13)}
   .chaintag.switch{color:var(--lane1-title); background:var(--sel)}
   .chaintag.identical{color:var(--retry); background:rgba(136,145,159,.16)}
   .chaintag.none{color:var(--err); background:rgba(192,69,63,.11)}
   .anahint{color:var(--dim); font-size:10.5px; margin:6px 2px 2px}
-  /* Agent 关系图谱（面板内 SVG） */
+  /* 耗时分布散点图（分析区 SVG）：颜色走 CSS 变量，主题切换零重绘 */
+  .dsc-row{font-size:10.5px; font-weight:600; fill:var(--txt)}
+  .dsc-cnt{font-size:9.5px; fill:var(--dim)}
+  .dsc-tick{font-size:9px; fill:var(--tick)}
+  .dsc-pline{stroke:var(--dim); stroke-dasharray:4 4; stroke-width:1}
+  .dsc-plab{font-size:9px; fill:var(--dim); font-weight:600}
+  .dsc-grid{stroke:var(--grid); stroke-width:1}
+  /* Agent 关系图谱（分析区 SVG） */
   .agname{font-size:11px; font-weight:700; fill:var(--txt)}
   .agmeta{font-size:9.5px; fill:var(--dim)}
   .agnode{cursor:pointer}
@@ -320,8 +338,6 @@
   <button id="btnAnchor" style="display:none" title="两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除">🔗 加锚点</button>
   <button id="btnInv" style="display:none" title="按轮次盘点两条泳道的支路差额">📋 支路盘点</button>
   <button id="btnTracks" class="on" title="显示/隐藏泳道下方的数据轨道">📊 轨道</button>
-  <button id="btnAna" title="打开执行分析面板">📈 分析</button>
-  <button id="btnAgents" style="display:none" title="主 Agent 与子代理的关系图谱">🕸 Agent</button>
   <button id="btnExpSvg" title="导出当前视图为 SVG">⬇ SVG</button>
   <button id="btnExpPng" title="导出当前视图为 PNG（2x）">⬇ PNG</button>
 </div>
@@ -339,15 +355,8 @@
   <div class="ph"><b id="invTitle">支路盘点（按轮次）</b><button class="pclose" id="invClose" title="关闭">×</button></div>
   <div class="pbody" id="invBody"></div>
 </div>
-<div id="anapanel">
-  <div class="ph"><b id="anaHeaderEl">执行分析</b><button class="pclose" id="anaClose" title="关闭">×</button></div>
-  <div class="pbody" id="anaBody"></div>
 </div>
-<div id="agpanel">
-  <div class="ph"><b id="agHeaderEl">Agent 关系图谱</b><button class="pclose" id="agClose" title="关闭">×</button></div>
-  <div class="pbody" id="agBody"></div>
-</div>
-</div>
+<div id="anasec"></div>
 <div id="tip"></div>
 
 <script>/*__FZSTD_UMD__*/</script>
@@ -403,9 +412,7 @@ const I18N = {
     invSteps: n => `${n} 步`, invNone: '两边都无支路', invEven: '≈持平',
     invMore: (i, d) => `第 ${i} 会话多耗 ${d}`,
     invHint: '点一行：缩放到该轮并只保留该轮支路（其余淡化），再点同一行取消。支路耗时为墙钟时间；✗ 失败 · ↻ 无效重试 · · 扑空。',
-    tracksBtn: '📊 轨道', tracksTitle: '显示/隐藏泳道下方的数据轨道（工具调用 · Token 脉冲 · 上下文压力）',
-    anaBtn: '📈 分析', anaTitle: '打开执行分析面板（失败恢复 · 工具矩阵 · 耗时分位）', anaHeader: '执行分析',
-    agBtn: '🕸 Agent', agTitle: '主 Agent 与子代理的关系图谱', agHeader: 'Agent 关系图谱',
+    tracksBtn: '📊 轨道', tracksTitle: '显示/隐藏泳道下方的数据轨道（工具调用 · Token 脉冲 · 上下文压力）', agHeader: 'Agent 关系图谱',
     trkTools: '工具调用', trkTok: 'Token 脉冲', trkCtx: '上下文压力',
     trkTokCap: n => `单步峰值 ${fmtTok(n)} tok`,
     trkCtxCapPct: (p, w) => `峰值 ${p}%（窗口 ${fmtTok(w)}）`,
@@ -526,9 +533,7 @@ const I18N = {
     invSteps: n => `${n} steps`, invNone: 'No detours on either side', invEven: '≈ even',
     invMore: (i, d) => `Session ${i} spent ${d} more`,
     invHint: 'Click a row: zoom to that turn and keep only its detours (everything else dims); click the same row again to cancel. Detour times are wall-clock; ✗ failed · ↻ blind retry · · no result.',
-    tracksBtn: '📊 Tracks', tracksTitle: 'Show/hide the data tracks under each lane (tool calls · token pulse · context pressure)',
-    anaBtn: '📈 Analyze', anaTitle: 'Open the execution analysis panel (failure recovery · tool matrix · duration percentiles)', anaHeader: 'Execution analysis',
-    agBtn: '🕸 Agents', agTitle: 'Main agent ↔ subagent relationship graph', agHeader: 'Agent graph',
+    tracksBtn: '📊 Tracks', tracksTitle: 'Show/hide the data tracks under each lane (tool calls · token pulse · context pressure)', agHeader: 'Agent graph',
     trkTools: 'Tool calls', trkTok: 'Token pulse', trkCtx: 'Context pressure',
     trkTokCap: n => `step peak ${fmtTok(n)} tok`,
     trkCtxCapPct: (p, w) => `peak ${p}% (window ${fmtTok(w)})`,
@@ -655,19 +660,11 @@ function applyStatic(){
   bi.textContent = tr('invBtn'); bi.title = tr('invTitle')
   const bt = document.getElementById('btnTracks')
   bt.textContent = tr('tracksBtn'); bt.title = tr('tracksTitle')
-  const bn = document.getElementById('btnAna')
-  bn.textContent = tr('anaBtn'); bn.title = tr('anaTitle')
-  const bg = document.getElementById('btnAgents')
-  bg.textContent = tr('agBtn'); bg.title = tr('agTitle')
   document.getElementById('btnExpSvg').title = tr('expSvgTitle')
   document.getElementById('btnExpPng').title = tr('expPngTitle')
   document.getElementById('panelClose').title = tr('closeEsc')
   document.getElementById('invClose').title = tr('close')
   document.getElementById('invTitle').textContent = tr('invHeader')
-  document.getElementById('anaClose').title = tr('close')
-  document.getElementById('anaHeaderEl').textContent = tr('anaHeader')
-  document.getElementById('agClose').title = tr('close')
-  document.getElementById('agHeaderEl').textContent = tr('agHeader')
 }
 
 /** 上传入口文案随状态走：出数据后收成一颗添加按钮，不再重复整句上传指引。 */
@@ -693,8 +690,7 @@ function setLang(lang){
     renderStats()
     refreshFltTools()
     if (invPanelEl.classList.contains('show')) renderInventory()
-    if (anaPanelEl.classList.contains('show')) renderAnalysis()
-    if (agPanelEl.classList.contains('show')) renderAgentGraph()
+    renderAnalysis()
     applyFilter()
     queueBuild()
   }
@@ -1072,7 +1068,7 @@ function laneTrackSpec(l){
   const own = [...l.main, ...l.detours].filter(n => !n.sub)
   const hasTok = own.some(n => n.inTok != null || n.outTok != null || n.rzTok != null)
   const hasCtx = own.some(n => n.inTok != null || n.cacheTok != null)
-  const dens = 18, tok = hasTok ? 56 : 0, ctx = hasCtx ? 54 : 0
+  const dens = 18, tok = hasTok ? 56 : 0, ctx = hasCtx ? 70 : 0
   return { h: dens + tok + ctx + 8, dens, tok, ctx }
 }
 
@@ -1679,22 +1675,34 @@ function drawTracks(gTime, gStatic, lane, lay){
   }
 
   // 3) 上下文压力：折线 + 面积，纵轴 = 未缓存输入 + 缓存命中（即每次请求的真实上下文
-  //    总量）；窗口已知画 70%/90% 阈值线并给百分比，压缩（compaction）呈现为锯齿下落。
+  //    总量）。纵轴随数据自适应：顶 = 峰值上方留 25% 余量——按整窗满刻度画的话，
+  //    一个只用到窗口 8% 的会话曲线全贴在底边，什么变化都看不出（实测教训）。
+  //    百分比与 70%/90% 阈值线仍按真实窗口换算，只在落进可视范围时画；压缩呈现为锯齿下落。
   if (trk.ctx > 0){
     sep(y0)
-    const H = trk.ctx - 18, yB = y0 + trk.ctx - 5
+    const H = trk.ctx - 20, yB = y0 + trk.ctx - 6
     const samples = own.filter(n => n.inTok != null || n.cacheTok != null).sort((a, b) => a.e - b.e)
     const val = n => (n.inTok ?? 0) + (n.cacheTok ?? 0)
     const peak = Math.max(1, ...samples.map(val))
     const win = laneWindow(lane.model, peak)
-    const scaleMax = win ?? peak * 1.08
+    const scaleMax = win != null ? Math.min(win, peak * 1.25) : peak * 1.15
     const yOf = v => yB - Math.min(1, v / scaleMax) * H
     nameText(tr('trkCtx'), y0 + 13)
     const peakPct = win ? Math.round(peak / win * 1000) / 10 : null
     capText(win ? tr('trkCtxCapPct')(peakPct, win) : tr('trkCtxCapAbs')(peak), y0 + 13, win != null && peakPct >= 90)
+    // 纵轴参照：中线 + 顶值刻度（自适应刻度下没有标尺，曲线高低要有锚）。
+    // 有阈值线落进可视范围时阈值标签就是锚，顶值标签不再画（曾与其在左缘撞字）。
+    const thresholdVisible = win != null && win * 0.7 <= scaleMax
+    if (!thresholdVisible){
+      const topLab = el('text', { x: X0 + 2, y: yOf(scaleMax) + 9, class: 'trk-cap' })
+      topLab.textContent = win ? Math.round(scaleMax / win * 100) + '%' : fmtTok(Math.round(scaleMax))
+      gStatic.appendChild(topLab)
+    }
+    gStatic.appendChild(el('line', { x1: X0, y1: yOf(scaleMax / 2), x2: X0 + AXIS_W, y2: yOf(scaleMax / 2), stroke: SVGC.grid, 'stroke-width': 1, 'stroke-dasharray': '2 5' }))
     if (win){
-      // 阈值标签放左侧（轨道名之后），右上角留给峰值标注——两者曾在右缘撞字
+      // 阈值线只在落进可视范围时画（低占用会话里 70%/90% 在图外，画了也是贴顶的假线）
       for (const [frac, color] of [[0.7, SVGC.ctxWarn], [0.9, SVGC.ctxCrit]]){
+        if (win * frac > scaleMax) continue
         const ly = yOf(win * frac)
         gTime.appendChild(el('line', { x1: X0, y1: ly, x2: X0 + AXIS_W, y2: ly, stroke: color, 'stroke-dasharray': '5 4', 'stroke-width': 1, opacity: .7 }))
         const lt = el('text', { x: X0 + 2, y: ly - 2, class: 'trk-cap' })
@@ -1708,12 +1716,12 @@ function drawTracks(gTime, gStatic, lane, lay){
       const area = el('path', { d: `M ${x(samples[0].e).toFixed(1)} ${yB} L ` + pts.join(' L ') + ` L ${x(samples[samples.length - 1].e).toFixed(1)} ${yB} Z`, fill: SVGC.ctxFill, stroke: 'none' })
       gTime.appendChild(area)
       markEls.push({ el: area, s: samples[0].e, e: samples[0].e })
-      const line = el('path', { d: 'M ' + pts.join(' L '), fill: 'none', stroke: SVGC.ctxLine, 'stroke-width': 1.6 })
+      const line = el('path', { d: 'M ' + pts.join(' L '), fill: 'none', stroke: SVGC.ctxLine, 'stroke-width': 2 })
       gTime.appendChild(line)
       pathEls.push({ el: line, s: samples[0].e, e: samples[samples.length - 1].e, base: '' })
       for (const n of samples){
         if (!xVisible(n.e, n.e)) continue
-        const dot = el('circle', { cx: x(n.e), cy: yOf(val(n)), r: 2.4, fill: SVGC.ctxLine })
+        const dot = el('circle', { cx: x(n.e), cy: yOf(val(n)), r: 2.6, fill: SVGC.ctxLine })
         dot._ctxNode = n; dot._ctxLane = lane; dot._ctxWin = win
         dot.addEventListener('mouseenter', onCtxHover)
         dot.addEventListener('mouseleave', offTrackHover)
@@ -1885,15 +1893,15 @@ function closeInv(){
 document.getElementById('invClose').addEventListener('click', closeInv)
 document.getElementById('btnInv').addEventListener('click', () => {
   if (invPanelEl.classList.contains('show')) closeInv()
-  else { closeAna(); closeAg(); renderInventory(); invPanelEl.classList.add('show') }
+  else { renderInventory(); invPanelEl.classList.add('show') }
 })
 
-/* ==================== 执行分析面板（v0.7）：摘要卡 / 工具矩阵 + 耗时分位 / 失败恢复链 ====================
+/* ==================== 主界面分析区（v0.7）：摘要卡 / 耗时散点 / 工具矩阵 / 失败恢复链 / Agent 图谱 ====================
+   迷宫下方的常规文档流（对齐社区 Trajectory V2 的单页布局），数据一到即渲染、无需按钮。
    全部数字都是对已解析判定数据的确定性聚合，不调 LLM；失败恢复链的分类
    （原样重试/换参数/换工具/未恢复）来自 verdict.js 的 analyzeFailureChains。 */
-const anaPanelEl = document.getElementById('anapanel')
-const anaBody = document.getElementById('anaBody')
-let anaRefs = []   // 失败链行 → { node, laneKey }，点击缩放定位用
+const anaSecEl = document.getElementById('anasec')
+let anaRefs = []   // 失败链行 / Agent 节点 → { node, laneKey }，点击缩放定位用
 
 /* 已结算调用过滤（settledLaneCalls）、分位数（percentile）、区间合并（mergeIntervalsTotal）、
    工具矩阵（toolMatrix）、请求级失败计数（countRequestFailures）、同任务可比性
@@ -1916,11 +1924,108 @@ function laneActiveTime(lane){
   return mergeIntervalsTotal(iv, IDLE_MIN)
 }
 
+/** 耗时分布散点图 SVG（字符串构建）：每工具一行，x 轴 sqrt 刻度铺开长尾，
+    点色 = 判定（成功按工具类别色），全局 P50/P95 虚线。颜色全走 CSS 变量，主题切换零重绘。 */
+function durScatterSvg(m, calls){
+  const names = [...m.keys()].sort((a, b) => m.get(b).calls - m.get(a).calls)
+  if (names.length === 0 || calls.length === 0) return ''
+  const W = 620, LX = 96, RX = W - 14, ROW = 26, TOP = 18
+  const H = TOP + names.length * ROW + 26
+  const allDurs = calls.map(c => c.tl.dur ?? 0)
+  const dmax = Math.max(0.1, ...allDurs)
+  const xOf = d => LX + Math.sqrt(Math.max(0, d) / dmax) * (RX - LX)
+  const catVar = { read: '--read', search: '--grep', shell: '--bash', edit: '--web', other: '--other' }
+  const vVar = { error: '--err', deadend: '--dead', retry: '--retry' }
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">`
+  // 轴刻度（sqrt 域上挑不挤的档位）
+  const cand = [0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600, 14400].filter(t => t < dmax * 0.85)
+  const ticks = cand.filter((_, i) => cand.length <= 5 || i % Math.ceil(cand.length / 5) === 0).concat([dmax])
+  let lastTx = -1e9
+  for (const t of ticks){
+    const x0 = xOf(t)
+    s += `<line x1="${x0.toFixed(1)}" y1="${TOP - 6}" x2="${x0.toFixed(1)}" y2="${H - 22}" class="dsc-grid"/>`
+    if (x0 - lastTx > 34){
+      s += `<text x="${x0.toFixed(1)}" y="${H - 9}" text-anchor="middle" class="dsc-tick">${fmtT(t)}</text>`
+      lastTx = x0
+    }
+  }
+  // 全局 P50/P95 参考线
+  for (const [p, lab] of [[50, 'P50'], [95, 'P95']]){
+    const v = percentile(allDurs, p)
+    const x0 = xOf(v)
+    s += `<line x1="${x0.toFixed(1)}" y1="${TOP - 6}" x2="${x0.toFixed(1)}" y2="${H - 22}" class="dsc-pline"/>`
+    s += `<text x="${x0.toFixed(1)}" y="${TOP - 9}" text-anchor="middle" class="dsc-plab">${lab}</text>`
+  }
+  names.forEach((name, ri) => {
+    const cy = TOP + ri * ROW + ROW / 2
+    s += `<text x="4" y="${cy + 1}" class="dsc-row">${esc(tlabel(name)).slice(0, 10)}</text>`
+    s += `<text x="4" y="${cy + 12}" class="dsc-cnt">×${m.get(name).calls}</text>`
+    s += `<line x1="${LX}" y1="${cy}" x2="${RX}" y2="${cy}" class="dsc-grid" opacity=".55"/>`
+  })
+  calls.forEach((c, i) => {
+    const ri = names.indexOf(c.tl.name)
+    if (ri < 0) return
+    const d = c.tl.dur ?? 0
+    // 确定性抖动（纵 ±7 / 横 ±3），密集同值不叠成一个点；失败点画大一号压在上层
+    const cy = TOP + ri * ROW + ROW / 2 + ((i * 137) % 15) - 7
+    const cx0 = xOf(d) + ((i * 61) % 7) - 3
+    const bad = c.tl.v !== 'ok'
+    const varName = bad ? (vVar[c.tl.v] ?? '--retry') : catVar[toolCat(c.tl.name)]
+    const tip = `${tlabel(c.tl.name)} · ${fmtT(d)} · ${vlabel(c.tl.v)} · ${String(c.tl.args ?? '').slice(0, 70)}`
+    s += `<circle cx="${cx0.toFixed(1)}" cy="${cy.toFixed(1)}" r="${bad ? 3.4 : 2.6}" style="fill:var(${varName})" opacity="${bad ? '.85' : '.45'}" class="dsc-dot" data-tip="${esc(tip)}"/>`
+  })
+  return s + '</svg>'
+}
+
+/** 一个节点消耗的总 token（输入+缓存+输出）；日志未报任何一项时 null。 */
+function agTokOf(n){
+  if (n.inTok == null && n.cacheTok == null && n.outTok == null) return null
+  return (n.inTok ?? 0) + (n.cacheTok ?? 0) + (n.outTok ?? 0)
+}
+
+/** Agent 关系图谱 SVG（字符串构建）：星形总览，节点大小 = token、连线粗细 = 调用数。 */
+function agentGraphSvg(lane, li){
+  const subs = lane.detours.filter(d => d.sub)
+  if (subs.length === 0) return ''
+  const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+  const mainTok = own.some(n => agTokOf(n) != null) ? own.reduce((sum, n) => sum + (agTokOf(n) ?? 0), 0) : null
+  const W = 520, CY = 183, R = 118
+  const cx = W / 2
+  const maxTok = Math.max(1, ...subs.map(x => agTokOf(x) ?? 0))
+  const maxCalls = Math.max(1, ...subs.map(x => x.tools.length))
+  const mainVar = `--lane${li + 1}-main`, headVar = `--lane${li + 1}-head`, bgVar = `--lane${li + 1}-bg`
+  let s = `<svg viewBox="0 0 ${W} 372" width="100%" style="display:block;max-width:560px;margin:0 auto">`
+  const pos = subs.map((x, i) => {
+    const ang = -Math.PI / 2 + i * 2 * Math.PI / subs.length
+    return { x: cx + Math.cos(ang) * R, y: CY + Math.sin(ang) * R }
+  })
+  subs.forEach((x, i) => {
+    const w = 1.2 + 4.5 * (x.tools.length / maxCalls)
+    s += `<line x1="${cx}" y1="${CY}" x2="${pos[i].x.toFixed(1)}" y2="${pos[i].y.toFixed(1)}" style="stroke:var(--backarc)" stroke-width="${w.toFixed(1)}" opacity=".75"${x.live ? ' stroke-dasharray="5 4"' : ''}/>`
+  })
+  s += `<circle cx="${cx}" cy="${CY}" r="34" style="fill:var(${headVar});stroke:var(${mainVar})" stroke-width="2"/>`
+  s += `<text x="${cx}" y="${CY - 3}" text-anchor="middle" class="agname">${esc(tr('agMain'))}</text>`
+  s += `<text x="${cx}" y="${CY + 11}" text-anchor="middle" class="agmeta">${esc(mainTok != null ? tr('agTok')(mainTok) : tr('agTokNone'))}</text>`
+  subs.forEach((x, i) => {
+    const tok = agTokOf(x)
+    const frac = tok != null ? tok / maxTok : Math.min(1, x.tools.length / maxCalls) * 0.5
+    const r = 15 + 17 * Math.sqrt(Math.min(1, frac))
+    const ai = anaRefs.push({ node: x, laneKey: lane.key }) - 1
+    const above = pos[i].y <= CY
+    s += `<g class="agnode" data-ai="${ai}">`
+      + `<circle cx="${pos[i].x.toFixed(1)}" cy="${pos[i].y.toFixed(1)}" r="${r.toFixed(1)}" style="fill:var(${bgVar});stroke:var(${x.live ? '--backarc' : mainVar})" stroke-width="1.6"${x.live ? ' stroke-dasharray="5 4"' : ''}/>`
+      + `<text x="${pos[i].x.toFixed(1)}" y="${(above ? pos[i].y - r - 17 : pos[i].y + r + 13).toFixed(1)}" text-anchor="middle" class="agname">${esc(nodeLabel(x))}</text>`
+      + `<text x="${pos[i].x.toFixed(1)}" y="${(above ? pos[i].y - r - 5 : pos[i].y + r + 25).toFixed(1)}" text-anchor="middle" class="agmeta">${esc((tok != null ? tr('agTok')(tok) + ' · ' : '') + tr('agCalls')(x.tools.length) + (x.live ? ' · ' + tr('agRunningTag') : ''))}</text>`
+      + `</g>`
+  })
+  return s + '</svg>'
+}
+
 function renderAnalysis(){
   if (!DATA) return
   anaRefs = []
   let h = ''
-  DATA.lanes.forEach(lane => {
+  DATA.lanes.forEach((lane, li) => {
     const calls = settledLaneCalls(lane)
     // 恢复链在墙钟坐标上算（compressTimeline 把节点时间改成了折叠坐标，恢复耗时必须是真实秒数）
     const chains = analyzeFailureChains(calls.map(c => ({
@@ -1945,25 +2050,24 @@ function renderAnalysis(){
     const ctxSamples = own.filter(n => n.inTok != null || n.cacheTok != null)
     const ctxPeak = ctxSamples.length > 0 ? Math.max(...ctxSamples.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
     const win = ctxPeak != null ? laneWindow(lane.model, ctxPeak) : null
-
     // 请求级失败（llm/retry / turn/end error）不属于工具统计，但一个全程失败的会话
     // 不能在这张卡上亮绿灯——单独计数列在卡内。
     const evtFails = countRequestFailures(lane)
 
     if (DATA.lanes.length > 1) h += `<div class="analane">${laneName(lane)}<span class="m">${esc(lane.fname ?? lane.model ?? '')}</span></div>`
     h += `<div class="anacards">`
-    h += `<div class="anacard"><div class="t">${tr('cardFail')}</div><div class="v">`
+    h += `<div class="anacard"><div class="num">01</div><div><div class="t">${tr('cardFail')}</div><div class="v">`
       + (fails === 0 && evtFails === 0 ? `<span class="good">${tr('cardFailNone')}</span>`
         : (fails === 0 ? ''
           : `${tr('cardFailBody')(fails, calls.length, mostTool ? esc(tlabel(mostTool)) : '', mostN)}<br>`
             + `${tr('cardFailRec')(rec, fails, ANALYSIS_RULES.RECOVERY_WINDOW)} · `
             + `<span class="${fails / Math.max(1, calls.length) > 0.1 ? 'warn' : ''}">${tr('cardFailRate')(Math.round(fails / Math.max(1, calls.length) * 100))}</span>`)
           + (evtFails > 0 ? `${fails > 0 ? '<br>' : ''}<span class="warn">${tr('cardFailEvt')(evtFails)}</span>` : ''))
-      + `</div></div>`
-    h += `<div class="anacard"><div class="t">${tr('cardTime')}</div><div class="v">`
+      + `</div></div></div>`
+    h += `<div class="anacard"><div class="num">02</div><div><div class="t">${tr('cardTime')}</div><div class="v">`
       + (longTool ? tr('cardTimeBody')(esc(tlabel(longTool)), fmtT(longD)) + '<br>' : '')
-      + tr('cardTimeShare')(share) + `</div></div>`
-    h += `<div class="anacard"><div class="t">${tr('cardCtx')}</div><div class="v">`
+      + tr('cardTimeShare')(share) + `</div></div></div>`
+    h += `<div class="anacard"><div class="num">03</div><div><div class="t">${tr('cardCtx')}</div><div class="v">`
       + (ctxPeak == null ? tr('cardCtxNone')
         : win != null
           ? (() => {
@@ -1974,41 +2078,54 @@ function renderAnalysis(){
                   : `<span class="good">${tr('cardCtxUnder')}</span>`)
             })()
           : tr('cardCtxAbs')(ctxPeak))
-      + `</div></div>`
+      + `</div></div></div>`
     h += `</div>`
 
+    // 双列：耗时散点 | 工具结果矩阵
     const names = [...m.keys()].sort((a, b) => m.get(b).calls - m.get(a).calls)
-    h += `<div class="anasec">${tr('anaMatrix')} · ${tr('anaDur')}</div><table class="anatbl"><thead><tr>`
+    let tbl = `<table class="anatbl"><thead><tr>`
       + `<th>${tr('mtTool')}</th><th>${tr('mtCalls')}</th><th>${tr('mtOk')}</th><th>${tr('mtErr')}</th><th>${tr('mtDead')}</th><th>${tr('mtRetry')}</th><th>${tr('mtRate')}</th>`
       + `<th>${tr('mtP50')}</th><th>${tr('mtP95')}</th><th>${tr('mtMax')}</th></tr></thead><tbody>`
     for (const name of names){
       const g = m.get(name)
       const rate = Math.round(g.ok / g.calls * 100)
-      h += `<tr><td>${esc(tlabel(name))}</td><td>${g.calls}</td><td>${g.ok}</td>`
+      tbl += `<tr><td>${esc(tlabel(name))}</td><td>${g.calls}</td><td>${g.ok}</td>`
         + `<td class="err">${g.error > 0 ? g.error : ''}</td><td class="dead">${g.deadend > 0 ? g.deadend : ''}</td><td class="rt">${g.retry > 0 ? g.retry : ''}</td>`
         + `<td>${rate}%<span class="okbar"><i style="width:${rate}%"></i></span></td>`
         + `<td>${fmtT(percentile(g.durs, 50))}</td><td>${fmtT(percentile(g.durs, 95))}</td><td>${fmtT(Math.max(0, ...g.durs))}</td></tr>`
     }
-    h += `</tbody></table>`
+    tbl += `</tbody></table>`
+    h += `<div class="anagrid">`
+      + `<div class="anablock"><div class="bt">${tr('anaDur')}</div>${durScatterSvg(m, calls)}</div>`
+      + `<div class="anablock"><div class="bt">${tr('anaMatrix')}</div>${tbl}</div>`
+      + `</div>`
 
-    h += `<div class="anasec">${tr('anaChains')}</div>`
-    if (chains.length === 0) h += `<div class="anahint">${tr('chainsNone')}</div>`
+    // 双列：失败恢复链 | Agent 图谱（有子代理才有）
+    let chainsHtml = ''
+    if (chains.length === 0) chainsHtml = `<div class="anahint">${tr('chainsNone')}</div>`
     else {
       // 未恢复的排最前，其余按恢复耗时降序——最该看的失败在最上面
       const order = [...chains].sort((a, b) =>
         a.recovered !== b.recovered ? (a.recovered ? 1 : -1) : (b.recoverSec ?? Infinity) - (a.recoverSec ?? Infinity))
+      chainsHtml = '<div class="chainwrap">'
       for (const c of order){
         const ref = calls[c.i]
         const ai = anaRefs.push({ node: ref.n, laneKey: lane.key }) - 1
         const recTxt = c.recoverSec == null ? tr('chainNoRec') : c.recovered ? tr('chainRec')(c.recoverSec) : tr('chainRecSlow')(c.recoverSec)
-        h += `<div class="chain" data-ai="${ai}"><span class="cid">${esc(nodeLabel(ref.n))}</span>`
+        chainsHtml += `<div class="chain" data-ai="${ai}"><span class="cid">${esc(nodeLabel(ref.n))}</span>`
           + `<span class="cmeta">${esc(tlabel(c.name))} · ${esc(String(ref.tl.args ?? '').slice(0, 60))} · ${esc(recTxt)}</span>`
           + `<span class="chaintag ${c.mode}">${esc(tr('chainTag')[c.mode])}</span></div>`
       }
-      h += `<div class="anahint">${tr('anaChainHint')}</div>`
+      chainsHtml += `</div><div class="anahint">${tr('anaChainHint')}</div>`
     }
+    const agSvg = agentGraphSvg(lane, li)
+    // 没有 Agent 图时恢复链独占整行，不留半幅空白
+    h += `<div class="${agSvg ? 'anagrid' : ''}">`
+      + `<div class="anablock"><div class="bt">${tr('anaChains')}</div>${chainsHtml}</div>`
+      + (agSvg ? `<div class="anablock"><div class="bt">${tr('agHeader')}</div>${agSvg}<div class="anahint">${tr('agHint')}</div></div>` : '')
+      + `</div>`
   })
-  anaBody.innerHTML = h
+  anaSecEl.innerHTML = h
 }
 
 /** 分析/图谱面板共用的「缩放到节点并打开详情」。 */
@@ -2022,113 +2139,27 @@ function zoomToNode(ref){
   openPanel(n, lane, lane.main.includes(n))
 }
 
-anaBody.addEventListener('click', ev => {
-  const row = ev.target.closest('.chain[data-ai]')
+anaSecEl.addEventListener('click', ev => {
+  const row = ev.target.closest('[data-ai]')
   if (!row) return
-  const ref = anaRefs[+row.dataset.ai]
-  if (ref) zoomToNode(ref)
+  const ref = anaRefs[+row.getAttribute('data-ai')]
+  if (!ref) return
+  zoomToNode(ref)
+  // 分析区在迷宫下方——定位后把迷宫滚回视口，否则缩放发生在屏幕外看不见
+  svgWrapEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
 
-function closeAna(){ anaPanelEl.classList.remove('show') }
-document.getElementById('anaClose').addEventListener('click', closeAna)
-document.getElementById('btnAna').addEventListener('click', () => {
-  if (anaPanelEl.classList.contains('show')) closeAna()
-  else { closeInv(); closeAg(); renderAnalysis(); anaPanelEl.classList.add('show') }
+// 散点图点位悬停：data-tip 直出（事件委托，重渲染零残留）
+anaSecEl.addEventListener('mouseover', ev => {
+  const dot = ev.target.closest('.dsc-dot')
+  if (!dot) return
+  const tip = document.getElementById('tip')
+  tip.innerHTML = `<div class="th">${esc(dot.getAttribute('data-tip') ?? '')}</div>`
+  tip.style.display = 'block'
+  placeTip(ev)
 })
-
-/* ==================== Agent 关系图谱（v0.7，UI 选项）：主 Agent 与子代理的星形总览 ====================
-   与时间轴子代理支路互补的另一种视角：节点大小 = 该 Agent 消耗的 token（输入+缓存+输出），
-   连线粗细 = 工具调用数。数据齐备靠 v0.4.0 的子代理折入；无 token 真值时按调用数定大小并注明。 */
-const agPanelEl = document.getElementById('agpanel')
-const agBody = document.getElementById('agBody')
-let agRefs = []
-
-/** 一个节点消耗的总 token（输入+缓存+输出）；日志未报任何一项时 null。 */
-function agTokOf(n){
-  if (n.inTok == null && n.cacheTok == null && n.outTok == null) return null
-  return (n.inTok ?? 0) + (n.cacheTok ?? 0) + (n.outTok ?? 0)
-}
-
-function renderAgentGraph(){
-  if (!DATA) return
-  agRefs = []
-  agBody.innerHTML = ''
-  let any = false
-  DATA.lanes.forEach((lane, li) => {
-    const subs = lane.detours.filter(d => d.sub)
-    if (subs.length === 0) return
-    any = true
-    if (DATA.lanes.length > 1){
-      const t = document.createElement('div')
-      t.className = 'analane'
-      t.textContent = laneName(lane)
-      agBody.appendChild(t)
-    }
-    const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
-    const mainTok = own.some(n => agTokOf(n) != null) ? own.reduce((s, n) => s + (agTokOf(n) ?? 0), 0) : null
-    const W = 492, CY = 190, R = 132
-    const cx = W / 2
-    const maxTok = Math.max(1, ...subs.map(s => agTokOf(s) ?? 0))
-    const maxCalls = Math.max(1, ...subs.map(s => s.tools.length))
-    const lc = LANEC[li] ?? LANEC[0]
-    const svgEl = el('svg', { viewBox: `0 0 ${W} 390`, width: '100%' })
-    const pos = subs.map((s, i) => {
-      const ang = -Math.PI / 2 + i * 2 * Math.PI / subs.length
-      return { x: cx + Math.cos(ang) * R, y: CY + Math.sin(ang) * R }
-    })
-    subs.forEach((s, i) => {
-      const w = 1.2 + 4.5 * (s.tools.length / maxCalls)
-      svgEl.appendChild(el('line', { x1: cx, y1: CY, x2: pos[i].x, y2: pos[i].y, stroke: SVGC.back, 'stroke-width': w, opacity: .75, ...(s.live ? { 'stroke-dasharray': '5 4' } : {}) }))
-    })
-    const g0 = el('g', {})
-    g0.appendChild(el('circle', { cx, cy: CY, r: 34, fill: lc.head, stroke: lc.main, 'stroke-width': 2 }))
-    const t0 = el('text', { x: cx, y: CY - 3, 'text-anchor': 'middle', class: 'agname' })
-    t0.textContent = tr('agMain')
-    const t0b = el('text', { x: cx, y: CY + 11, 'text-anchor': 'middle', class: 'agmeta' })
-    t0b.textContent = mainTok != null ? tr('agTok')(mainTok) : tr('agTokNone')
-    g0.appendChild(t0); g0.appendChild(t0b)
-    svgEl.appendChild(g0)
-    subs.forEach((s, i) => {
-      const tok = agTokOf(s)
-      const frac = tok != null ? tok / maxTok : Math.min(1, s.tools.length / maxCalls) * 0.5
-      const r = 15 + 17 * Math.sqrt(Math.min(1, frac))
-      const g = el('g', { class: 'agnode' })
-      g.appendChild(el('circle', { cx: pos[i].x, cy: pos[i].y, r, fill: lc.bg, stroke: s.live ? SVGC.back : lc.main, 'stroke-width': 1.6, ...(s.live ? { 'stroke-dasharray': '5 4' } : {}) }))
-      const above = pos[i].y <= CY
-      const tn = el('text', { x: pos[i].x, y: above ? pos[i].y - r - 17 : pos[i].y + r + 13, 'text-anchor': 'middle', class: 'agname' })
-      tn.textContent = nodeLabel(s)
-      const tm = el('text', { x: pos[i].x, y: above ? pos[i].y - r - 5 : pos[i].y + r + 25, 'text-anchor': 'middle', class: 'agmeta' })
-      tm.textContent = (tok != null ? tr('agTok')(tok) + ' · ' : '') + tr('agCalls')(s.tools.length) + (s.live ? ' · ' + tr('agRunningTag') : '')
-      g.appendChild(tn); g.appendChild(tm)
-      g.setAttribute('data-ai', String(agRefs.push({ node: s, laneKey: lane.key }) - 1))
-      svgEl.appendChild(g)
-    })
-    agBody.appendChild(svgEl)
-    if (mainTok == null && subs.every(s => agTokOf(s) == null)){
-      const d = document.createElement('div')
-      d.className = 'anahint'
-      d.textContent = tr('agTokNone')
-      agBody.appendChild(d)
-    }
-  })
-  const hint = document.createElement('div')
-  hint.className = 'anahint'
-  hint.textContent = any ? tr('agHint') : tr('agSubNone')
-  agBody.appendChild(hint)
-}
-
-agBody.addEventListener('click', ev => {
-  const g = ev.target.closest('[data-ai]')
-  if (!g) return
-  const ref = agRefs[+g.getAttribute('data-ai')]
-  if (ref) zoomToNode(ref)
-})
-
-function closeAg(){ agPanelEl.classList.remove('show') }
-document.getElementById('agClose').addEventListener('click', closeAg)
-document.getElementById('btnAgents').addEventListener('click', () => {
-  if (agPanelEl.classList.contains('show')) closeAg()
-  else { closeInv(); closeAna(); renderAgentGraph(); agPanelEl.classList.add('show') }
+anaSecEl.addEventListener('mouseout', ev => {
+  if (ev.target.closest('.dsc-dot')) document.getElementById('tip').style.display = 'none'
 })
 
 document.getElementById('btnTracks').addEventListener('click', () => {
@@ -2547,8 +2578,6 @@ window.addEventListener('keydown', e => {
   if (anchorPick){ stopAnchorPick(); return }
   if (panelEl.classList.contains('show')){ closePanel(); return }
   if (invPanelEl.classList.contains('show')){ closeInv(); return }
-  if (anaPanelEl.classList.contains('show')){ closeAna(); return }
-  if (agPanelEl.classList.contains('show')){ closeAg(); return }
   parent.postMessage({ kind: 'trace-esc' }, '*')
 })
 
@@ -2682,8 +2711,7 @@ function resetView(){
   VIEW = null
   closePanel()
   closeInv()
-  closeAna()
-  closeAg()
+  anaSecEl.innerHTML = ''
   ANCHORS = []
   if (anchorPick) stopAnchorPick()
   while (svg.firstChild) svg.removeChild(svg.firstChild)
@@ -2749,12 +2777,8 @@ function renderData(data, opts){
   document.getElementById('btnInv').style.display = cmp ? '' : 'none'
   if (!cmp) closeInv()
   else if (invPanelEl.classList.contains('show')) renderInventory()
-  // Agent 图谱按钮只在真有子代理数据时出现（stock dsh 缺子会话能力时自然隐藏）
-  const hasSubs = DATA.lanes.some(l => l.detours.some(d => d.sub))
-  document.getElementById('btnAgents').style.display = hasSubs ? '' : 'none'
-  if (!hasSubs) closeAg()
-  else if (agPanelEl.classList.contains('show')) renderAgentGraph()
-  if (anaPanelEl.classList.contains('show')) renderAnalysis()
+  // 分析区随数据直接渲染（主界面文档流；Agent 图谱块只在真有子代理数据时出现）
+  renderAnalysis()
   document.getElementById('svgwrap').style.display = 'block'
   playing = false
   // 默认直接呈现完整迷宫：t=0 时节点条 opacity 为 0、连线只有 25%，
