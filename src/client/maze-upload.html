@@ -11,6 +11,7 @@
     --llm:#2563eb; --bash:#0f9488; --grep:#7c3aed; --read:#059669; --web:#d97706; --other:#0891b2;
     --tok-cache:#a9c6e8; --tok-in:#2563eb; --tok-rz:#d97706; --tok-out:#2f7d5f;
     --ctx-line:#2d6a8f; --ctx-fill:rgba(45,106,143,.12); --ctx-warn:#d97706; --ctx-crit:#c0453f;
+    --turnband:rgba(100,116,139,.055);
     --err:#c0453f; --dead:#98a1ad; --retry:#88919f; --ans:#3f7d55; --main-f:#2d6a8f; --main-p:#a06a35;
     --milestone:#7d8896; --mslabel-txt:#5f6b7a; --anchor:#2f8a99;
     --hover:#eef1f6; --sel:#dfeaf1; --border:#d9dee8; --codebg:#f9fafd; --code:#3a4354;
@@ -40,6 +41,7 @@
     --llm:#60a5fa; --bash:#2dd4bf; --grep:#a78bfa; --read:#34d399; --web:#fbbf24; --other:#22d3ee;
     --tok-cache:#48627f; --tok-in:#60a5fa; --tok-rz:#e0a35c; --tok-out:#6fbf9a;
     --ctx-line:#6aa8cc; --ctx-fill:rgba(106,168,204,.16); --ctx-warn:#e0a35c; --ctx-crit:#e0645e;
+    --turnband:rgba(148,163,184,.06);
     --milestone:#93a0b0; --mslabel-txt:#a9b5c4; --anchor:#4fb0c0;
     --hover:#212c3d; --sel:#22384a; --border:#333f54; --codebg:#111823; --code:#c3cddd;
     --grid:#1e2735; --seam:#182130; --seam-edge:#39455a; --seam-txt:#e0a35c;
@@ -130,7 +132,12 @@
   .controls select{appearance:none; -webkit-appearance:none; background:transparent var(--chev) no-repeat right 6px center; color:var(--txt); border:1px solid transparent; border-radius:8px; padding:3px 20px 3px 8px; font:inherit; font-size:12px; cursor:pointer; transition:background .15s}
   .controls select:hover{background-color:var(--hover)}
   #curTime{font-variant-numeric:tabular-nums; min-width:58px; text-align:center; color:var(--main-f); font-weight:600; font-size:11.5px; background:var(--panel2); border-radius:7px; padding:2px 8px}
-  #seek{flex:1 1 180px; min-width:120px; height:22px; accent-color:var(--main-f)}
+  /* 进度条热力化：canvas 画活动密度与失败刻线垫底，透明轨道的原生 range 叠在上面负责交互 */
+  #seekwrap{position:relative; flex:1 1 180px; min-width:120px; height:22px; display:inline-flex; align-items:center}
+  #seekheat{position:absolute; left:0; top:3px; width:100%; height:16px; border-radius:8px; pointer-events:none}
+  #seek{position:relative; width:100%; height:22px; margin:0; background:transparent; -webkit-appearance:none; appearance:none; cursor:pointer}
+  #seek::-webkit-slider-runnable-track{background:transparent; height:16px}
+  #seek::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:7px; height:20px; border-radius:3.5px; background:var(--main-f); margin-top:-2px; box-shadow:0 0 0 1.5px var(--panel)}
   /* 过滤条：去面板底，退成安静的一行；页面可滚后不再 sticky（否则与控件条叠在同一 top） */
   #fltbar{background:transparent; border-color:transparent; box-shadow:none; padding:0 6px; margin-bottom:6px; font-size:12px; position:static}
   #fltbar input[type="search"]{border-color:var(--line)}
@@ -260,6 +267,16 @@
   .agmeta{font-size:9.5px; fill:var(--dim)}
   .agnode{cursor:pointer}
   .agnode:hover circle{filter:brightness(1.06)}
+  /* 会话头部指标条：模型/时长/步数/Token/峰值上下文收拢成一行（多泳道逐行） */
+  #metastrip{display:none; flex-wrap:wrap; gap:4px 16px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:5px 13px; margin-bottom:8px; font-size:11.5px; color:var(--dim); box-shadow:var(--shadow-sm)}
+  body.hasdata #metastrip{display:flex}
+  #metastrip b{color:var(--txt); font-weight:600}
+  #metastrip .mdot{width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; vertical-align:0}
+  #metastrip .mlane{display:inline-flex; align-items:center; gap:14px; flex-wrap:wrap}
+  #metastrip .warn{color:var(--err); font-weight:700}
+  /* 密集会话的支路聚合徽标 */
+  .clusterbadge{cursor:pointer}
+  .clusterbadge:hover rect{filter:brightness(.96)}
   /* 数据轨道（迷宫内，泳道带底部）：标签同密集图文字加画布底色晕圈 */
   .trk-label{font-size:9.5px; fill:var(--dim); font-weight:600}
   .trk-cap{font-size:9px; fill:var(--tick)}
@@ -324,10 +341,12 @@
     <option value="300">300×</option>
   </select>
   <span id="curTime">0.0s</span>
-  <input type="range" id="seek" min="0" max="1000" value="0">
+  <span id="seekwrap"><canvas id="seekheat"></canvas><input type="range" id="seek" min="0" max="1000" value="0"></span>
   <button id="btnFit" title="复位缩放（双击空白处同效）">⤢ 整图</button>
   <span class="zoomhint">滚轮缩放 · 拖拽平移</span>
 </div>
+
+<div id="metastrip"></div>
 
 <div class="controls" id="fltbar" style="display:none">
   <label class="fltlab"><input type="checkbox" id="fltFail"> <span id="fltFailTxt">只看失败/重试</span></label>
@@ -414,9 +433,13 @@ const I18N = {
     invHint: '点一行：缩放到该轮并只保留该轮支路（其余淡化），再点同一行取消。支路耗时为墙钟时间；✗ 失败 · ↻ 无效重试 · · 扑空。',
     tracksBtn: '📊 轨道', tracksTitle: '显示/隐藏泳道下方的数据轨道（工具调用 · Token 脉冲 · 上下文压力）', agHeader: 'Agent 关系图谱',
     trkTools: '工具调用', trkTok: 'Token 脉冲', trkCtx: '上下文压力',
-    trkTokCap: n => `单步峰值 ${fmtTok(n)} tok`,
+    trkTokCap: (a, b) => `单步增量峰值 ${fmtTok(a)} tok${b > 0 ? '（缓存背景另一刻度，峰值 ' + fmtTok(b) + '）' : ''}`,
     trkCtxCapPct: (p, w) => `峰值 ${p}%（窗口 ${fmtTok(w)}）`,
     trkCtxCapAbs: n => `峰值 ${fmtTok(n)} tok（模型窗口未知，示绝对值）`,
+    ctxDropTip: (a, b, p) => `上下文压缩：${a.toLocaleString()} → ${b.toLocaleString()} tok（−${p}%）`,
+    msDur: '总时长', msCalls: (s, t) => `${s} 步 · ${t} 次调用`, msPeak: '峰值上下文',
+    msTok: (i, o) => [i ? `输入 ${i}` : '', o ? `输出 ${o}` : ''].filter(Boolean).join(' · '),
+    clusterTip: n => `此处 ${n} 条支路，点击放大`,
     tokCache: '缓存输入', tokIn: '未缓存输入', tokRz: '推理', tokOutVis: '可见输出', tokTotal: '合计',
     ctxTipPct: (v, p) => `上下文 ${v.toLocaleString()} tok · 占窗口 ${p}%`,
     ctxTipAbs: v => `上下文 ${v.toLocaleString()} tok（模型窗口未知）`,
@@ -535,9 +558,13 @@ const I18N = {
     invHint: 'Click a row: zoom to that turn and keep only its detours (everything else dims); click the same row again to cancel. Detour times are wall-clock; ✗ failed · ↻ blind retry · · no result.',
     tracksBtn: '📊 Tracks', tracksTitle: 'Show/hide the data tracks under each lane (tool calls · token pulse · context pressure)', agHeader: 'Agent graph',
     trkTools: 'Tool calls', trkTok: 'Token pulse', trkCtx: 'Context pressure',
-    trkTokCap: n => `step peak ${fmtTok(n)} tok`,
+    trkTokCap: (a, b) => `step increment peak ${fmtTok(a)} tok${b > 0 ? ' (cache backdrop on its own scale, peak ' + fmtTok(b) + ')' : ''}`,
     trkCtxCapPct: (p, w) => `peak ${p}% (window ${fmtTok(w)})`,
     trkCtxCapAbs: n => `peak ${fmtTok(n)} tok (model window unknown, absolute)`,
+    ctxDropTip: (a, b, p) => `Context compaction: ${a.toLocaleString()} → ${b.toLocaleString()} tok (−${p}%)`,
+    msDur: 'Total', msCalls: (s, t) => `${s} steps · ${t} calls`, msPeak: 'Peak context',
+    msTok: (i, o) => [i ? `in ${i}` : '', o ? `out ${o}` : ''].filter(Boolean).join(' · '),
+    clusterTip: n => `${n} detours here — click to zoom in`,
     tokCache: 'cached input', tokIn: 'uncached input', tokRz: 'reasoning', tokOutVis: 'visible output', tokTotal: 'total',
     ctxTipPct: (v, p) => `context ${v.toLocaleString()} tok · ${p}% of window`,
     ctxTipAbs: v => `context ${v.toLocaleString()} tok (window unknown)`,
@@ -688,6 +715,7 @@ function setLang(lang){
   if (DATA){
     renderLegend()
     renderStats()
+    renderMetaStrip()
     refreshFltTools()
     if (invPanelEl.classList.contains('show')) renderInventory()
     renderAnalysis()
@@ -1173,6 +1201,7 @@ function readPalette(){
   SVGC.cat = { read: v('--read'), search: v('--grep'), shell: v('--bash'), edit: v('--web'), other: v('--other') }
   SVGC.tokCache = v('--tok-cache'); SVGC.tokIn = v('--tok-in'); SVGC.tokRz = v('--tok-rz'); SVGC.tokOut = v('--tok-out')
   SVGC.ctxLine = v('--ctx-line'); SVGC.ctxFill = v('--ctx-fill'); SVGC.ctxWarn = v('--ctx-warn'); SVGC.ctxCrit = v('--ctx-crit')
+  SVGC.turnBand = v('--turnband'); SVGC.panel = v('--panel')
 }
 
 /**
@@ -1446,6 +1475,32 @@ function build(){
     const mainC = MAIN_COLOR[lane.key]
     // 泳道带底色随主题走调色板（readPalette 填 LANEC 成套色），按泳道索引取
     const lc = LANEC[li] ?? LANEC[0]
+    // 稀疏模式：当前窗口内可见步数超过阈值时启用——标签只留要紧的（失败/回答/长步/子代理）、
+    // 支路弧线变细、密集支路收聚合徽标。放大后自动退出，标签逐级补齐。
+    lane._sparse = lane.main.filter(n => xVisible(n.s, n.e)).length
+      + lane.detours.filter(d => xVisible(d.s, d.e)).length > 90
+    // 轮次交替底色：偶数轮着 subtle 色带，多轮会话的分轮结构一眼可辨（画在最底层）
+    {
+      const mainNodes = lane.main
+      let segStart = null, segTurn = null, prevE = null
+      const flushBand = end => {
+        if (segTurn != null && segTurn % 2 === 0 && xVisible(segStart, end)){
+          gTime.appendChild(el('rect', { x: x(segStart), y: lay.regionTop + 30, width: Math.max(0, x(end) - x(segStart)), height: lay.regionBottom - lay.regionTop - 34, fill: SVGC.turnBand }))
+        }
+      }
+      for (const n of mainNodes){
+        if (n.turn == null) continue
+        if (segTurn === null){ segTurn = n.turn; segStart = n.s }
+        else if (n.turn !== segTurn){
+          const bx = Math.max(prevE, (prevE + n.s) / 2)
+          flushBand(bx)
+          segTurn = n.turn; segStart = bx
+        }
+        prevE = n.e
+      }
+      if (segTurn != null && prevE != null) flushBand(prevE + 1)
+    }
+    let lastTurnLabX = -1e9   // 轮次标签逐个避让：装不下只画分隔线不画字
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: lay.regionBottom - lay.regionTop, rx: 10, fill: lc.bg, stroke: lc.edge, 'stroke-width': 1.2 }))
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop, width: AXIS_W + 28, height: 30, rx: 10, fill: lc.head }))
     gStatic.appendChild(el('rect', { x: X0 - 14, y: lay.regionTop + 15, width: AXIS_W + 28, height: 15, fill: lc.head }))
@@ -1470,10 +1525,14 @@ function build(){
             const sep = el('line', { x1: bx, y1: lay.regionTop + 34, x2: bx, y2: lay.regionBottom - 12, stroke: SVGC.turnSep, 'stroke-dasharray': '5 5', 'stroke-width': 1.3 })
             gTime.appendChild(sep)
             pathEls.push({ el: sep, s: prev.e, e: prev.e + 0.5, base: '5 5' })
-            const tl = el('text', { x: bx + 6, y: lay.regionTop + 48, class: 'tick big', fill: SVGC.turnSepTxt })
-            tl.textContent = tr('turnLabel')(n.turn)
-            gTime.appendChild(tl)
-            markEls.push({ el: tl, s: prev.e, e: prev.e + 1 })
+            // 挤不下的轮次标签不画（分隔线保留）——多轮长会话曾出现「Turn 5 Turn 6 Turn 7」叠字
+            if (bx + 6 >= lastTurnLabX + 46){
+              const tl = el('text', { x: bx + 6, y: lay.regionTop + 48, class: 'tick big', fill: SVGC.turnSepTxt })
+              tl.textContent = tr('turnLabel')(n.turn)
+              gTime.appendChild(tl)
+              markEls.push({ el: tl, s: prev.e, e: prev.e + 1 })
+              lastTurnLabX = bx + 6 + tr('turnLabel')(n.turn).length * 6.5
+            }
           }
         } else if (xVisible(prev.e, n.s)){
           // Bars own [s,e]; the connector covers only the gap between bars.
@@ -1501,7 +1560,7 @@ function build(){
       const vc = VCOLOR[d.v] ?? '#b6c0d2'
       const c1x = ax + 90, c1y = ay + (ey - ay) * 0.38
       const c2x = mx, c2y = ey
-      const out = el('path', { d: `M ${ax} ${ay} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`, fill: 'none', stroke: vc, 'stroke-width': 2.6, 'stroke-dasharray': '6 5' })
+      const out = el('path', { d: `M ${ax} ${ay} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`, fill: 'none', stroke: vc, 'stroke-width': lane._sparse ? 1.7 : 2.6, 'stroke-dasharray': '6 5' })
       out._det = d
       out.addEventListener('mouseenter', onArcHover)
       out.addEventListener('mouseleave', offArcHover)
@@ -1516,7 +1575,7 @@ function build(){
       gTime.appendChild(sl)
       pathEls.push({ el: sl, s: d.s, e: d.e, det: d, base: '', kind: 'lab' })
       const mx2 = (ax + bx0) / 2
-      const back = el('path', { d: `M ${bx0} ${ey} C ${mx2 + 30} ${ey}, ${mx2 + 30} ${ay}, ${ax} ${ay}`, fill: 'none', stroke: SVGC.back, 'stroke-width': 1.6, 'stroke-dasharray': '2 4', 'marker-end': 'url(#arr)' })
+      const back = el('path', { d: `M ${bx0} ${ey} C ${mx2 + 30} ${ey}, ${mx2 + 30} ${ay}, ${ax} ${ay}`, fill: 'none', stroke: SVGC.back, 'stroke-width': lane._sparse ? 1.1 : 1.6, 'stroke-dasharray': '2 4', 'marker-end': 'url(#arr)' })
       back._det = d
       back.addEventListener('mouseenter', onArcHover)
       back.addEventListener('mouseleave', offArcHover)
@@ -1540,6 +1599,46 @@ function build(){
       markEls.push({ el: f, s: lastN.e, e: lastN.e + 1 })
     }
 
+    // 稀疏模式的支路聚合徽标：同一小段时间轴上 ≥4 条支路收一个「×N」，点击放大到该段。
+    // 弧线仍在（密度本身是信号），徽标给出计数与放大入口——毛线球有了出口。
+    if (lane._sparse){
+      const ds = lane.detours.filter(d => !d.sub && xVisible(d.s, d.e)).sort((a, b) => a.s - b.s)
+      const groups = []
+      let cur = null
+      for (const d of ds){
+        const cxp = (x(d.s) + x(d.e)) / 2
+        if (cur !== null && cxp - cur.x1 <= 26){
+          cur.x1 = Math.max(cur.x1, cxp); cur.n += 1
+          cur.s = Math.min(cur.s, d.s); cur.e = Math.max(cur.e, d.e)
+        } else {
+          cur = { x0: cxp, x1: cxp, n: 1, s: d.s, e: d.e }
+          groups.push(cur)
+        }
+      }
+      for (const grp of groups){
+        if (grp.n < 4) continue
+        const gx = (grp.x0 + grp.x1) / 2
+        const label = '×' + grp.n
+        const bw = label.length * 7 + 12
+        const g = el('g', { class: 'clusterbadge' })
+        g.appendChild(el('rect', { x: gx - bw / 2, y: lay.regionTop + 36, width: bw, height: 16, rx: 8, fill: SVGC.panel, stroke: VCOLOR.error, 'stroke-width': 1.2 }))
+        const t = el('text', { x: gx, y: lay.regionTop + 48, 'text-anchor': 'middle', class: 'seg-label' })
+        t.setAttribute('fill', VCOLOR.error)
+        t.textContent = label
+        g.appendChild(t)
+        const tt = el('title', {})
+        tt.textContent = tr('clusterTip')(grp.n)
+        g.appendChild(tt)
+        g.addEventListener('click', ev => {
+          const pad = Math.max((grp.e - grp.s) * 0.25, 5)
+          setViewWindow(grp.s - pad, grp.e + pad)
+          ev.stopPropagation()
+        })
+        gTime.appendChild(g)
+        markEls.push({ el: g, s: grp.s, e: grp.s })
+      }
+    }
+
     drawTracks(gTime, gStatic, lane, lay)
   })
 
@@ -1550,6 +1649,7 @@ function build(){
   window._cursor = cur
   applyFit()      // viewH 每次重建都会变，适配模式跟着重算
   applyFilter()   // 缩放/实时都走 build 全量重建，过滤淡化必须每次重建后重放
+  drawSeekHeat()  // 进度条热力随数据/主题重画
 }
 
 /* ==================== 数据轨道（v0.7）：工具调用密度 / Token 脉冲 / 上下文压力 ====================
@@ -1639,29 +1739,35 @@ function drawTracks(gTime, gStatic, lane, lay){
   }
   y0 += trk.dens
 
-  // 2) Token 脉冲：每步一根堆叠柱（缓存输入 / 未缓存输入 / 推理 / 可见输出），线性刻度
+  // 2) Token 脉冲：缓存命中改画半透明背景（自有刻度）——97K 的缓存曾把几百 token 的
+  //    产出压成看不见的细边。增量三层（未缓存输入 / 推理 / 可见输出）按自己的刻度成柱：
+  //    「这一步新读了多少、产出多少」才是每步真正要看的量，缓存增长当背景参照。
   if (trk.tok > 0){
     sep(y0)
     const H = trk.tok - 8, yB = y0 + trk.tok - 2
     const samples = own.filter(n => n.inTok != null || n.outTok != null || n.rzTok != null || n.cacheTok != null)
-    const tot = n => (n.cacheTok ?? 0) + (n.inTok ?? 0) + (n.outTok ?? 0)
-    const mx = Math.max(1, ...samples.map(tot))
+    const incOf = n => (n.inTok ?? 0) + (n.rzTok ?? 0) + Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0))
+    const mxInc = Math.max(1, ...samples.map(incOf))
+    const mxCache = Math.max(0, ...samples.map(n => n.cacheTok ?? 0))
     nameText(tr('trkTok'), y0 + 13)
-    capText(tr('trkTokCap')(mx), y0 + 13)
+    capText(tr('trkTokCap')(mxInc, mxCache), y0 + 13)
     for (const n of samples){
       if (!xVisible(n.s, n.e)) continue
       const bx0 = x(n.s)
       const bw = Math.max(2.5, x(n.e) - bx0)
       const g = el('g', {})
+      if (mxCache > 0 && (n.cacheTok ?? 0) > 0){
+        const ch = Math.max(1, (n.cacheTok ?? 0) / mxCache * H)
+        g.appendChild(el('rect', { x: bx0, y: yB - ch, width: bw, height: ch, fill: SVGC.tokCache, opacity: .45 }))
+      }
       let yy = yB
       for (const [v, c] of [
-        [n.cacheTok ?? 0, SVGC.tokCache],
         [n.inTok ?? 0, SVGC.tokIn],
         [n.rzTok ?? 0, SVGC.tokRz],
         [Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0)), SVGC.tokOut],
       ]){
         if (v <= 0) continue
-        const hh = Math.max(1, v / mx * H)
+        const hh = Math.max(1.5, v / mxInc * H)
         yy -= hh
         g.appendChild(el('rect', { x: bx0, y: yy, width: bw, height: hh, fill: c }))
       }
@@ -1728,9 +1834,84 @@ function drawTracks(gTime, gStatic, lane, lay){
         gTime.appendChild(dot)
         markEls.push({ el: dot, s: n.e, e: n.e })
       }
+      // 上下文压缩事件标注：相邻样本掉 ≥20% 即视为一次压缩，锯齿下落点标「⌄−N%」——
+      // 这是排查「模型为什么忘了前面的事」的关键时刻，值得点名；悬停看压缩前后真值。
+      for (let i = 1; i < samples.length; i++){
+        const a = val(samples[i - 1]), b = val(samples[i])
+        if (a <= 0 || b >= a * 0.8) continue
+        if (!xVisible(samples[i].e, samples[i].e)) continue
+        const p = Math.round((1 - b / a) * 100)
+        const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(b) - 7, class: 'trk-cap' })
+        mk.setAttribute('fill', SVGC.ctxWarn)
+        mk.style.fontWeight = '700'
+        mk.textContent = '⌄−' + p + '%'
+        mk._ctxDrop = { a, b, p }; mk._ctxLane = lane
+        mk.addEventListener('mouseenter', onCtxDropHover)
+        mk.addEventListener('mouseleave', offTrackHover)
+        gTime.appendChild(mk)
+        markEls.push({ el: mk, s: samples[i].e, e: samples[i].e })
+      }
     }
   }
 }
+
+function onCtxDropHover(e){
+  const d = e.currentTarget._ctxDrop
+  const tip = document.getElementById('tip')
+  tip.innerHTML = `<div class="th">${laneName(e.currentTarget._ctxLane)} · ${tr('trkCtx')}</div>`
+    + `<div class="rs">${esc(tr('ctxDropTip')(d.a, d.b, d.p))}</div>`
+  tip.style.display = 'block'
+  placeTip(e)
+}
+
+/**
+ * 播放进度条热力化：活动密度铺蓝色深浅、失败位置画红色刻线——
+ * 长会话不用先放大就知道「坎坷在哪段」，拖过去即达。build() 每次重建后重画（跟主题）。
+ */
+function drawSeekHeat(){
+  const cv = document.getElementById('seekheat')
+  if (!cv || !DATA) return
+  const W = Math.max(60, cv.clientWidth || 200), H = 16
+  cv.width = Math.round(W * 2); cv.height = H * 2
+  const c = cv.getContext('2d')
+  c.setTransform(2, 0, 0, 2, 0, 0)
+  c.clearRect(0, 0, W, H)
+  const cs = getComputedStyle(document.documentElement)
+  const lineC = cs.getPropertyValue('--line').trim()
+  const actC = cs.getPropertyValue('--main-f').trim()
+  const errC = cs.getPropertyValue('--err').trim()
+  const B = Math.max(60, Math.min(240, Math.floor(W / 3)))
+  const dens = new Float32Array(B)
+  const fail = new Uint8Array(B)
+  const bAt = t => Math.max(0, Math.min(B - 1, Math.floor(t / TMAX * B)))
+  for (const l of DATA.lanes){
+    for (const arr of [l.main, l.detours]){
+      for (const n of arr){
+        const b0 = bAt(n.s), b1 = bAt(n.e)
+        for (let b = b0; b <= b1; b++) dens[b] += 1
+        if (n.v === 'error') fail[bAt((n.s + n.e) / 2)] = 1
+      }
+    }
+  }
+  const dmax = Math.max(1, ...dens)
+  c.globalAlpha = .55
+  c.fillStyle = lineC
+  if (c.roundRect){ c.beginPath(); c.roundRect(0, 5, W, 6, 3); c.fill() } else c.fillRect(0, 5, W, 6)
+  const bw = W / B
+  c.fillStyle = actC
+  for (let b = 0; b < B; b++){
+    if (dens[b] <= 0) continue
+    c.globalAlpha = .18 + .68 * (dens[b] / dmax)
+    c.fillRect(b * bw, 5, bw + .5, 6)
+  }
+  c.globalAlpha = .95
+  c.fillStyle = errC
+  for (let b = 0; b < B; b++){
+    if (fail[b]) c.fillRect(b * bw, 2, Math.max(2, bw), 12)
+  }
+  c.globalAlpha = 1
+}
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => drawSeekHeat()).observe(document.getElementById('seekwrap'))
 
 /* ==================== 手动锚点：页内状态（DATA 之外），build() 尾部重画 ==================== */
 let ANCHORS = []       // [{a:{lane,step}, b:{lane,step}}]，a 恒为泳道序号小的一侧
@@ -1961,6 +2142,12 @@ function durScatterSvg(m, calls){
     s += `<text x="4" y="${cy + 1}" class="dsc-row">${esc(tlabel(name)).slice(0, 10)}</text>`
     s += `<text x="4" y="${cy + 12}" class="dsc-cnt">×${m.get(name).calls}</text>`
     s += `<line x1="${LX}" y1="${cy}" x2="${RX}" y2="${cy}" class="dsc-grid" opacity=".55"/>`
+    // 每行自己的 P50（实线小刻度）/P95（虚线小刻度）——工具间快慢直接可比
+    const rd = m.get(name).durs
+    for (const [pp, dash] of [[50, ''], [95, '2 2']]){
+      const xv = xOf(percentile(rd, pp))
+      s += `<line x1="${xv.toFixed(1)}" y1="${cy - 7}" x2="${xv.toFixed(1)}" y2="${cy + 7}" style="stroke:var(--dim)" stroke-width="1.4"${dash === '' ? '' : ` stroke-dasharray="${dash}"`} opacity=".85"/>`
+    }
   })
   calls.forEach((c, i) => {
     const ri = names.indexOf(c.tl.name)
@@ -2296,18 +2483,26 @@ function drawNode(parent, lane, n, y, isMain, idx){
     toolTxt = tlabel(t0.name) + (n.tools.length > 1 ? ' +' + (n.tools.length - 1) : '')
   }
   // 子代理等携带 label 的节点用自己的标签，不暴露内部 step 编号。
+  // 稀疏模式（当前窗口可见步数超阈值）只标要紧的：回答/请求级失败/子代理/够宽的失败步/长步——
+  // 密集会话整图态不再满屏叠字，放大后可见步数下降、标签自动逐级补齐。
   const short = nodeLabel(n)
   const full = short + (toolTxt ? ' ' + toolTxt : '')
-  const key = lane.key + '-' + rowKey
-  const prevEnd = labRows[key] !== undefined ? labRows[key] : -1e9
-  if (cx - prevEnd >= wEst(full) + 12){
-    lab.textContent = full
-    labRows[key] = cx + wEst(full) / 2
-  } else if (cx - prevEnd >= 26){
-    lab.textContent = short
-    labRows[key] = cx + 10
-  } else {
+  const keepInSparse = n.v === 'answer' || n.evt != null || n.sub === true
+    || (n.v !== 'ok' && w >= 14) || w >= 70
+  if (lane._sparse && !keepInSparse){
     lab.textContent = ''
+  } else {
+    const key = lane.key + '-' + rowKey
+    const prevEnd = labRows[key] !== undefined ? labRows[key] : -1e9
+    if (cx - prevEnd >= wEst(full) + 12){
+      lab.textContent = full
+      labRows[key] = cx + wEst(full) / 2
+    } else if (cx - prevEnd >= 26){
+      lab.textContent = short
+      labRows[key] = cx + 10
+    } else {
+      lab.textContent = ''
+    }
   }
   g.appendChild(lab)
   g._node = n; g._lane = lane; g._isMain = isMain; g._y = y; g._det = isMain ? null : n
@@ -2765,6 +2960,7 @@ function renderData(data, opts){
   }
   renderLegend()
   renderStats()
+  renderMetaStrip()
   document.body.classList.add('hasdata')   // 页头收紧：说明/大上传区/统计卡让位给迷宫
   renderDrop()
   document.getElementById('legend').style.display = 'flex'
@@ -2791,6 +2987,31 @@ function renderData(data, opts){
   build()
   render()
   if (!opts.follow) scrollToMain()
+}
+
+/** 会话头部指标条：每泳道一行——模型 · 总时长 · 步数/调用 · 总 Token · 峰值上下文。 */
+function renderMetaStrip(){
+  const box = document.getElementById('metastrip')
+  if (!DATA){ box.innerHTML = ''; return }
+  box.innerHTML = DATA.lanes.map((lane, li) => {
+    const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+    // Token 指标刻意不含缓存重读：每次请求都全量重读缓存，累计会得出「335.9M」这类
+    // 吓人且无操作意义的数——输入（未命中缓存的新读入）与输出（含推理）才是真实用量。
+    const inTot = own.some(n => n.inTok != null) ? own.reduce((s, n) => s + (n.inTok ?? 0), 0) : null
+    const outTot = own.some(n => n.outTok != null) ? own.reduce((s, n) => s + (n.outTok ?? 0), 0) : null
+    const ctxS = own.filter(n => n.inTok != null || n.cacheTok != null)
+    const peak = ctxS.length > 0 ? Math.max(...ctxS.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
+    const win = peak != null ? laneWindow(lane.model, peak) : null
+    const pct = win != null ? Math.round(peak / win * 1000) / 10 : null
+    const tokTxt = tr('msTok')(inTot != null ? fmtTok(inTot) : '', outTot != null ? fmtTok(outTot) : '')
+    return `<span class="mlane">`
+      + `<span><span class="mdot" style="background:${(LANEC[li] ?? LANEC[0]).main}"></span><b>${laneName(lane)}</b> ${esc(lane.model ?? tr('modelUnknown'))}</span>`
+      + `<span>${tr('msDur')} <b>${fmtT(lane.stats.T)}</b></span>`
+      + `<span>${tr('msCalls')(lane.stats.steps, lane.stats.tools)}</span>`
+      + (tokTxt !== '' ? `<span>Token <b>${tokTxt}</b></span>` : '')
+      + (peak != null ? `<span>${tr('msPeak')} <b class="${pct != null && pct >= 90 ? 'warn' : ''}">${pct != null ? pct + '%' : fmtTok(peak)}</b></span>` : '')
+      + `</span>`
+  }).join('')
 }
 
 /** 泳道统计卡（语言切换与数据刷新共用）。 */
