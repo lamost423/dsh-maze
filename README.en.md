@@ -13,15 +13,21 @@ The **execution maze** for [DeepSeek Harness](https://github.com/deepseek-ai/dee
 
 ![The maze, the data tracks and the execution analysis: one screen reads a real 8.6-hour session](assets/maze-hero.png)
 
-- **The maze** — main path, failed detours and backtracks on one timeline; idle stretches fold away, dense segments cluster, the seek bar carries a failure heatmap. An 8-hour session stays legible.
-- **Data tracks** — per-step tool-call density, token pulse (cache backdrop + uncached-input/reasoning/output bars), and context pressure (70%/90% threshold lines, compaction events marked "⌄−N%").
+- **The maze** — main path, failed detours and backtracks on one timeline; idle stretches fold away, dense segments cluster into "×N" badges (click to zoom, labels refill progressively), and the seek bar carries a failure heatmap. An 8-hour session stays legible:
+
+![Dense session: cluster badges at full view → click to zoom → labels refill → open a failure](assets/maze-zoom.gif)
+
+- **Data tracks** — per-step tool-call density, token pulse (cache backdrop + uncached-input/reasoning/output bars), and context pressure (70%/90% threshold lines, compaction events marked "⌄−N%" with before/after on hover):
+
+![Hovering the tracks: token breakdown → context usage → compaction before/after](assets/maze-tracks.gif)
+
 - **Execution analysis** — failure recovery chains (identical retry / changed args / switched tool / not recovered), a per-tool result matrix, duration percentile scatter. **Every conclusion is one click away from its evidence**:
 
 ![Click any failure chain row: zoom to that failure with the full command, error output and verdict rationale](assets/maze-drilldown.gif)
 
 - **Multi-session comparison** — 2–5 runs of the same task on one axis: turn alignment, manual anchors, detour inventory.
 
-![Compare: how two models ran the same task](assets/trace-compare.gif)
+![Compare: two real runs of one task → per-turn detour inventory → click a row to zoom](assets/maze-compare.gif)
 
 - **Replay** — up to 300× playback of the whole run:
 
