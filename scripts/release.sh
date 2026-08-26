@@ -49,12 +49,14 @@ cmd_prep() {
     echo "❌ npm 上已经是 $LOCAL_VER 了。要发新版先改 package.json 的版本号。"; exit 1
   fi
 
-  echo "▸ 检查 npm 登录状态（令牌会过期，失效表现是 401）"
+  echo "▸ 检查 npm 登录状态（令牌会过期，失效表现是 401；publish 时报的却是 404）"
   if ! npm whoami >/dev/null 2>&1; then
-    echo "⚠️  npm 未登录或令牌已过期。先跑：npm login --auth-type=web"
-  else
-    echo "   已登录：$(npm whoami)"
+    # 必须硬失败：2026-08-26 实测这里只警告不拦截，包照样打好、人工 publish 时才撞
+    # E404（npm 对无权限的 PUT 报 404 不报 401，极具误导性）。守卫的意义就是当场拦。
+    echo "❌ npm 未登录或令牌已过期。先在自己的终端跑：npm login --auth-type=web"
+    exit 1
   fi
+  echo "   已登录：$(npm whoami)"
 
   echo "▸ 类型检查 + 测试 + 构建"
   pnpm run check
