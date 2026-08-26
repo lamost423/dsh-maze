@@ -1788,7 +1788,8 @@ function drawTracks(gTime, gStatic, lane, lay){
       const te = tl.e ?? tl.s
       if (!xVisible(tl.s, te)) continue
       const bx = x(tl.s)
-      const bar = el('rect', { x: bx, y: y0 + 20, width: Math.max(1.6, x(te) - bx), height: 16, rx: 1.5, fill: SVGC.cat[toolCat(tl.name)], opacity: .85 })
+      // 右侧让缝：相邻调用的色条不再连成一条带（太窄时放弃留缝保可见）
+      const bar = el('rect', { x: bx, y: y0 + 20, width: Math.max(1.6, x(te) - bx - 1), height: 16, rx: 1.5, fill: SVGC.cat[toolCat(tl.name)], opacity: .85 })
       bar._tool = tl; bar._toolNode = n; bar._toolLane = lane
       bar.addEventListener('mouseenter', onToolHover)
       bar.addEventListener('mouseleave', offToolHover)
@@ -1823,11 +1824,14 @@ function drawTracks(gTime, gStatic, lane, lay){
     for (const n of samples){
       if (!xVisible(n.s, n.e)) continue
       const bx0 = x(n.s)
-      const bw = Math.max(2.5, x(n.e) - bx0)
+      const raw = x(n.e) - bx0
+      // 柱与柱之间让 1.5px 缝，步的边界肉眼可分（太窄时放弃留缝保可见）；
+      // 缓存背景保持连续不留缝——它是底色参照带，不是逐步读数
+      const bw = Math.max(2, raw - 1.5)
       const g = el('g', {})
       if (mxCache > 0 && (n.cacheTok ?? 0) > 0){
         const ch = Math.max(1, (n.cacheTok ?? 0) / mxCache * upH)
-        g.appendChild(el('rect', { x: bx0, y: zeroY - ch, width: bw, height: ch, fill: SVGC.tokCache, opacity: .4 }))
+        g.appendChild(el('rect', { x: bx0, y: zeroY - ch, width: Math.max(2, raw), height: ch, fill: SVGC.tokCache, opacity: .4 }))
       }
       if ((n.inTok ?? 0) > 0){
         const hh = Math.max(1.5, (n.inTok ?? 0) / mxIn * upH)
