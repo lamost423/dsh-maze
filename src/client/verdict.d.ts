@@ -102,6 +102,44 @@ export interface FailureChain {
  */
 export declare function analyzeFailureChains(calls: readonly { name: string; args: string; v: string; s: number; e: number | null }[]): FailureChain[]
 
+/**
+ * 区间合并求和：gap 内视为连续，返回合并后总时长（「工具占比」的活动时长分母）。
+ * @param iv [[s,e],...] 任意序
+ * @param gap 视为连续的最大间隔（秒）
+ */
+export declare function mergeIntervalsTotal(iv: readonly (readonly [number, number])[], gap: number): number
+
+/** 最近邻分位数：空数组 0，单样本即该样本。 */
+export declare function percentile(arr: readonly number[], p: number): number
+
+/** settledLaneCalls 输入的最小泳道形状（页面与实时的 lane 都满足）。 */
+export interface AnalysisLane<N> {
+  main: readonly N[]
+  detours: readonly N[]
+}
+
+/** 该泳道时间序的已结算工具调用；排除子代理聚合、请求级失败标记与在途调用（e == null）。 */
+export declare function settledLaneCalls<N extends { sub?: unknown; evt?: unknown; tools?: readonly T[] }, T extends { s?: number | null; e?: number | null }>(lane: AnalysisLane<N>): { tl: T; n: N }[]
+
+/** 请求级失败计数（evt 标记节点）。 */
+export declare function countRequestFailures(lane: AnalysisLane<{ evt?: unknown }>): number
+
+/** 工具结果矩阵聚合行。 */
+export interface ToolMatrixRow {
+  calls: number
+  ok: number
+  error: number
+  deadend: number
+  retry: number
+  durs: number[]
+}
+
+/** 工具结果矩阵聚合：name → 各判定计数与耗时样本。 */
+export declare function toolMatrix(calls: readonly { name: string; v: string; dur?: number | null }[]): Map<string, ToolMatrixRow>
+
+/** 同任务可比性：对比件开关判定 + 图例原因（same/diff/no-first-user/single）。 */
+export declare function taskComparability(firstUsers: readonly string[]): { sameTask: boolean; reason: 'same' | 'diff' | 'no-first-user' | 'single' }
+
 /** 模型名模式 → 上下文窗口 token 数（匹配不到的模型不猜，走绝对值回退）。 */
 export declare const CONTEXT_WINDOWS: [RegExp, number][]
 

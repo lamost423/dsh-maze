@@ -135,6 +135,82 @@ export function analyzeFailureChains(calls){
 }
 
 /**
+ * 区间合并求和：gap 秒内视为连续（与页面空闲折叠同口径），返回合并后的总时长。
+ * 「工具占比」的分母用它——27 小时挂机的会话不该把密集的工具活动稀释成 1%。
+ * @param iv [[s,e],...] 任意序；e < s 的脏区间按点处理
+ * @param gap 视为连续的最大间隔（秒）
+ */
+export function mergeIntervalsTotal(iv, gap){
+  if (iv.length === 0) return 0
+  const v = [...iv].sort((a, b) => a[0] - b[0])
+  let total = 0, cs = v[0][0], ce = Math.max(v[0][1], v[0][0])
+  for (const [s, e0] of v){
+    const e = Math.max(e0, s)
+    if (s <= ce + gap) ce = Math.max(ce, e)
+    else { total += ce - cs; cs = s; ce = e }
+  }
+  return total + (ce - cs)
+}
+
+/** 最近邻分位数（P50/P95 用）：空数组为 0，单样本即该样本。刻意用最近邻不用线性插值——
+ * 可视化「看个大概」的场景里，样本少时宁可取真实观测值也不造一个不存在的中间数。 */
+export function percentile(arr, p){
+  if (arr.length === 0) return 0
+  const v = [...arr].sort((a, b) => a - b)
+  return v[Math.min(v.length - 1, Math.max(0, Math.ceil(p / 100 * v.length) - 1))]
+}
+
+/**
+ * 该泳道时间序的已结算工具调用（带节点引用，供点击定位）。三类不进统计：
+ * 子代理聚合节点（独立上下文）、请求级失败标记（无工具）、在途调用——判据只能是
+ * e == null（实时链路在途工具创建时 dur 就是 0，拿 dur 当判据守卫会永不生效，踩过）。
+ */
+export function settledLaneCalls(lane){
+  const out = []
+  for (const n of [...lane.main, ...lane.detours]){
+    if (n.sub || n.evt) continue
+    for (const tl of n.tools ?? []){
+      if (tl.e == null) continue
+      out.push({ tl, n })
+    }
+  }
+  out.sort((a, b) => (a.tl.s ?? 0) - (b.tl.s ?? 0))
+  return out
+}
+
+/** 请求级失败计数（llm/retry / turn/end error 标记节点）：不属于工具统计，
+ * 但全程失败的会话不能在分析卡上亮绿灯——单独计数列在卡内。 */
+export function countRequestFailures(lane){
+  return [...lane.main, ...lane.detours].filter(n => n.evt).length
+}
+
+/** 工具结果矩阵聚合：Map(name → { calls, ok, error, deadend, retry, durs })。 */
+export function toolMatrix(calls){
+  const m = new Map()
+  for (const tl of calls){
+    const g = m.get(tl.name) ?? { calls: 0, ok: 0, error: 0, deadend: 0, retry: 0, durs: [] }
+    g.calls += 1
+    g[tl.v] = (g[tl.v] ?? 0) + 1
+    g.durs.push(tl.dur ?? 0)
+    m.set(tl.name, g)
+  }
+  return m
+}
+
+/**
+ * 同任务可比性：对比件（对齐线/锚点/盘点）的开关判定 + 图例要说的原因。
+ * 图例要说真话：缺首条用户消息不是「任务不同」，是「没法判定」——两种原因分开。
+ * @param firstUsers 各泳道首条用户消息文本（空串 = 该文件没有用户消息）
+ * @returns { sameTask, reason: 'same' | 'diff' | 'no-first-user' | 'single' }
+ */
+export function taskComparability(firstUsers){
+  if (firstUsers.length < 2) return { sameTask: false, reason: 'single' }
+  if (firstUsers.some(f => !f)) return { sameTask: false, reason: 'no-first-user' }
+  const sameTask = firstUsers.every(f => f === firstUsers[0])
+  return { sameTask, reason: sameTask ? 'same' : 'diff' }
+}
+
+/**
  * 模型 → 上下文窗口（token）。上下文压力轨道用它把绝对输入量换算成占用百分比；
  * 匹配不到时返回 null，轨道诚实回退为绝对 token 数（不猜窗口）。
  * 数值取各家公开文档口径（2026-08），新模型按需补行——只加确定的，不加猜的。
