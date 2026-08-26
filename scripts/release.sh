@@ -39,6 +39,9 @@ cmd_status() {
 }
 
 cmd_prep() {
+  local REPO_SLUG
+  REPO_SLUG=$(GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}" gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "<owner>/<repo>")
+
   echo "▸ 检查工作区是否干净"
   if [ -n "$(git status --porcelain)" ]; then
     echo "❌ 工作区有未提交改动，先提交再发布。"; git status --short; exit 1
@@ -80,11 +83,12 @@ cmd_prep() {
 剩下两条命令请在你自己的终端里跑（npm 发布强制二次验证，验证链接里的凭据被 npm
 在输出和日志里都遮掉了，agent 取不到，所以这一步只能人工）：
 
-  cd $(pwd)
-  npm publish ./$tgz --access public
-  GH_TOKEN=\$(gh auth token) gh release create v$LOCAL_VER $tgz --generate-notes
+  npm publish $(pwd)/$tgz --access public
+  GH_TOKEN=\$(gh auth token) gh release create v$LOCAL_VER $(pwd)/$tgz --generate-notes -R $REPO_SLUG
 
-注意 publish 的路径必须带 ./，省掉的话 npm 会当成 git 地址去连 GitHub 的 22 端口，直接失败。
+命令用绝对路径，在任何目录都能直接跑（2026-08-26 实测：在 ~ 下跑相对路径命令
+ENOENT；且相对路径不带 ./ 时 npm 会当成 git 地址去连 GitHub 的 22 端口）。
+gh release create 之前必须先 git push——标签打在远端 HEAD 上（v0.7.0 踩过）。
 两条都跑完后用 './scripts/release.sh status' 对账。
 EOF
 }
