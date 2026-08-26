@@ -433,7 +433,9 @@ const I18N = {
     invHint: '点一行：缩放到该轮并只保留该轮支路（其余淡化），再点同一行取消。支路耗时为墙钟时间；✗ 失败 · ↻ 无效重试 · · 扑空。',
     tracksBtn: '📊 轨道', tracksTitle: '显示/隐藏泳道下方的数据轨道（工具调用 · Token 脉冲 · 上下文压力）', agHeader: 'Agent 关系图谱',
     trkTools: '工具调用', trkTok: 'Token 脉冲', trkCtx: '上下文压力',
-    trkTokCap: (a, b) => `单步增量峰值 ${fmtTok(a)} tok${b > 0 ? '（缓存背景另一刻度，峰值 ' + fmtTok(b) + '）' : ''}`,
+    catNames: { read: '读', search: '搜', shell: '命令', edit: '编辑', other: '其他' },
+    trkToolsCap: n => `共 ${n} 次`,
+    trkTokCap: (i, o, c) => `输入峰值 ${fmtTok(i)} · 输出峰值 ${fmtTok(o)}${c > 0 ? '（缓存背景峰值 ' + fmtTok(c) + '）' : ''}`,
     trkCtxCapPct: (p, w) => `峰值 ${p}%（窗口 ${fmtTok(w)}）`,
     trkCtxCapAbs: n => `峰值 ${fmtTok(n)} tok（模型窗口未知，示绝对值）`,
     ctxDropTip: (a, b, p) => `上下文压缩：${a.toLocaleString()} → ${b.toLocaleString()} tok（−${p}%）`,
@@ -558,7 +560,9 @@ const I18N = {
     invHint: 'Click a row: zoom to that turn and keep only its detours (everything else dims); click the same row again to cancel. Detour times are wall-clock; ✗ failed · ↻ blind retry · · no result.',
     tracksBtn: '📊 Tracks', tracksTitle: 'Show/hide the data tracks under each lane (tool calls · token pulse · context pressure)', agHeader: 'Agent graph',
     trkTools: 'Tool calls', trkTok: 'Token pulse', trkCtx: 'Context pressure',
-    trkTokCap: (a, b) => `step increment peak ${fmtTok(a)} tok${b > 0 ? ' (cache backdrop on its own scale, peak ' + fmtTok(b) + ')' : ''}`,
+    catNames: { read: 'read', search: 'search', shell: 'shell', edit: 'edit', other: 'other' },
+    trkToolsCap: n => `${n} total`,
+    trkTokCap: (i, o, c) => `in peak ${fmtTok(i)} · out peak ${fmtTok(o)}${c > 0 ? ' (cache backdrop peak ' + fmtTok(c) + ')' : ''}`,
     trkCtxCapPct: (p, w) => `peak ${p}% (window ${fmtTok(w)})`,
     trkCtxCapAbs: n => `peak ${fmtTok(n)} tok (model window unknown, absolute)`,
     ctxDropTip: (a, b, p) => `Context compaction: ${a.toLocaleString()} → ${b.toLocaleString()} tok (−${p}%)`,
@@ -1112,7 +1116,9 @@ function laneTrackSpec(l){
   const own = [...l.main, ...l.detours].filter(n => !n.sub)
   const hasTok = own.some(n => n.inTok != null || n.outTok != null || n.rzTok != null)
   const hasCtx = own.some(n => n.inTok != null || n.cacheTok != null)
-  const dens = 18, tok = hasTok ? 56 : 0, ctx = hasCtx ? 70 : 0
+  // 高度按数据密度给足：轨道是数据主角，不是脚注（空间来自泳道内空转区的收紧）。
+  // 每条轨道自带 16px 标题行（名称 + 行内图例 + 峰值标注），内容区在其下。
+  const dens = 40, tok = hasTok ? 92 : 0, ctx = hasCtx ? 100 : 0
   return { h: dens + tok + ctx + 8, dens, tok, ctx }
 }
 
@@ -1125,16 +1131,19 @@ function computeLayout(lanes){
   // (one 9px row per concurrent call); down-detour slots and below-row labels
   // shift past it.
   const layout = {}
-  let regionTop = 34
+  let regionTop = 30
   lanes.forEach(l => {
     const up = l._slotsUp ?? 0
     const down = l._slotsDown ?? 0
     const maxPar = Math.max(0, ...l.main.map(n => n.tools.length >= 2 ? n.tools.length : 0))
     const parH = maxPar > 0 ? maxPar * 9 + 8 : 0
     const trk = laneTrackSpec(l)
-    const mainY = regionTop + 34 + up * LANE_GAP + 48
-    const trackTop = mainY + parH + down * LANE_GAP + 44
-    const regionBottom = trackTop + trk.h + (trk.h > 0 ? 12 : 14)
+    // 空间收紧（2026-08-26 对照实测）：没有上方支路时泳道头到主干曾固定空转 82px，
+    // 收到 58（节点上方标签仍让过 30px 带头）；主干到轨道 44→36（正好放下下方标签行）；
+    // 轨道底垫 12→8。省出的高度全部给了加高后的轨道。
+    const mainY = regionTop + (up > 0 ? 34 + up * LANE_GAP + 48 : 58)
+    const trackTop = mainY + parH + down * LANE_GAP + 36
+    const regionBottom = trackTop + trk.h + (trk.h > 0 ? 8 : 14)
     layout[l.key] = { top: regionTop + 24, mainY, up, down, parH, regionTop, regionBottom, trk, trackTop }
     regionTop = regionBottom + 66
   })
@@ -1157,8 +1166,19 @@ const tickLabels = []   // build 期记下的刻度文字，供钉住的轴条�
 
 function applyFit(){
   if (!DATA) return
-  const w = svgScrollEl.clientWidth, h = svgScrollEl.clientHeight
+  const w = svgScrollEl.clientWidth
+  let h = svgScrollEl.clientHeight
   if (w === 0 || h === 0) return
+  // 信箱留白收编：内容缩放后比容器矮时，容器高度贴内容（页面纵向可滚，矮下来把
+  // 分析区顶上来，不再上下各空一条）。dataset.fullH 记住 CSS 期望高度供放大时恢复。
+  if (!svgWrapEl.style.height) svgWrapEl.dataset.fullH = String(h)
+  const fullH = Number(svgWrapEl.dataset.fullH || h)
+  const natural = Math.ceil(DATA.viewH * (w / 1560)) + 6
+  const target = Math.min(fullH, Math.max(280, natural))
+  if (Math.abs(svgWrapEl.clientHeight - target) > 4){
+    svgWrapEl.style.height = target + 'px'
+    h = target
+  }
   const scroll = Math.min(w / 1560, h / DATA.viewH) < FIT_FLOOR
   svgWrapEl.classList.toggle('scroll', scroll)
   svg.style.height = scroll ? Math.round(DATA.viewH * w / 1560) + 'px' : '100%'
@@ -1234,7 +1254,7 @@ function laneWindow(model, peak){
 function toolCat(name){
   if (name === 'read' || name === 'read_image') return 'read'
   if (name === 'grep' || name === 'web_search' || name === 'glob' || name === 'find') return 'search'
-  if (name === 'bash' || name === 'python3' || name === 'curl') return 'shell'
+  if (name === 'bash' || name === 'python3' || name === 'curl' || name === 'run_code' || name === 'node') return 'shell'
   if (name === 'write' || name === 'edit' || name === 'todo_write') return 'edit'
   return 'other'
 }
@@ -1736,16 +1756,39 @@ function drawTracks(gTime, gStatic, lane, lay){
     gStatic.appendChild(t)
   }
 
-  // 1) 工具调用密度：每次调用一根刻线，颜色 = 工具类别，宽 = 真实时长；悬停即工具详情
+  // 行内图例（轨道标题行右延）：彩点 + 标签 + 计数——信息对齐参照稿的左侧图例列，
+  // 但不吃画布宽度。画进 gStatic，随 build 重建自动跟语言/主题。
+  const legend = (items, y) => {
+    let lx = X0 + 74
+    for (const it of items){
+      if (it.swatch === 'rect') gStatic.appendChild(el('rect', { x: lx, y: y - 8, width: 9, height: 7, rx: 1.5, fill: it.color, opacity: it.op ?? 1 }))
+      else gStatic.appendChild(el('circle', { cx: lx + 4, cy: y - 4, r: 3.4, fill: it.color }))
+      const t = el('text', { x: lx + 13, y, class: 'trk-cap' })
+      t.textContent = it.label
+      gStatic.appendChild(t)
+      lx += 13 + it.label.length * 6.4 + 14
+    }
+  }
+
+  // 1) 工具调用密度：每次调用一根刻线，颜色 = 工具类别，宽 = 真实时长；悬停即工具详情。
+  //    行内图例带各类别计数，扫一眼知道调用构成。
   sep(y0)
   nameText(tr('trkTools'), y0 + 13)
+  {
+    const catCounts = {}
+    let total = 0
+    for (const n of all) for (const tl of n.tools){ catCounts[toolCat(tl.name)] = (catCounts[toolCat(tl.name)] ?? 0) + 1; total += 1 }
+    legend(['read', 'search', 'shell', 'edit', 'other'].filter(c => catCounts[c] > 0)
+      .map(c => ({ color: SVGC.cat[c], label: `${tr('catNames')[c]} ${catCounts[c]}` })), y0 + 13)
+    capText(tr('trkToolsCap')(total), y0 + 13)
+  }
   for (const n of all){
     for (const tl of n.tools){
       if (tl.s == null) continue
       const te = tl.e ?? tl.s
       if (!xVisible(tl.s, te)) continue
       const bx = x(tl.s)
-      const bar = el('rect', { x: bx, y: y0 + 4, width: Math.max(1.6, x(te) - bx), height: 11, rx: 1, fill: SVGC.cat[toolCat(tl.name)], opacity: .85 })
+      const bar = el('rect', { x: bx, y: y0 + 20, width: Math.max(1.6, x(te) - bx), height: 16, rx: 1.5, fill: SVGC.cat[toolCat(tl.name)], opacity: .85 })
       bar._tool = tl; bar._toolNode = n; bar._toolLane = lane
       bar.addEventListener('mouseenter', onToolHover)
       bar.addEventListener('mouseleave', offToolHover)
@@ -1755,37 +1798,50 @@ function drawTracks(gTime, gStatic, lane, lay){
   }
   y0 += trk.dens
 
-  // 2) Token 脉冲：缓存命中改画半透明背景（自有刻度）——97K 的缓存曾把几百 token 的
-  //    产出压成看不见的细边。增量三层（未缓存输入 / 推理 / 可见输出）按自己的刻度成柱：
-  //    「这一步新读了多少、产出多少」才是每步真正要看的量，缓存增长当背景参照。
+  // 2) Token 脉冲：双向布局——基线之上是未缓存输入（缓存命中作上半区半透明背景，
+  //    自有刻度），基线之下是推理 + 可见输出走独立刻度。输入动辄上万、输出常只有几百，
+  //    同向堆叠时输出永远被压扁；上下分开后两边各自撑满，产出一眼可见。
   if (trk.tok > 0){
     sep(y0)
-    const H = trk.tok - 8, yB = y0 + trk.tok - 2
+    const zoneTop = y0 + 18, zoneH = trk.tok - 24
+    const upH = Math.round(zoneH * 0.55), dnH = zoneH - upH
+    const zeroY = zoneTop + upH
     const samples = own.filter(n => n.inTok != null || n.outTok != null || n.rzTok != null || n.cacheTok != null)
-    const incOf = n => (n.inTok ?? 0) + (n.rzTok ?? 0) + Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0))
-    const mxInc = Math.max(1, ...samples.map(incOf))
+    const outOf = n => (n.rzTok ?? 0) + Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0))
+    const mxIn = Math.max(1, ...samples.map(n => n.inTok ?? 0))
+    const mxOut = Math.max(1, ...samples.map(outOf))
     const mxCache = Math.max(0, ...samples.map(n => n.cacheTok ?? 0))
     nameText(tr('trkTok'), y0 + 13)
-    capText(tr('trkTokCap')(mxInc, mxCache), y0 + 13)
+    legend([
+      { color: SVGC.tokIn, label: tr('tokIn') },
+      { color: SVGC.tokRz, label: tr('tokRz') },
+      { color: SVGC.tokOut, label: tr('tokOutVis') },
+      ...(mxCache > 0 ? [{ color: SVGC.tokCache, label: tr('tokCache'), swatch: 'rect', op: .45 }] : []),
+    ], y0 + 13)
+    capText(tr('trkTokCap')(mxIn, mxOut, mxCache), y0 + 13)
+    gStatic.appendChild(el('line', { x1: X0, y1: zeroY, x2: X0 + AXIS_W, y2: zeroY, stroke: SVGC.grid, 'stroke-width': 1 }))
     for (const n of samples){
       if (!xVisible(n.s, n.e)) continue
       const bx0 = x(n.s)
       const bw = Math.max(2.5, x(n.e) - bx0)
       const g = el('g', {})
       if (mxCache > 0 && (n.cacheTok ?? 0) > 0){
-        const ch = Math.max(1, (n.cacheTok ?? 0) / mxCache * H)
-        g.appendChild(el('rect', { x: bx0, y: yB - ch, width: bw, height: ch, fill: SVGC.tokCache, opacity: .45 }))
+        const ch = Math.max(1, (n.cacheTok ?? 0) / mxCache * upH)
+        g.appendChild(el('rect', { x: bx0, y: zeroY - ch, width: bw, height: ch, fill: SVGC.tokCache, opacity: .4 }))
       }
-      let yy = yB
+      if ((n.inTok ?? 0) > 0){
+        const hh = Math.max(1.5, (n.inTok ?? 0) / mxIn * upH)
+        g.appendChild(el('rect', { x: bx0, y: zeroY - hh, width: bw, height: hh, fill: SVGC.tokIn }))
+      }
+      let yy = zeroY
       for (const [v, c] of [
-        [n.inTok ?? 0, SVGC.tokIn],
         [n.rzTok ?? 0, SVGC.tokRz],
         [Math.max(0, (n.outTok ?? 0) - (n.rzTok ?? 0)), SVGC.tokOut],
       ]){
         if (v <= 0) continue
-        const hh = Math.max(1.5, v / mxInc * H)
-        yy -= hh
+        const hh = Math.max(1.5, v / mxOut * dnH)
         g.appendChild(el('rect', { x: bx0, y: yy, width: bw, height: hh, fill: c }))
+        yy += hh
       }
       g._tokNode = n; g._tokLane = lane
       g.addEventListener('mouseenter', onTokHover)
