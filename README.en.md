@@ -7,7 +7,16 @@
 [![npm](https://img.shields.io/npm/v/dsh-maze?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-maze)
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-dsh-plugin index](https://img.shields.io/badge/listed-awesome--dsh--plugin%20index-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+[![dshbase](https://dshbase.com/badges/dsh-maze.svg)](https://dshbase.com/plugins/dsh-maze/)
 [![Listed in awesome-deepseek-harness (Dominic789654)](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/Dominic789654/awesome-deepseek-harness)
+[![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
+
+[![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
+[![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-maze?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-maze?ref=badge)
+[![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
+[![featured on dsh-suite](https://img.shields.io/badge/featured%20on-dsh--suite-4d6bfe)](https://whyihaveyou.github.io/dsh-suite/)
+
+<sub>Also listed in: [fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness) (dedicated intro page)· [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins)</sub>
 
 The **execution maze** for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents: see how the agent actually worked — drawn in full, and analyzed.
 
