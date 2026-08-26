@@ -1888,7 +1888,9 @@ function laneCalls(lane){
   for (const n of [...lane.main, ...lane.detours]){
     if (n.sub || n.evt) continue
     for (const tl of n.tools){
-      if (tl.e == null && tl.dur == null) continue   // 实时模式 in-flight 调用不进统计
+      // 实时模式 in-flight 调用不进统计：在途工具是 e:null（dur 创建时就是 0，不能当判据——
+      // 曾写成 e==null && dur==null 导致守卫永不生效，在途调用被计成 0 秒成功污染矩阵与恢复链）
+      if (tl.e == null) continue
       out.push({ tl, n })
     }
   }
