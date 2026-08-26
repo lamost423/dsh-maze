@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DSH Session Trace 迷宫时间线</title>
+<title>DSH Maze 执行迷宫</title>
 <style>
   :root{
     --bg:#f2f4f8; --bg-grad:linear-gradient(180deg,#f7f8fb 0%,#eef1f6 100%);
@@ -66,7 +66,7 @@
   body{background-color:var(--bg); background-image:var(--bg-grad); color:var(--txt); font:12.5px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; padding:20px 24px 16px; display:flex; flex-direction:column; overflow:hidden}
   body > :not(#svgwrap){flex-shrink:0}
   /* v0.7 分析区进主界面：出数据后整页可纵向滚动，迷宫占视口约六成高度，
-     分析卡/散点/矩阵/恢复链/Agent 图谱在其下方的常规文档流里（对齐社区 Trajectory V2 的单页布局）。 */
+     分析卡/散点/矩阵/恢复链/Agent 图谱在其下方的常规文档流里，整页一眼读完。 */
   body.hasdata{overflow-y:auto}
   body.hasdata #svgwrap{flex:0 0 auto; height:clamp(320px, 58vh, 860px)}
   ::-webkit-scrollbar{width:9px; height:9px}
@@ -314,7 +314,7 @@
 </head>
 <body>
 <div class="topbar">
-<h1>DSH Session Trace 迷宫时间线</h1>
+<h1>DSH Maze 执行迷宫</h1>
 <div class="sub">上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2~5 个进行同时间轴对比。识别为同一任务的多次跑（首条用户消息一致）时启用对比件：按轮次自动对齐 + 手动锚点 + 支路盘点；任务不同则仅同轴并排。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。</div>
 
 <div id="drop">
@@ -387,7 +387,7 @@
    数据视图全量重建（判定依据是 {k,p} 结构化键值，本函数集中渲染成当前语言文案）。 */
 const I18N = {
   zh: {
-    title: 'DSH Session Trace 迷宫时间线',
+    title: 'DSH Maze 执行迷宫',
     sub: '上传 1 个 session log（.jsonl / .jsonl.zstd）单独展示，或 2~5 个进行同时间轴对比。识别为同一任务的多次跑（首条用户消息一致）时启用对比件：按轮次自动对齐 + 手动锚点 + 支路盘点；任务不同则仅同轴并排。实线 = 主干路径，虚线 = 探索支路，✗/· 后折返；节点长度 = 步骤耗时。悬停快速预览，点击打开详情面板；滚轮缩放、拖拽平移、双击复位。',
     dropHtml: '<b>点击选择或拖拽</b> 1~5 个 session log（.jsonl / .json / .jsonl.zstd）<br><span class="drop-hint">上传 1 个文件 → 单会话展示；2~5 个文件 → 同时间轴对比；.zstd 压缩文件由浏览器直接解压；按内容识别格式，文件名任意（如 macOS 副本「xxx.jsonl 2」）</span>',
     dropCompact: '<b>＋ 添加或替换文件</b>',
@@ -512,7 +512,7 @@ const I18N = {
     },
   },
   en: {
-    title: 'DSH Session Trace Maze Timeline',
+    title: 'DSH Maze',
     sub: 'Upload 1 session log (.jsonl / .jsonl.zstd) for a single run, or 2–5 for a same-axis comparison. Runs of the same task (identical first user message) get the full compare kit: per-turn auto alignment + manual anchors + detour inventory; different tasks render side-by-side only. Solid = main path, dashed = exploration detours with ✗/· and backtracks; bar length = step duration. Hover for a quick preview, click for the detail panel; wheel to zoom, drag to pan, double-click to reset.',
     dropHtml: '<b>Click to choose or drag in</b> 1–5 session logs (.jsonl / .json / .jsonl.zstd)<br><span class="drop-hint">1 file → single-session view; 2–5 files → same-axis comparison; .zstd decompresses in the browser; format is detected from content, any filename works (e.g. macOS copies like “xxx.jsonl 2”)</span>',
     dropCompact: '<b>＋ Add or replace files</b>',
@@ -2094,7 +2094,7 @@ document.getElementById('btnInv').addEventListener('click', () => {
 })
 
 /* ==================== 主界面分析区（v0.7）：摘要卡 / 耗时散点 / 工具矩阵 / 失败恢复链 / Agent 图谱 ====================
-   迷宫下方的常规文档流（对齐社区 Trajectory V2 的单页布局），数据一到即渲染、无需按钮。
+   迷宫下方的常规文档流，数据一到即渲染、无需按钮。
    全部数字都是对已解析判定数据的确定性聚合，不调 LLM；失败恢复链的分类
    （原样重试/换参数/换工具/未恢复）来自 verdict.js 的 analyzeFailureChains。 */
 const anaSecEl = document.getElementById('anasec')
@@ -2411,7 +2411,7 @@ function dlBlob(blob, name){
   setTimeout(() => URL.revokeObjectURL(a.href), 4000)
 }
 
-const expName = () => 'trace-maze-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+const expName = () => 'dsh-maze-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 
 document.getElementById('btnExpSvg').addEventListener('click', () => {
   dlBlob(new Blob([serializeSvg()], { type: 'image/svg+xml' }), expName() + '.svg')

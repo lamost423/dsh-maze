@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { transform } from 'lightningcss'
 import { defineConfig, type Plugin } from 'tsdown'
 
-const PACKAGE_NAME = 'dsh-trace-compare'
+const PACKAGE_NAME = 'dsh-maze'
 const CSS_PREFIX = '\0dsh-css:'
 const CSS_SUFFIX = '.mjs'
 const EXTERNALS = [

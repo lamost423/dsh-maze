@@ -1,36 +1,35 @@
-# dsh-trace-compare
+# dsh-maze
+
+> 🔀 **`dsh-trace-compare` is now `dsh-maze`** (since v1.0.0). The old package stays installable but frozen — [migration is two commands](#migrating-from-dsh-trace-compare).
 
 [中文](README.md) | English
 
-[![npm](https://img.shields.io/npm/v/dsh-trace-compare?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-trace-compare)
+[![npm](https://img.shields.io/npm/v/dsh-maze?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-maze)
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-dsh-plugin index](https://img.shields.io/badge/listed-awesome--dsh--plugin%20index-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
-[![dshbase](https://dshbase.com/badges/dsh-trace-compare.svg)](https://dshbase.com/plugins/dsh-trace-compare/)
 [![Listed in awesome-deepseek-harness (Dominic789654)](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/Dominic789654/awesome-deepseek-harness)
-[![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
 
-[![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
-[![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-trace-compare)](https://dshfind.com/en/plugins/lamost423/dsh-trace-compare?ref=badge)
-[![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
-[![featured on dsh-suite](https://img.shields.io/badge/featured%20on-dsh--suite-4d6bfe)](https://whyihaveyou.github.io/dsh-suite/)
+The **execution maze** for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents: see how the agent actually worked — drawn in full, and analyzed.
 
-<sub>Also listed in: [fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness) (dedicated page) · [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins)</sub>
+![The maze, the data tracks and the execution analysis: one screen reads a real 8.6-hour session](assets/maze-hero.png)
 
-Trace visualization for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): see how the agent actually explored — the main path it committed to, the detours that failed or dead-ended, and where it backtracked — on one shared timeline.
+- **The maze** — main path, failed detours and backtracks on one timeline; idle stretches fold away, dense segments cluster, the seek bar carries a failure heatmap. An 8-hour session stays legible.
+- **Data tracks** — per-step tool-call density, token pulse (cache backdrop + uncached-input/reasoning/output bars), and context pressure (70%/90% threshold lines, compaction events marked "⌄−N%").
+- **Execution analysis** — failure recovery chains (identical retry / changed args / switched tool / not recovered), a per-tool result matrix, duration percentile scatter. **Every conclusion is one click away from its evidence**:
 
-Two surfaces, one visual language:
+![Click any failure chain row: zoom to that failure with the full command, error output and verdict rationale](assets/maze-drilldown.gif)
 
-- **Trace Compare** (sidebar entry): upload 1 session log for a single-run maze, or 2–5 logs for a same-axis comparison (e.g. flash vs pro on the same task). The page detects "runs of the same task" by the first user message: same task enables the compare kit — answer nodes auto-align per turn across all lanes, anchors can be pinned between any two lanes, and a per-turn inventory tallies each lane's detours (with a delta column for two lanes); different tasks render side-by-side only.
+- **Multi-session comparison** — 2–5 runs of the same task on one axis: turn alignment, manual anchors, detour inventory.
 
-![Trace Compare: same task on Flash vs Pro, one timeline — detour inventory, manual anchors, failures-only filter](assets/trace-compare.gif)
+![Compare: how two models ran the same task](assets/trace-compare.gif)
 
-- **Live Maze** (per-session conversation tab): the same maze grows in real time while the session executes; detours appear as soon as a tool result settles a step's verdict.
+- **Replay** — up to 300× playback of the whole run:
 
-![Live Maze: the whole run inside the session tab — replay it growing, click any step to jump back to the chat](assets/live-maze.gif)
+![Replay: an 8.6-hour session at 300×](assets/maze-replay.gif)
 
-Long sessions stay legible too — a 14-hour, 8.6 MB log, readable edge to edge, ⌘/Ctrl+wheel to dive into any stretch:
+**House rules**: every number is a deterministic aggregation over judged data — no LLM involved; every verdict carries its rationale and every conclusion traces back to evidence; missing data is labeled honestly (no tracks without usage, no guessed context windows), never invented.
 
-![Long-session legibility: width-fill plus vertical scroll with a pinned time axis](assets/long-session.gif)
+Two entries: the **Live Maze** tab inside every session (grows with the running session), and **Maze** in the sidebar (upload session logs to inspect or compare).
 
 ## What the maze shows
 
@@ -80,94 +79,38 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 
 ## Install
 
-Compatibility: verified against official `0.1.0-rc.6` (build + full test suite) and `rc.8` (slot/type audit + live acceptance); the peer range covers `rc.6` through the current rc line, and every new rc release gets a follow-up check.
+Compatibility: verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance); the peer range covers `rc.6` through the current rc line and is re-verified on every new rc.
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
-dsh plugin --profile web add dsh-trace-compare
+dsh plugin --profile web add dsh-maze
 dsh web
 ```
 
-Prefer a pinned artifact? Every release also ships a tgz: `dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.5.2/dsh-trace-compare-0.5.2.tgz`
+After restarting `dsh web`, the sidebar gains a **Maze** entry and every session view gains a **Live Maze** tab.
 
-To install from a checkout instead:
+From source:
 
 ```sh
-git clone https://github.com/lamost423/dsh-trace-compare.git
-cd dsh-trace-compare
-corepack enable
-pnpm install
-pnpm build
+git clone https://github.com/lamost423/dsh-maze.git
+cd dsh-maze
+corepack enable && pnpm install && pnpm build
 dsh plugin --profile web add .
 dsh web
 ```
 
-After a restart of `dsh web`, the sidebar footer gains a **Trace Compare** entry and every session view gains a **Live Maze** tab.
+## Migrating from dsh-trace-compare
 
-## Recent iterations
+```sh
+dsh plugin --profile web remove dsh-trace-compare
+dsh plugin --profile web add dsh-maze
+```
 
-### Current branch-verdict logic (introduced v0.2.1, refined v0.2.3)
+The old package is frozen at v0.7.0 (feature-identical to dsh-maze 1.0.0); only dsh-maze moves forward. The old GitHub URL redirects here.
 
-Whether a step stays on the main path or becomes a branch is decided by its worst tool verdict: ok/answer stay on the trunk; failure (red x), empty-handed search (gray dot), and blind retry (gray loop) move the whole step to a branch. Each tool call is judged in four layers:
+## Version history
 
-1. **Error flag**: the result carries isError → failure;
-2. **Strong failure signatures**: wrapper hard markers like `[status=Failed]`, non-zero `__EXIT__=`, `[stderr]` followed by Error/Traceback → failure. Scanned only in the first 300 and last 1000 chars — real failures either lead the output or sit in the appended stderr section; errors QUOTED mid-output (git log messages, source strings) don't count;
-3. **Weak failure signatures**: Traceback, command not found, Permission denied, No such file, HTTP 4xx/5xx, leading Error: → failure, first 300 chars only;
-4. **Per-tool-class rules**: write tools (write / edit / todo_write) succeed unless errored, regardless of output length; search tools (grep / read / web_search) only dead-end when the head matches a no-result signature; bash and unknown tools only dead-end on empty output.
-
-On top sits a **behavioral layer**: consecutive same-tool calls with args similarity >= 0.6 forming a cluster that contains at least one failure mark their non-failing members as blind retries (AgentLens-style deterministic waste detection; without the failure constraint, ordinary consecutive edits to one file would be misflagged). Deliberately no output-length rules and no LLM calls; every verdict carries a rationale string visible in tooltips and the detail panel. All thresholds live in `VERDICT_RULES` in `src/client/verdict.js`, tunable per corpus; the upload page and the live tab share this single implementation. Calibrated on four real sessions (871 steps total) — evidence and false-positive cases in the version notes below.
-
-### v0.5.1 - Three compare-readability fixes (2026-08-21)
-
-Short sessions were squashed into the left edge by the axis's fixed 460s floor, with alignment labels piling into a jumble — the floor is retired and the axis now fits the content span on load. Turn-alignment labels switch from "cumulative wall clock since session start" to per-turn time (turn start → answer done), so inter-turn waits for user input no longer pollute the speed comparison. The reasoning-volume fallback without usage data is now self-explaining: "reasoning N chunks (no token usage in log)". [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.5.1)
-
-### v0.5.0 - Bilingual UI following the host language (2026-08-20)
-
-Page copy used to be hardcoded Chinese. The whole UI now runs on zh/en dictionaries: when embedded, the host component posts dsh's language setting into the iframe and the page follows it live (same channel pattern as theme following); opened standalone, it falls back to the browser language. Verdict rationales changed from baked strings to language-neutral structured keys `{k, p}` (verdict.js emits keys only; the page renders them centrally), so a language switch takes effect instantly without re-parsing loaded sessions. The repo README also swapped to Chinese-default with English in README.en.md. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.5.0)
-
-### v0.4.0 - Subagent execution folds into the live maze (2026-08-20)
-
-Tasks the model spawns through the `subagent` tool used to be one opaque bar; now every dsh subagent child session folds into the parent's live maze as an aggregated detour node — anchored at the spawning main-path step on the shared clock, with the child's judged tool calls (args/results/verdicts) as sub-bars, live growth while running, and a click-through back to the spawning row. Admission is disciplined: only `origin: 'subagent'`, non-ephemeral children (manual "branch in new conversation" and side chats stay out), and settled children whose whole activity predates the visible window are dropped under the parent's pre-window rule. Subagent identity runs through node labels, hover cards, and the detail panel ("⤴ spawned from main step SN; results rejoin the main path"), replacing the dead-end copy that belongs to failed exploration; internal step ids are no longer user-visible. Requires the host's `SessionFace.open` background history capability — absent through official rc.6–rc.8 the feature degrades silently, everything else unaffected. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.4.0)
-
-![Live maze: four subagents fold into the parent timeline as branch nodes; running ones grow live](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/v040-subagent.png)
-
-### v0.3.3 - Fix: live maze went blank at the start of every new step (2026-08-19)
-
-Whenever a new step began in the live tab (model reasoning, no tool call issued yet), the whole maze turned transparent until the first tool call appeared. Root cause was a tier-1-era bug: the node label code read `tools[0].name` unguarded, and an in-flight step has an empty `tools` array during its reasoning phase — the TypeError aborted build() mid-way, leaving every element at its initial opacity 0. Zero-tool nodes now skip the tool label; verified with a synthetic push sequence (reasoning phase → tool appears → settled) staying visible throughout. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
-
-### v0.3.2 - Parallel tool-call rows (2026-08-19)
-
-Multiple tool calls in one step used to collapse into a "bash +1" label, hiding each call's timing and verdict. Now every call renders as a thin waterfall bar under the step capsule at its real start→end, verdict-colored, with a per-call hover (command / result / rationale); lane height adapts to the lane's maximum concurrency (parH zone in computeLayout) and detour arcs shift below it. Real-corpus scale: the 16-turn session has 36 parallel steps, max concurrency 5. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.2)
-
-![Parallel rows: zoomed in, each call's true span is visible](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/v032-parallel.png)
-
-### v0.3.1 - Theme following + compact header (2026-08-19)
-
-The palette collapses into CSS variables as the single source (SVG attribute colors read via `readPalette`), tracking the host dsh theme: host components watch `body[data-ds-dark-theme]` (rc.6's ThemePresenter mechanism) and postMessage into the sandboxed iframe; standalone opens fall back to the system preference. Exports stay light-background — under dark the page briefly rebuilds in light, serializes, and switches back. The same release compacts the header once data renders (intro hidden, upload zone down to a 31px strip, stat cards hidden, one-row legend), freeing ~250px for the maze, and bumps the blind-retry gray from #b6c0d2 to #8892a6 for legibility. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.1)
-
-![Dark theme + compact header](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/v031-dark.png)
-
-### v0.3.0 - Compare semantics: turn alignment + manual anchors + detour inventory (2026-08-19)
-
-Two-session comparison graduates from a single regex milestone to per-turn semantics: answer nodes auto-connect per turn (labeled with the time delta and detour counts); manual anchors pin any two nodes; the detour inventory tallies per-turn detour steps, wall-clock time, and verdict breakdown for both sides, with row-click zoom and highlighting. The corpus-specific "model list result" regex milestone (MODEL_LIKE/mlist) is retired — the last hardcoded heuristic left after verdict v2 removed the length thresholds. The "exploration phase" red band is retired too: it spanned min-to-max across all detours, covering 99% of a 16-turn session's axis while actual detour time was 1% — a false signal. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.0)
-
-![Two-session compare: turn alignment lines + detour inventory panel + manual anchor](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/v030-compare.png)
-
-### v0.2.3 - Honest live window + quote-proof verdicts (2026-08-19)
-
-The live tab renders only the conversation's loaded event window — stale steps from earlier turns leaking past the window edge used to clamp to 0 s and pile up on the left, rendering an 18-hour, 533-step session as "3 turns / 39 steps / 71.4 s". They are now dropped and labeled "N earlier steps not loaded". Also fixed quoted-error false positives: "upstream returns HTTP 400" inside a git commit message no longer flags the command itself — failure signatures scan only the head and tail windows, and both render paths judge the same untruncated text. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
-
-![Live tab: honest window labeling; behavioral detection catching a real 31x blind-retry loop](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
-
-### v0.2.2 - Real tokens, search & filter, export (2026-08-19)
-
-"reasoning N tok" used to count streaming chunks — now real usage is read from the session log's `assistant/message` events, per step and per lane (honest "N segments" fallback without usage). Added the filter toolbar (failures/retries-only, per-tool, full-text search with 15% dimming of misses) and current-view SVG / 2x PNG export. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
-
-![Failures/retries only: hit count + dimming](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
-
-### v0.2.1 - Explainable verdicts: no more length thresholds (2026-08-19)
-
-"Result < 60 chars = dead end" retired in favor of the layered verdicts + behavioral retry detection described above. Motivation: calibration showed the length threshold misjudged 56 of 338 tool calls (every 57-char todo_write confirmation included) while missing real failures buried in long outputs. Verdict logic also converged into the single source `src/client/verdict.js` (spliced into the upload page at build time, imported by the live path), ending mirror drift for good. [Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 

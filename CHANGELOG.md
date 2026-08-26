@@ -2,6 +2,17 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v1.0.0 — 2026-08-26
+
+**`dsh-trace-compare` 更名 `dsh-maze`，1.0 里程碑。**
+
+- **为什么更名**：项目已从「对比工具」长成完整的执行观测台——迷宫、数据轨道、执行分析、多会话对比是四个并列的一等能力，「trace-compare」这个名字装不下了。迷宫是本项目从第一天起的招牌视觉语言，名字回到它身上。
+- **改了什么**：npm 新包 `dsh-maze`（旧包冻结在 v0.7.0 并标记弃用、附迁移指引）；GitHub 仓库改名 `lamost423/dsh-maze`（旧地址自动重定向，star/issue/历史全保留）；dsh 内入口更名「执行迷宫 / Maze」；README 中英全部重写，全套演示素材换成真实 8.6 小时会话的新录屏。
+- **功能与 v0.7.0 一致**：本版是更名与品牌重塑，无行为变更。
+- 迁移：`dsh plugin --profile web remove dsh-trace-compare && dsh plugin --profile web add dsh-maze`。
+
+_EN: `dsh-trace-compare` becomes `dsh-maze` for the 1.0 milestone. The project outgrew "compare": the maze, the data tracks, the execution analysis and multi-session comparison are four first-class capabilities now — and the maze has been this project's signature visual language since day one, so the name goes to it. New npm package `dsh-maze` (the old one is frozen at v0.7.0 and deprecated with a migration pointer); the GitHub repo is renamed with automatic redirects (stars/issues/history preserved); in-app entries become "Maze"; both READMEs rewritten and every demo asset re-recorded from a real 8.6-hour session. Feature-identical to v0.7.0 — this release is the rename and rebrand. Migration: remove `dsh-trace-compare`, add `dsh-maze`._
+
 ## v0.7.0 — 2026-08-26
 
 **分析层三件套（执行分析面板 / 泳道数据轨道 / Agent 关系图谱）+ 请求级失败可见化 + 对比扩到 5 个文件（同任务智能识别）。**

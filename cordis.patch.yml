@@ -3,4 +3,4 @@
 # package.json's dsh.client declaration.
 - insert:
     - id: trace-compare
-      name: dsh-trace-compare
+      name: dsh-maze

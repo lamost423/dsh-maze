@@ -1,36 +1,35 @@
-# dsh-trace-compare
+# dsh-maze
+
+> 🔀 **`dsh-trace-compare` 已更名为 `dsh-maze`**（v1.0.0 起）。旧包保留可装但不再更新，[迁移只要两条命令](#从-dsh-trace-compare-迁移)。
 
 中文 | [English](README.en.md)
 
-[![npm](https://img.shields.io/npm/v/dsh-trace-compare?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-trace-compare)
+[![npm](https://img.shields.io/npm/v/dsh-maze?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-maze)
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-dsh-plugin index](https://img.shields.io/badge/listed-awesome--dsh--plugin%20index-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
-[![dshbase](https://dshbase.com/badges/dsh-trace-compare.svg)](https://dshbase.com/plugins/dsh-trace-compare/)
 [![Listed in awesome-deepseek-harness (Dominic789654)](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/Dominic789654/awesome-deepseek-harness)
-[![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
 
-[![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
-[![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-trace-compare?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-trace-compare?ref=badge)
-[![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
-[![featured on dsh-suite](https://img.shields.io/badge/featured%20on-dsh--suite-4d6bfe)](https://whyihaveyou.github.io/dsh-suite/)
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的**执行迷宫**：把 Agent 真实的干活过程完整画出来、并分析给你看。
 
-<sub>还被收录于：[fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness)（独立介绍页）· [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins)</sub>
+![执行迷宫：迷宫 + 数据轨道 + 执行分析，一屏读懂一场 8.6 小时的真实会话](assets/maze-hero.png)
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的执行轨迹可视化插件：把智能体真实的探索过程画出来——它坚持推进的主干、失败或扑空的支路、以及折返点，全部落在同一根时间轴上。
+- **迷宫**——主干路径、失败支路、折返点落在同一根时间轴上；空闲自动折叠、密集段自动聚合、进度条自带失败热力，8 小时的会话照样字字可辨。
+- **数据轨道**——每一步的工具调用密度、Token 脉冲（缓存背景 + 未缓存输入/推理/输出增量柱）、上下文压力曲线（70%/90% 阈值线、压缩事件「⌄−N%」标注）。
+- **执行分析**——失败恢复链（原样重试 / 换参数 / 换工具 / 未恢复）、工具结果矩阵、耗时分位散点。**每个结论一键点回原始命令与返回内容**：
 
-两个入口，一套视觉语言：
+![点失败链任意一条：缩放定位到那次失败，弹出完整命令、报错返回与判定依据](assets/maze-drilldown.gif)
 
-- **Trace 对比**（侧边栏入口）：上传 1 个 session log 看单次运行的迷宫，或上传 2~5 个做同轴对比（比如同一任务在 flash 与 pro 上的跑法差异）。页面按首条用户消息识别「是不是同一任务的多次跑」：同任务启用对比件——按轮次自动对齐各泳道的回答节点（跨泳道连线）、任意两条泳道之间可手动钉锚点、按轮次盘点各泳道支路（双泳道时附差额列）；任务不同则仅同轴并排。
+- **多会话对比**——同一任务在不同模型上的 2~5 次跑同轴对比：轮次对齐、手动锚点、支路盘点。
 
-![Trace 对比：同一任务 Flash 与 Pro 两条泳道同轴对比 → 支路盘点 → 手动锚点 → 只看失败/重试](assets/trace-compare.gif)
+![对比：同一任务两个模型的跑法差异](assets/trace-compare.gif)
 
-- **实时迷宫**（会话内页签）：同一张迷宫图随当前会话执行实时生长；某一步的工具结果一旦落定，支路立刻显现。
+- **回放**——最高 300× 重放整场执行，看它是怎么一步步走到结果的：
 
-![实时迷宫：会话页签内看整场执行，重播生长过程，点任一步跳回聊天原文](assets/live-maze.gif)
+![回放：300× 重放一场 8.6 小时的会话](assets/maze-replay.gif)
 
-长会话也照样读得清——14 小时、8.6MB 的日志，字字可辨，⌘/Ctrl+滚轮扎进任意一段：
+**铁律**：所有数字都是对判定数据的确定性聚合，不调 LLM；每个判定带依据、每个结论可回溯到证据；数据缺失时如实标注（不画没有数据的轨道、不猜未知模型的窗口），绝不编。
 
-![长会话可读性：14 小时会话按宽度铺满 + 纵向滚动，时间轴钉顶](assets/long-session.gif)
+两个入口：会话内的「**实时迷宫**」页签（随当前会话实时生长），侧边栏的「**执行迷宫**」（上传 session log 单看或对比）。
 
 ## 迷宫画的是什么
 
@@ -84,90 +83,34 @@
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
-dsh plugin --profile web add dsh-trace-compare
+dsh plugin --profile web add dsh-maze
 dsh web
 ```
 
-想钉住特定版本？每个 Release 也附 tgz：`dsh plugin --profile web add https://github.com/lamost423/dsh-trace-compare/releases/download/v0.5.2/dsh-trace-compare-0.5.2.tgz`
+重启 `dsh web` 后，侧边栏底部出现「执行迷宫」入口，每个会话视图多一个「实时迷宫」页签。
 
 从源码安装：
 
 ```sh
-git clone https://github.com/lamost423/dsh-trace-compare.git
-cd dsh-trace-compare
-corepack enable
-pnpm install
-pnpm build
+git clone https://github.com/lamost423/dsh-maze.git
+cd dsh-maze
+corepack enable && pnpm install && pnpm build
 dsh plugin --profile web add .
 dsh web
 ```
 
-重启 `dsh web` 后，侧边栏底部出现「Trace 对比」入口，每个会话视图多一个「实时迷宫」页签。
+## 从 dsh-trace-compare 迁移
 
-## 近期迭代
+```sh
+dsh plugin --profile web remove dsh-trace-compare
+dsh plugin --profile web add dsh-maze
+```
 
-### 当前的支路判定逻辑（v0.2.1 引入，v0.2.3 收敛）
+旧包停在 v0.7.0（功能与 dsh-maze 1.0.0 相同），此后只有 dsh-maze 继续更新。GitHub 旧地址自动重定向到本仓库。
 
-一步进主干还是支路，由这一步最坏的工具判定决定：成功/回答留在主干，失败（红 ✗）、扑空（灰 ·）、无效重试（灰 ↻）整步进支路。单个工具调用按四层判：
+## 版本历史
 
-1. **错误标志**：工具结果带 isError → 失败；
-2. **强失败特征**：`[status=Failed]`、`__EXIT__=` 非零、`[stderr]` 后跟 Error / Traceback 这类包装器硬标记 → 失败。只扫输出开头 300 与末尾 1000 字符——真失败要么开头就报、要么是追加在末尾的 stderr 段，长文本**中部引用**的报错（git log 提交信息、源码字符串）不算；
-3. **弱失败特征**：Traceback、command not found、Permission denied、No such file、HTTP 4xx/5xx、行首 Error: → 失败，只扫开头 300 字符；
-4. **按工具分类**：写入类（write / edit / todo_write）无错误即成功，不看输出长短；检索类（grep / read / web_search）开头命中空结果特征才算扑空；bash 及未知工具空输出才算扑空。
-
-在此之上叠一层**行为学检测**：时间序上连续的「同工具 + 参数相似度 ≥0.6」调用簇、且簇内至少一次失败，非失败成员改判无效重试（借鉴 AgentLens 对 SWE-agent 轨迹浪费的确定性检测；不加失败约束会把「连续编辑同一文件」冤枉进去）。刻意**不用**输出长度、不调用 LLM；每个判定都带依据文本，悬停与详情面板可见。全部阈值在 `src/client/verdict.js` 的 `VERDICT_RULES`，可按语料调整；上传页与实时页签共用这一份实现。以上规则由四个真实会话（共 871 步）校准，依据与误报案例见下面各版本说明。
-
-### v0.5.1 · 对比可读性三连修（2026-08-21）
-
-短会话被时间轴 460 秒的固定下限压扁在左侧、对齐标注挤成一团——下限退役，加载即贴合内容跨度。轮次对齐线的耗时口径从「会话开始算起的累计墙钟」改为「本轮耗时」（该轮起点 → 回答完成）：两轮之间等用户输入的空闲不再污染两次运行的速度对比。无 usage 真值时的推理量标签改为自解释的「推理 N 段（日志未报 token 用量）」。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.5.1)
-
-### v0.5.0 · 界面双语：中英跟随宿主语言（2026-08-20）
-
-此前页面文案硬编码中文，英文用户只能对着猜。现在整页 UI 走 zh/en 双字典：嵌入宿主时由宿主组件经 postMessage 推送 dsh 的语言设置并实时跟随（照主题跟随的通道模式），独立打开时按浏览器语言兜底。判定依据从成品文案改为语言无关的结构化键值 `{k, p}`（verdict.js 只产键值，展示端集中渲染），切语言即时生效、已加载的会话数据无需重新解析。仓库 README 同步调换为中文默认、英文在 README.en.md。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.5.0)
-
-### v0.4.0 · 子代理执行折入实时迷宫（2026-08-20）
-
-模型调 `subagent` 工具派生的任务，此前在迷宫里只是一根不透明的长条；现在每个 dsh 子代理会话折成主干上分出的聚合支路节点——挂靠在派生它的那一步、共享父会话时间轴，节点子条是子代理全部已判定的工具调用（参数/返回/判定齐全），运行中的实时生长，点击跳回派生位置。入图有纪律：仅 `origin: 'subagent'` 且非临时会话（手动「在新对话分支」与 side-chat 不算），已结束且活动完全早于可见窗口的陈旧子代理按父会话 preWindow 同口径丢弃。子代理身份贯穿节点标签、悬停卡与详情面板（"⤴ 由主干 SN 派生的子代理任务，完成后结果汇回主干"），不再套用失败探索的「此路不通」文案，内部步号不再暴露。依赖宿主 `SessionFace.open`（后台加载子会话历史）——官方 rc.6–rc.8 暂无此能力，插件自动静默降级、其余功能不受影响。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.4.0)
-
-![实时迷宫：4 个子代理以支路节点折入父会话时间轴，运行中的实时生长](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.4.0/v040-subagent.png)
-
-### v0.3.3 · 修复：实时模式新步骤开始时全图消失（2026-08-19）
-
-实时页签每当新步骤开始（模型推理中、还没发出第一个工具调用），整张迷宫会瞬间变透明，等工具调用出现才恢复。根因是 tier1 时代的老 bug：非回答节点的标签代码无保护地取 `tools[0].name`，而 in-flight 步在纯推理阶段 `tools` 为空——TypeError 把 build() 拦腰打断，所有元素停在初始透明度 0。零工具节点跳过工具标签即修复；用合成推送序列（推理期 → 工具出现 → 结算）实测全程可见。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.3)
-
-### v0.3.2 · 并行工具调用分行（2026-08-19）
-
-此前一步内多次工具调用折叠成「bash +1」标签，各调用的起止/耗时/判定全被吃掉。现在每次调用画成步骤胶囊条下方的细小条（瀑布惯例）：按真实起止摆位、判定色填充、悬停看单次调用详情（命令/返回/依据）；泳道高度按该泳道最大并行数自适应（computeLayout 的 parH 区），下方支路弧线自动让位。实测语料：16 轮长会话有 36 个并行步、最大并行 5。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.2)
-
-![并行分行：缩放后可见每次调用的真实时段](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.2/v032-parallel.png)
-
-### v0.3.1 · 主题跟随 + 紧凑页头（2026-08-19）
-
-页面调色板收敛为 CSS 变量单真相源（SVG 属性色经 `readPalette` 同源取值），随宿主 dsh 明暗主题自动切换：宿主组件监听 `body[data-ds-dark-theme]`（rc.6 的 ThemePresenter 机制）postMessage 进沙箱 iframe，独立打开按系统偏好兜底；导出 SVG/PNG 固定浅色底，暗色下导出前临时切浅色重建、导完切回。同版收紧页头布局：出数据后说明隐藏、上传区收成 31px 细条、泳道统计卡隐藏、图例压成一行，迷宫可视区多出约 250px。顺手把「无效重试」灰从 #b6c0d2 提到 #8892a6，浅色下一眼可辨。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.1)
-
-![暗色主题 + 紧凑页头](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.1/v031-dark.png)
-
-### v0.3.0 · 对比语义升级：轮次对齐 + 手动锚点 + 支路盘点（2026-08-19）
-
-双会话对比从「一条正则里程碑」升级成一套按轮次的对比语义：每轮回答节点自动互连对齐线（标注时差与该轮支路数差）；「🔗 加锚点」手动钉任意两节点的对比线；「📋 支路盘点」按轮次列两边支路的步数/墙钟耗时/类别构成与差额，点行缩放该轮并高亮该轮支路。语料特定的「模型列表结果」正则里程碑（MODEL_LIKE/mlist）随之退役——判定 v2 清理长度阈值后的最后一个硬编码启发式。「探索期」红色背景带一并退役：它取首末支路的最小最大跨度，16 轮长会话上罩住 99% 的时间轴而支路真实耗时只占 1%，是虚假信号。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.3.0)
-
-![双会话对比：轮次对齐线 + 支路盘点面板 + 手动锚点](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.3.0/v030-compare.png)
-
-### v0.2.3 · 实时窗口诚实化 + 判定防引用误报（2026-08-19）
-
-实时页签只画对话已加载的事件窗口——窗口边缘漏进来的更早轮次步骤此前被钳到 0 秒堆在左边缘，一份 18 小时、533 步的会话被画成「3 轮 · 39 步 · 71.4s」。现在陈旧步被丢弃并标注「⏮ 另有 N 步更早历史未加载」。同时修掉判定的「引用误报」：git log 提交信息里写的 "upstream returns HTTP 400"、源码里的 "not found in" 不再被当成命令自己失败——失败特征只扫输出开头与末尾窗口，且两条渲染链路统一在未截断全文上判定。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.3)
-
-![实时页签：窗口截断诚实标注，行为学检测抓到真实的 31 连败盲目重试](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.3/v023-live.png)
-
-### v0.2.2 · token 真值、搜索过滤、导出（2026-08-19）
-
-「reasoning N tok」此前数的是流式段数——本版从 session log 的 `assistant/message` 读真实 usage，步级与泳道级都显示真 token（无 usage 时诚实回退「N 段推理」）。新增过滤工具行（只看失败/重试、按工具过滤、全文搜索，未命中淡化到 15%）与当前视图的 SVG / 2x PNG 导出。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.2)
-
-![只看失败/重试：命中计数 + 其余淡化](https://github.com/lamost423/dsh-trace-compare/releases/download/v0.2.2/v022-filter.png)
-
-### v0.2.1 · 判定可解释：告别长度阈值（2026-08-19）
-
-「结果 <60 字符 = 死路」退役，换成上面的分层判定 + 行为学重试检测。动机：校准发现长度阈值冤枉了 338 次调用中的 56 次（todo_write 的 57 字符成功确认全军覆没），反而漏掉藏在长输出里的真失败。判定逻辑同时收敛为单一真相源 `src/client/verdict.js`（上传页构建期注入、实时链路直接引入），镜像漂移永久消除。[Release](https://github.com/lamost423/dsh-trace-compare/releases/tag/v0.2.1)
+全部演进见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开发
 
