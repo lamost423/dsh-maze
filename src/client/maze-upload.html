@@ -1825,9 +1825,11 @@ function drawTracks(gTime, gStatic, lane, lay){
       if (!xVisible(n.s, n.e)) continue
       const bx0 = x(n.s)
       const raw = x(n.e) - bx0
-      // 柱与柱之间让 1.5px 缝，步的边界肉眼可分（太窄时放弃留缝保可见）；
-      // 缓存背景保持连续不留缝——它是底色参照带，不是逐步读数
-      const bw = Math.max(2, raw - 1.5)
+      // 读数柱宽 = min(步长-缝, 10px)，钉在步中点（吴昊定版的折中方案）：
+      // 密集会话里柱被步距压细、自动呈参照稿式的细尖峰，稀疏会话保底 10px 不至于空；
+      // 时长语义由迷宫胶囊条承担，这里不重复编码。缓存背景仍按步时长铺底当参照带。
+      const bw = Math.min(Math.max(2, raw - 1.5), 10)
+      const bxc = bx0 + raw / 2 - bw / 2
       const g = el('g', {})
       if (mxCache > 0 && (n.cacheTok ?? 0) > 0){
         const ch = Math.max(1, (n.cacheTok ?? 0) / mxCache * upH)
@@ -1835,7 +1837,7 @@ function drawTracks(gTime, gStatic, lane, lay){
       }
       if ((n.inTok ?? 0) > 0){
         const hh = Math.max(1.5, (n.inTok ?? 0) / mxIn * upH)
-        g.appendChild(el('rect', { x: bx0, y: zeroY - hh, width: bw, height: hh, fill: SVGC.tokIn }))
+        g.appendChild(el('rect', { x: bxc, y: zeroY - hh, width: bw, height: hh, fill: SVGC.tokIn }))
       }
       let yy = zeroY
       for (const [v, c] of [
@@ -1844,7 +1846,7 @@ function drawTracks(gTime, gStatic, lane, lay){
       ]){
         if (v <= 0) continue
         const hh = Math.max(1.5, v / mxOut * dnH)
-        g.appendChild(el('rect', { x: bx0, y: yy, width: bw, height: hh, fill: c }))
+        g.appendChild(el('rect', { x: bxc, y: yy, width: bw, height: hh, fill: c }))
         yy += hh
       }
       g._tokNode = n; g._tokLane = lane
