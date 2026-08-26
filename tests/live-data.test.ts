@@ -251,7 +251,7 @@ describe('snapshotToMazeData', () => {
     const retry = lane.detours.find(n => n.evt === 'retry')!
     expect(retry.v).toBe('error')
     expect(retry.label).toBe('↻1')
-    expect(retry.why).toEqual({ k: 'llmRetry', p: [1, 5, 30, 'HTTP 500 [SERVER_ERROR]'] })
+    expect(retry.why).toEqual({ k: 'llmRetry', p: [1, 5, 30, 'HTTP 500 [SERVER_ERROR]', 0] })
     expect(retry.e - retry.s).toBeCloseTo(30, 1)   // 条长 = 退避等待窗口
     const te = lane.detours.find(n => n.evt === 'turnError')!
     expect(te.v).toBe('error')
@@ -259,6 +259,21 @@ describe('snapshotToMazeData', () => {
     // 恢复后的正常回答仍在主干；失败标记不挤占真实步骤的 S 编号
     expect(lane.main.some(n => n.v === 'answer')).toBe(true)
     expect(lane.main.find(n => n.v === 'answer')!.step).toBe(1)
+  })
+
+  it('a cancelled retry renders as a point marker, not a fabricated full backoff wait', () => {
+    const snap = {
+      partial: null,
+      nodes: [
+        { kind: 'user', time: t0 },
+        // 用户在退避等待期按了停止：重试被取消，30s 的退避没有真等完
+        { kind: 'model-retry', seq: 3, time: t0 + 1000, retryId: 'r1', turn: 1, step: 1, provider: 'p', mode: 'normal', policyKey: 'k', retry: 1, maxRetries: 5, delayMs: 30_000, failure: { message: 'HTTP 500', code: '' }, retryState: 'cancelled' },
+      ],
+    } as never
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    const retry = lane.detours.find(n => n.evt === 'retry')!
+    expect(retry.e).toBe(retry.s)                       // 时间点，不虚报等待
+    expect(retry.why!.p![4]).toBe(1)                    // 依据带取消标记（展示端据此换文案）
   })
 
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {

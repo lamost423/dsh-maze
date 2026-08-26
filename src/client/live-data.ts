@@ -230,16 +230,18 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
     } else if (n.kind === 'model-retry') {
       // 请求失败后的重试排期：模型没吐出任何内容就挂了，快照里不会有对应 assistant
       // 节点——不画的话这段失败 + 退避在图上是纯空白（最误导的一类"什么都没发生"）。
-      // 条长 = 退避等待窗口。
+      // 条长 = 退避等待窗口；用户中途按停止会取消重试（retryState='cancelled'），
+      // 退避没真等完——画成时间点，不虚报满窗等待。
       if (firstUser !== undefined && n.time < firstUser.time) continue
       const s = rel(n.time)
+      const cancelled = n.retryState === 'cancelled'
       const fail = `${n.failure.message}${n.failure.code === '' ? '' : ` [${n.failure.code}]`}`
       rows.push({
         step: EVT_STEP_BASE + n.seq, turn: Math.max(turn, 1), seq: n.seq,
-        s, e: Math.max(rel(n.time + n.delayMs), s),
+        s, e: cancelled ? s : Math.max(rel(n.time + n.delayMs), s),
         tools: [], rz: 0, rzTxt: '',
         v: 'error', evt: 'retry', label: `↻${n.retry}`,
-        why: { k: 'llmRetry', p: [n.retry, n.mode === 'always' ? '∞' : n.maxRetries, Math.round(n.delayMs / 100) / 10, fail] },
+        why: { k: 'llmRetry', p: [n.retry, n.mode === 'always' ? '∞' : n.maxRetries, Math.round(n.delayMs / 100) / 10, fail, cancelled ? 1 : 0] },
       })
     } else if (n.kind === 'turn-error') {
       // 终局失败（无再重试）：同样没有 assistant 节点承载，画成时间点标记。

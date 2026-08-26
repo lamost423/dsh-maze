@@ -387,6 +387,8 @@ const I18N = {
     lgSameTaskTitle: '各文件首条用户消息一致，判定为同一任务的多次跑',
     lgDiffTask: '≠ 任务不同，仅同轴并排（对齐线/盘点已停用）',
     lgDiffTaskTitle: '各文件首条用户消息不一致；轮次对齐在不同任务间没有意义',
+    lgNoFirstUser: '≠ 无法判定是否同一任务（有文件缺首条用户消息），仅同轴并排',
+    lgNoFirstUserTitle: '同任务识别依赖各文件的首条用户消息；缺失时对比件（对齐线/锚点/盘点）停用',
     modelUnknown: '未知模型', modelNoHeader: '(模型未知：会话早期记录未加载)', modelNone: '(未知模型)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' 轮 · ' : ''}${st.steps} 步（主干 ${st.main} / 支路 ${st.detours}）· ${st.tools} 次工具调用 · ${laneTokLabel(st)} · 总耗时 ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ 另有 ${n} 步更早历史未加载`,
@@ -416,8 +418,9 @@ const I18N = {
     cardFailRec: (rec, f, w) => `${rec}/${f} 次在 ${w} 秒内恢复`,
     cardFailNone: '没有失败调用',
     cardFailRate: p => `失败率 ${p}%`,
+    cardFailEvt: n => `请求级失败 ${n} 次（模型请求重试/终局失败，不计入工具统计）`,
     cardTimeBody: (tool, d) => `最长调用 ${tool} · ${d}`,
-    cardTimeShare: p => `工具累计耗时占会话 ${p}%`,
+    cardTimeShare: p => `工具累计耗时占活动时间 ${p}%（空闲已剔除）`,
     cardCtxPct: (v, p) => `最大上下文 ${v.toLocaleString()} tok · 峰值占用 ${p}%`,
     cardCtxOver: th => `已越过 ${th}% 阈值`,
     cardCtxUnder: '在安全区',
@@ -474,7 +477,7 @@ const I18N = {
       noTools: () => '无工具调用，输出回答',
       pendingTools: () => '工具结果未返回，暂留主干',
       child: p => `子代理「${p[0]}」· ${p[1]} 步 · ${p[2]} 次工具调用${p[3] === 1 ? ' · 运行中' : p[3] === 2 ? ' · 以错误收尾' : ''}`,
-      llmRetry: p => `请求失败，安排第 ${p[0]}/${p[1]} 次重试，退避等待 ${p[2]}s；失败原因：${p[3]}`,
+      llmRetry: p => `请求失败，安排第 ${p[0]}/${p[1]} 次重试${p[4] ? '（该重试已被取消，不再等待）' : `，退避等待 ${p[2]}s`}；失败原因：${p[3]}`,
       turnError: p => `请求终局失败，不再重试${p[1] ? `（${p[1]}）` : ''}：${p[0]}`,
     },
   },
@@ -507,6 +510,8 @@ const I18N = {
     lgSameTaskTitle: 'Every file opens with the same first user message: treated as runs of one task',
     lgDiffTask: '≠ Different tasks — side-by-side only (alignment/inventory off)',
     lgDiffTaskTitle: 'First user messages differ; per-turn alignment is meaningless across different tasks',
+    lgNoFirstUser: '≠ Same-task check impossible (a file has no first user message) — side-by-side only',
+    lgNoFirstUserTitle: 'Same-task detection needs each file\'s first user message; without it the compare kit (alignment/anchors/inventory) stays off',
     modelUnknown: 'unknown model', modelNoHeader: '(model unknown: earlier history not loaded)', modelNone: '(unknown model)',
     laneInfo: (turns, st) => `${turns > 1 ? turns + ' turns · ' : ''}${st.steps} steps (main ${st.main} / detours ${st.detours}) · ${st.tools} tool calls · ${laneTokLabel(st)} · total ${fmtT(st.T)}`,
     preWindow: n => ` · ⏮ ${n} earlier steps not loaded`,
@@ -536,8 +541,9 @@ const I18N = {
     cardFailRec: (rec, f, w) => `${rec}/${f} recovered within ${w}s`,
     cardFailNone: 'No failed calls',
     cardFailRate: p => `failure rate ${p}%`,
+    cardFailEvt: n => `${n} request-level failures (model retries / terminal errors, outside tool stats)`,
     cardTimeBody: (tool, d) => `longest call ${tool} · ${d}`,
-    cardTimeShare: p => `tools took ${p}% of the session`,
+    cardTimeShare: p => `tools took ${p}% of active time (idle excluded)`,
     cardCtxPct: (v, p) => `max context ${v.toLocaleString()} tok · peak ${p}%`,
     cardCtxOver: th => `crossed the ${th}% threshold`,
     cardCtxUnder: 'within the safe zone',
@@ -594,7 +600,7 @@ const I18N = {
       noTools: () => 'No tool calls; produced the answer',
       pendingTools: () => 'Tool results pending; kept on the main path for now',
       child: p => `Subagent “${p[0]}” · ${p[1]} steps · ${p[2]} tool calls${p[3] === 1 ? ' · running' : p[3] === 2 ? ' · ended with an error' : ''}`,
-      llmRetry: p => `Request failed — retry ${p[0]}/${p[1]} scheduled after a ${p[2]}s backoff; cause: ${p[3]}`,
+      llmRetry: p => `Request failed — retry ${p[0]}/${p[1]} ${p[4] ? 'was cancelled (no more waiting)' : `scheduled after a ${p[2]}s backoff`}; cause: ${p[3]}`,
       turnError: p => `Request failed for good, no more retries${p[1] ? ` (${p[1]})` : ''}: ${p[0]}`,
     },
   },
@@ -798,15 +804,17 @@ function buildLane(text){
       rows.push(cur)
       rowByStep.set(cur.step, cur)
     } else if (t === 'assistant/message' && d.usage && typeof d.usage === 'object'){
-      // 真实 token 用量：assistant/message 自带 turn/step 归属（每步一条，防御性累加）。
+      // 真实 token 用量：assistant/message 自带 turn/step 归属（每步一条，产出量防御性累加）。
       // inputTokens 是未命中缓存的输入，cacheReadTokens 是缓存命中——上下文总量 = 两者之和
       //（2026-08-25 用真实日志验证：cacheReadTokens 随会话单调增长，inputTokens 只有增量波动）。
+      // 口径分两类：推理/输出是「流量」，一步多条请求时累加；输入/缓存是「每次请求的上下文
+      // 快照」，累加会虚增上下文压力——取最后一条（与实时链路的覆盖语义一致）。
       const row = rowByStep.get(d.turn != null ? d.turn + '·' + d.step : d.step)
       if (row){
         if (typeof d.usage.reasoningTokens === 'number') row.rzTok = (row.rzTok ?? 0) + d.usage.reasoningTokens
         if (typeof d.usage.outputTokens === 'number') row.outTok = (row.outTok ?? 0) + d.usage.outputTokens
-        if (typeof d.usage.inputTokens === 'number') row.inTok = (row.inTok ?? 0) + d.usage.inputTokens
-        if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = (row.cacheTok ?? 0) + d.usage.cacheReadTokens
+        if (typeof d.usage.inputTokens === 'number') row.inTok = d.usage.inputTokens
+        if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = d.usage.cacheReadTokens
       }
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
@@ -826,10 +834,12 @@ function buildLane(text){
     } else if (t === 'llm/retry'){
       // 请求失败后的重试排期：失败的那次请求没有 assistant 输出，不画就是纯空白。
       // 伪行进 rows（时间序保持），条长 = 退避等待；判定在 buildData 里定死为 error。
-      const delay = (d.delayMs ?? 0) / 1000
+      // 用户中途按停止会取消重试（retryState='cancelled'）——退避没真等完，画成时间点不虚报等待。
+      const cancelled = d.retryState === 'cancelled'
+      const delay = cancelled ? 0 : (d.delayMs ?? 0) / 1000
       rows.push({ step: 'r' + rows.length, turn: d.turn, s: tm, e: tm + delay, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
         evt: 'retry', label: '↻' + (d.retry ?? ''),
-        why: { k: 'llmRetry', p: [d.retry ?? '?', d.mode === 'always' ? '∞' : (d.maxRetries ?? '?'), Math.round(delay * 10) / 10, (d.failure?.message ?? '') + (d.failure?.code ? ' [' + d.failure.code + ']' : '')] } })
+        why: { k: 'llmRetry', p: [d.retry ?? '?', d.mode === 'always' ? '∞' : (d.maxRetries ?? '?'), Math.round((d.delayMs ?? 0) / 100) / 10, (d.failure?.message ?? '') + (d.failure?.code ? ' [' + d.failure.code + ']' : ''), cancelled ? 1 : 0] } })
     } else if (t === 'turn/end' && d.reason?.kind === 'error'){
       // 终局失败（无再重试）：同样没有输出承载，画成时间点标记。
       rows.push({ step: 'e' + rows.length, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
@@ -1232,7 +1242,9 @@ function renderLegend(){
     lg.push(`<span class="lg" title="${tr('lgAlignTitle')}"><span class="sw ms"></span>${tr('lgAlign')}</span>`)
     lg.push(`<span class="lg" title="${tr('lgAnchorTitle')}"><span class="sw anc"></span>${tr('lgAnchor')}</span>`)
   } else if (DATA.lanes.length >= 2){
-    lg.push(`<span class="lg" title="${tr('lgDiffTaskTitle')}">${tr('lgDiffTask')}</span>`)
+    // 图例要说真话：缺首条用户消息时不是「任务不同」，是「没法判定」——两种原因分开明示
+    const noFu = DATA.lanes.some(l => !l.firstUser)
+    lg.push(`<span class="lg" title="${tr(noFu ? 'lgNoFirstUserTitle' : 'lgDiffTaskTitle')}">${tr(noFu ? 'lgNoFirstUser' : 'lgDiffTask')}</span>`)
   }
   document.getElementById('legend').innerHTML = lg.join('')
 }
@@ -1898,6 +1910,29 @@ function laneCalls(lane){
   return out
 }
 
+/**
+ * 该泳道的活动时长（墙钟秒）：节点/工具区间按空闲折叠同口径（IDLE_MIN 内视为连续）
+ * 合并后求和。「工具占比」的分母用它而不用总时长——27 小时挂机的会话不该把密集的
+ * 工具活动稀释成 1%（对齐线 v0.5.1 起就剔除轮间等待，这里同口径）。
+ */
+function laneActiveTime(lane){
+  const iv = []
+  for (const n of [...lane.main, ...lane.detours]){
+    iv.push([wallClock(n.s), Math.max(wallClock(n.e), wallClock(n.s))])
+    for (const tl of n.tools ?? []){
+      if (tl.s != null) iv.push([wallClock(tl.s), Math.max(wallClock(tl.e ?? tl.s), wallClock(tl.s))])
+    }
+  }
+  if (iv.length === 0) return 0
+  iv.sort((a, b) => a[0] - b[0])
+  let total = 0, cs = iv[0][0], ce = iv[0][1]
+  for (const [s, e] of iv){
+    if (s <= ce + IDLE_MIN) ce = Math.max(ce, e)
+    else { total += ce - cs; cs = s; ce = e }
+  }
+  return total + (ce - cs)
+}
+
 /** 最近邻分位数（P50/P95）。 */
 function percentile(arr, p){
   if (arr.length === 0) return 0
@@ -1934,19 +1969,27 @@ function renderAnalysis(){
       sumD += d
       if (d > longD){ longD = d; longTool = tl.name }
     }
-    const share = lane.stats.T > 0 ? Math.round(sumD / lane.stats.T * 100) : 0
+    // 分母 = 活动时长（挂机空闲剔除）；并行调用的时长求和可超墙钟，钳到 100%
+    const active = laneActiveTime(lane)
+    const share = active > 0 ? Math.min(100, Math.round(sumD / active * 100)) : 0
     const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
     const ctxSamples = own.filter(n => n.inTok != null || n.cacheTok != null)
     const ctxPeak = ctxSamples.length > 0 ? Math.max(...ctxSamples.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
     const win = ctxPeak != null ? laneWindow(lane.model, ctxPeak) : null
 
+    // 请求级失败（llm/retry / turn/end error）不属于工具统计，但一个全程失败的会话
+    // 不能在这张卡上亮绿灯——单独计数列在卡内。
+    const evtFails = [...lane.main, ...lane.detours].filter(n => n.evt).length
+
     if (DATA.lanes.length > 1) h += `<div class="analane">${laneName(lane)}<span class="m">${esc(lane.fname ?? lane.model ?? '')}</span></div>`
     h += `<div class="anacards">`
     h += `<div class="anacard"><div class="t">${tr('cardFail')}</div><div class="v">`
-      + (fails === 0 ? `<span class="good">${tr('cardFailNone')}</span>`
-        : `${tr('cardFailBody')(fails, calls.length, mostTool ? esc(tlabel(mostTool)) : '', mostN)}<br>`
-          + `${tr('cardFailRec')(rec, fails, ANALYSIS_RULES.RECOVERY_WINDOW)} · `
-          + `<span class="${fails / Math.max(1, calls.length) > 0.1 ? 'warn' : ''}">${tr('cardFailRate')(Math.round(fails / Math.max(1, calls.length) * 100))}</span>`)
+      + (fails === 0 && evtFails === 0 ? `<span class="good">${tr('cardFailNone')}</span>`
+        : (fails === 0 ? ''
+          : `${tr('cardFailBody')(fails, calls.length, mostTool ? esc(tlabel(mostTool)) : '', mostN)}<br>`
+            + `${tr('cardFailRec')(rec, fails, ANALYSIS_RULES.RECOVERY_WINDOW)} · `
+            + `<span class="${fails / Math.max(1, calls.length) > 0.1 ? 'warn' : ''}">${tr('cardFailRate')(Math.round(fails / Math.max(1, calls.length) * 100))}</span>`)
+          + (evtFails > 0 ? `${fails > 0 ? '<br>' : ''}<span class="warn">${tr('cardFailEvt')(evtFails)}</span>` : ''))
       + `</div></div>`
     h += `<div class="anacard"><div class="t">${tr('cardTime')}</div><div class="v">`
       + (longTool ? tr('cardTimeBody')(esc(tlabel(longTool)), fmtT(longD)) + '<br>' : '')
