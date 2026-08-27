@@ -5,6 +5,8 @@
 中文 | [English](README.en.md)
 
 [![npm](https://img.shields.io/npm/v/dsh-maze?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-maze)
+[![dsh.so 安全扫描：低风险](https://www.dsh.so/badge/dsh-trace-compare.svg)](https://www.dsh.so/zh/artifact/dsh-trace-compare)
+[![dsh.so 沙盒安装实测：通过](https://www.dsh.so/badge/install/dsh-trace-compare.svg)](https://www.dsh.so/zh/artifact/dsh-trace-compare)
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-dsh-plugin index](https://img.shields.io/badge/listed-awesome--dsh--plugin%20index-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 [![dshbase](https://dshbase.com/badges/dsh-maze.svg)](https://dshbase.com/plugins/dsh-maze/)
