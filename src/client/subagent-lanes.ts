@@ -43,6 +43,13 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     private readonly sessionId: SessionId,
   ) {
     this.#offList = sessions.list.subscribe(() => { this.#sync() })
+    // Keep this parent's child catalog live so the roster learns about children
+    // as they are spawned. This is read-only: it never selects a session.
+    sessions.setSubagentCatalogOpen(sessionId, true)
+    sessions.refreshSubagents(sessionId).then(() => { this.#sync() }).catch(() => {
+      // A parent with no children (or a host that refuses the catalog)
+      // contributes an empty roster; the list subscription still retries.
+    })
     this.#sync()
   }
 
@@ -58,6 +65,7 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     if (this.#disposed) return
     this.#disposed = true
     this.#offList()
+    this.sessions.setSubagentCatalogOpen(this.sessionId, false)
     for (const child of this.#children.values()) this.#release(child)
     this.#children.clear()
     this.#listeners.clear()
@@ -97,29 +105,32 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     this.#publish()
   }
 
+  /**
+   * Follow one child passively.
+   *
+   * Deliberately does NOT open the child. Host 0.1.2 rejects a bare open() on a
+   * subagent child ("subagent Sessions require their durable parent address"),
+   * and the only supported way in — `sessions.openSubagent()` / the catalog
+   * menu — is a NAVIGATION action: it sets the selected session, which would
+   * yank the user out of the conversation they are watching the maze for. A
+   * background roster must never do that.
+   *
+   * What remains is passive observation: the Conversation binding feeds off the
+   * child's event window, so a child that is running streams into the maze
+   * live. A child that finished before this view mounted has nothing in its
+   * window and stays absent until the host offers a background history read.
+   * @param id - child session id.
+   */
   #track(id: SessionId): void {
-    // An unaddressable child stays untracked; the next list tick retries.
     const face = this.sessions.binding(id)?.session
     if (face === undefined) return
     const child: TrackedChild = { face, off: null, chat: null, offChat: null, released: false }
     this.#children.set(id, child)
-    // Background history open is a capability-line ability (absent through
-    // rc.8): when the face has no open(), subscribe anyway — publish() keeps
-    // children hidden until their snapshot actually reports 'open'.
-    const open = (face as typeof face & { open?: () => Promise<void> }).open
-    const opening = open === undefined ? Promise.resolve() : open.call(face)
-    opening.then(() => {
-      if (this.#disposed || child.released) return
-      child.off = face.subscribe(() => { this.#publish() })
-      const chat = this.conversations.binding(id).target('chat')
-      child.chat = chat
-      child.offChat = chat.subscribe(() => { this.#publish() })
-      this.#publish()
-    }).catch(() => {
-      // A child whose history refuses to open contributes nothing; drop it so
-      // the roster does not retry a permanently broken projection.
-      if (!child.released) this.#children.delete(id)
-    })
+    child.off = face.subscribe(() => { this.#publish() })
+    const chat = this.conversations.binding(id).target('chat')
+    child.chat = chat
+    child.offChat = chat.subscribe(() => { this.#publish() })
+    this.#publish()
   }
 
   #publish(): void {
@@ -128,11 +139,11 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     const next: ChildSessionMaze[] = []
     for (const [id, child] of this.#children) {
       if (child.off === null) continue
-      if (child.face.getSnapshot().openState !== 'open') continue
-      // The Chat target publishes only once its view builder has run; until
-      // then the child contributes nothing rather than an empty lane.
+      // Content, not openState, is the gate. The roster never opens a child
+      // (see #track), so openState stays 'cold' for children it only observes;
+      // an empty window simply contributes nothing rather than an empty lane.
       const conversation = child.chat?.getSnapshot()
-      if (conversation === undefined) continue
+      if (conversation === undefined || conversation.order.length === 0) continue
       const row = byId[id]
       next.push({
         id,

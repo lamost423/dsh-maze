@@ -100,6 +100,31 @@ describe('snapshotToMazeData', () => {
     expect(snapshotToMazeData(syntheticSnapshot())!.lanes[0]!.model).toBeNull()
   })
 
+  it('prefers the turn-exact token totals over summing steps', () => {
+    // 该轮真实开销 = 两次尝试：第一次请求失败被重试(没有 assistant 节点承载它的
+    // token)，第二次成功。按步累加只看得到 100/40；轮级账是 180/70，含掉的那次。
+    const lane = snapshotToMazeData(chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { outputTokens: 100, reasoningTokens: 40 }, blocks: [
+        { kind: 'text', text: 'done' },
+      ] },
+      { kind: 'turn-tail', seq: 12, time: t0 + 2100, tokenUsage: { outputTokens: 180, reasoningTokens: 70, uncachedInputTokens: 900, totalTokens: 1080 } },
+    ]))!.lanes[0]!
+    expect(lane.stats.outTok).toBe(180)
+    expect(lane.stats.rzTok).toBe(70)
+  })
+
+  it('falls back to step sums for a turn that has not closed yet', () => {
+    const lane = snapshotToMazeData(chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { outputTokens: 100, reasoningTokens: 40 }, blocks: [
+        { kind: 'text', text: 'still going' },
+      ] },
+    ]))!.lanes[0]!
+    expect(lane.stats.outTok).toBe(100)
+    expect(lane.stats.rzTok).toBe(40)
+  })
+
   it('returns null for an empty conversation', () => {
     expect(snapshotToMazeData(chatSnapshot([]))).toBeNull()
   })

@@ -18,7 +18,7 @@ type DataOf<K extends ChatNode['kind']> = Extract<ChatNode, { kind: K }>['data']
 
 /** One logical conversation event, in the flat form the tests author. */
 export interface FixtureEvent {
-  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'partial'
+  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'turn-tail' | 'partial'
   seq?: number
   time?: number
   timing?: { stepStartTime?: number }
@@ -28,6 +28,8 @@ export interface FixtureEvent {
   callId?: string
   /** When the call was issued; omitted models a call event outside the window. */
   callTime?: number
+  /** turn-tail only: provider-exact totals for every billed attempt in the turn. */
+  tokenUsage?: { outputTokens: number; uncachedInputTokens: number; totalTokens: number; reasoningTokens?: number }
   isError?: boolean
   content?: readonly { type?: string; text?: string }[]
   /** model-retry / turn-error payload fields, passed through verbatim. */
@@ -157,6 +159,16 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
       // one attempt, so each becomes its own single-attempt chain.
       const attempt = { ...e, kind: 'model-retry' } as unknown as ModelRetryNode
       push('model-retry', { attempts: [attempt], current: attempt }, e.seq ?? 0)
+      continue
+    }
+    if (e.kind === 'turn-tail') {
+      // A completed turn's tail row; `tokenUsage` is the provider-exact total
+      // across every billed attempt in that turn.
+      push('turn-tail', {
+        turn: Math.max(turn, 1), seq: e.seq ?? 0, time: e.time ?? 0,
+        closing: null, branchUnavailable: false,
+        ...(e.tokenUsage === undefined ? {} : { tokenUsage: e.tokenUsage }),
+      } as DataOf<'turn-tail'>, e.seq ?? 0)
       continue
     }
     if (e.kind === 'turn-error') {
