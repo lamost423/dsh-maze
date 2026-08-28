@@ -41,10 +41,11 @@
       "inject": [
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-layout",
-        "@deepseek-ai/dsh-client-ui-sidebar",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-sidebar"
       ],
       "platform": "web"
     }
@@ -82,6 +83,7 @@
     "@deepseek-ai/dsh-api-session-controller": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-client-locale": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-client-store": ">=0.1.2-alpha.1 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-chat": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-client-ui-layout": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.2-alpha.1 <0.2.0",

@@ -28,8 +28,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const NS = 'traceCompare'
 
-/** Required services for slot composition, the subagent child roster, and localized copy. */
-export const inject = ['slots', 'locale', 'sessions']
+/** Required services for slot composition, the subagent child roster, per-session Conversation assembly, and localized copy. */
+export const inject = ['slots', 'locale', 'sessions', 'uiConversation']
 
 /** Mount the trigger, center surface, and live per-session view with one apply-scoped viewing store. */
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
@@ -55,8 +55,10 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     locale: NS,
     store: viewStore,
   }, BoundTraceCompareSurface))
-  const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions' | 'locale'>) =>
-    createElement(TraceLiveView, { ...props, sessions: ctx.sessions, locale: ctx.locale })
+  const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions' | 'conversations' | 'locale'>) =>
+    createElement(TraceLiveView, {
+      ...props, sessions: ctx.sessions, conversations: ctx.uiConversation, locale: ctx.locale,
+    })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'trace-live',

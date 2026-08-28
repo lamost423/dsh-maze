@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import { chatSnapshot } from './chat-fixture.ts'
 import { snapshotToMazeData, type ChildSessionMaze } from '../src/client/live-data.ts'
 
 /** Parent anchor: child times below are chosen relative to this wall clock. */
 const T0 = 1_000_000
 
-function snap(nodes: unknown[], partial: unknown = null): ConversationSnapshot {
-  return { nodes, partial } as unknown as ConversationSnapshot
+function snap(nodes: unknown[], partial: unknown = null): ReturnType<typeof chatSnapshot> {
+  const events = partial === null ? nodes : [...nodes, { ...(partial as object), kind: 'partial' }]
+  return chatSnapshot(events as never)
 }
 
 function user(time: number): unknown {
@@ -26,7 +27,7 @@ function toolResult(callId: string, time: number, text: string, isError = false)
 }
 
 /** Parent with one spawning subagent call at +10s and a closing answer at +40s. */
-function parentSnap(): ConversationSnapshot {
+function parentSnap(): ReturnType<typeof chatSnapshot> {
   return snap([
     user(T0),
     assistant(T0 + 10_000, 5, [toolCall('subagent', 'spawn-1')]),

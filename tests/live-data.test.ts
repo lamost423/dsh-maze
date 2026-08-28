@@ -1,14 +1,12 @@
 /** Verdict settlement and partitioning for the live maze converter. */
 import { describe, expect, it } from 'vitest'
 import { snapshotToMazeData } from '../src/client/live-data.ts'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import { chatSnapshot } from './chat-fixture.ts'
 
 const t0 = 1_787_000_000_000
 
-function syntheticSnapshot(): ConversationSnapshot {
-  return {
-    partial: null,
-    nodes: [
+function syntheticSnapshot(): ReturnType<typeof chatSnapshot> {
+  return chatSnapshot([
       { kind: 'user', time: t0 },
       // step 1: one failed tool + one ok tool -> error -> detour
       { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, requestConfig: { model: 'deepseek-v4-flash' }, blocks: [
@@ -31,8 +29,7 @@ function syntheticSnapshot(): ConversationSnapshot {
       { kind: 'assistant', seq: 14, time: t0 + 11000, timing: { stepStartTime: t0 + 10000 }, blocks: [
         { kind: 'text', text: 'done' },
       ] },
-    ],
-  } as never
+    ])
 }
 
 describe('snapshotToMazeData', () => {
@@ -63,7 +60,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('returns null for an empty conversation', () => {
-    expect(snapshotToMazeData({ partial: null, nodes: [] } as never)).toBeNull()
+    expect(snapshotToMazeData(chatSnapshot([]))).toBeNull()
   })
 
   it('carries jump anchors: node seq and tool callId', () => {
@@ -99,16 +96,13 @@ describe('snapshotToMazeData', () => {
   })
 
   it('keeps short write confirmations on the main path (no length verdicts)', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
           { kind: 'tool-call', name: 'todo_write', callId: 'a', argsRaw: '{"todos":[]}' },
         ] },
         { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: false, content: [{ type: 'text', text: 'Updated todo list: 3 pending, 1 in progress, 0 completed.' }] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.stats.detours).toBe(0)
     expect(lane.main[0]!.v).toBe('ok')
@@ -116,9 +110,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('marks blind-retry clusters: repeated near-identical calls with a failure inside', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
           { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"python3 gen_timeline.py --check"}' },
@@ -128,8 +120,7 @@ describe('snapshotToMazeData', () => {
           { kind: 'tool-call', name: 'bash', callId: 'b', argsRaw: '{"command":"python3 gen_timeline.py --check"}' },
         ] },
         { kind: 'tool-result', time: t0 + 6000, callId: 'b', isError: false, content: [{ type: 'text', text: 'wrote timeline.html ok' }] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     // both steps leave the main path: the failure, and its blind retry
     expect(lane.stats.detours).toBe(2)
@@ -140,9 +131,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('carries real token usage per step and lane totals; null without usage', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 900, outputTokens: 321, reasoningTokens: 274 }, blocks: [
           { kind: 'text', text: 'a' },
@@ -150,8 +139,7 @@ describe('snapshotToMazeData', () => {
         { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { outputTokens: 100, reasoningTokens: 40 }, blocks: [
           { kind: 'text', text: 'b' },
         ] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.main.map(n => n.rzTok)).toEqual([274, 40])
     expect(lane.stats.rzTok).toBe(314)
@@ -163,9 +151,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('carries input/cache tokens per step for the token-pulse and context-pressure tracks', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         // inputTokens 是未命中缓存的输入，cacheReadTokens 是缓存命中——上下文总量 = 两者之和
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 15852, outputTokens: 887, cacheReadTokens: 384 }, blocks: [
@@ -174,8 +160,7 @@ describe('snapshotToMazeData', () => {
         { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { inputTokens: 3118, outputTokens: 385, cacheReadTokens: 17024 }, blocks: [
           { kind: 'text', text: 'b' },
         ] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.main.map(n => n.inTok)).toEqual([15852, 3118])
     expect(lane.main.map(n => n.cacheTok)).toEqual([384, 17024])
@@ -185,9 +170,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('drops pre-window stale assistant nodes and counts them as preWindow', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         // 更早轮次的尾巴：早于窗口内首条用户消息，会被钳到 0 制造假象 -> 丢弃并计数
         { kind: 'assistant', seq: 5, time: t0 - 60000, blocks: [
           { kind: 'tool-call', name: 'bash', callId: 'old', argsRaw: '{"command":"ls"}' },
@@ -197,8 +180,7 @@ describe('snapshotToMazeData', () => {
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
           { kind: 'text', text: 'fresh answer' },
         ] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.preWindow).toBe(1)
     expect(lane.stats.steps).toBe(1)
@@ -209,9 +191,7 @@ describe('snapshotToMazeData', () => {
     const quoted = 'commit log '.repeat(60) + ' upstream returns HTTP 400 when sound=true ' + 'more log '.repeat(200)
     const tailCrash = 'build output '.repeat(200) + ' [stderr] Traceback (most recent call last): boom'
     const headMiss = 'command not found: foobar'
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
           { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"git log"}' },
@@ -225,8 +205,7 @@ describe('snapshotToMazeData', () => {
           { kind: 'tool-call', name: 'bash', callId: 'c', argsRaw: '{"command":"foobar"}' },
         ] },
         { kind: 'tool-result', time: t0 + 9000, callId: 'c', isError: false, content: [{ type: 'text', text: headMiss }] },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     const byCall = new Map([...lane.main, ...lane.detours].flatMap(n => n.tools.map(t => [t.callId, t] as const)))
     expect(byCall.get('a')!.v).toBe('ok')      // 引用在正文深处，不算这条命令失败
@@ -235,9 +214,7 @@ describe('snapshotToMazeData', () => {
   })
 
   it('renders request-level failures: model-retry and turn-error become error detours', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         // 请求一上来就失败，安排 30s 退避重试——此前这段在图上是纯空白
         { kind: 'model-retry', seq: 3, time: t0 + 1000, retryId: 'r1', turn: 1, step: 1, provider: 'p', mode: 'normal', policyKey: 'k', retry: 1, maxRetries: 5, delayMs: 30_000, failure: { message: 'HTTP 500', code: 'SERVER_ERROR' }, retryState: 'started' },
@@ -245,8 +222,7 @@ describe('snapshotToMazeData', () => {
           { kind: 'text', text: 'recovered' },
         ] },
         { kind: 'turn-error', seq: 12, time: t0 + 50_000, turn: 2, step: 1, message: 'retries exhausted', code: 'RETRY_EXHAUSTED' },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     const retry = lane.detours.find(n => n.evt === 'retry')!
     expect(retry.v).toBe('error')
@@ -262,14 +238,11 @@ describe('snapshotToMazeData', () => {
   })
 
   it('a cancelled retry renders as a point marker, not a fabricated full backoff wait', () => {
-    const snap = {
-      partial: null,
-      nodes: [
+    const snap = chatSnapshot([
         { kind: 'user', time: t0 },
         // 用户在退避等待期按了停止：重试被取消，30s 的退避没有真等完
         { kind: 'model-retry', seq: 3, time: t0 + 1000, retryId: 'r1', turn: 1, step: 1, provider: 'p', mode: 'normal', policyKey: 'k', retry: 1, maxRetries: 5, delayMs: 30_000, failure: { message: 'HTTP 500', code: '' }, retryState: 'cancelled' },
-      ],
-    } as never
+      ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     const retry = lane.detours.find(n => n.evt === 'retry')!
     expect(retry.e).toBe(retry.s)                       // 时间点，不虚报等待
@@ -277,10 +250,15 @@ describe('snapshotToMazeData', () => {
   })
 
   it('keeps a 240-char reasoning excerpt and a 2000-char panel text', () => {
-    const snap = syntheticSnapshot() as { nodes: { kind: string; blocks?: { kind: string; text?: string }[] }[] }
-    const first = snap.nodes.find(n => n.kind === 'assistant')!
-    first.blocks![0] = { kind: 'reasoning', text: 'r'.repeat(9000) }
-    const data = snapshotToMazeData(snap as never)
+    const snap = chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+        { kind: 'reasoning', text: 'r'.repeat(9000) },
+        { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"ls"}' },
+      ] },
+      { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: false, content: [{ type: 'text', text: 'ok' }] },
+    ])
+    const data = snapshotToMazeData(snap)
     const node = [...data!.lanes[0]!.main, ...data!.lanes[0]!.detours].find(n => n.seq === 11)!
     expect(node.rzTxt).toHaveLength(240)
     expect(node.rzTxtFull).toHaveLength(2000)

@@ -8,13 +8,23 @@
  * not task delegation.
  */
 import type { ISessions, SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChildSessionMaze } from './live-data.ts'
 
 interface TrackedChild {
   face: SessionFace
+  /** Session lifecycle subscription (openState). */
   off: (() => void) | null
+  /**
+   * The child's Chat target source. Conversation content is no longer part of
+   * the Session snapshot — it is assembled per session by uiConversation and
+   * published per target, so the roster follows both.
+   */
+  chat: ObservableSnapshot<ChatSnapshot | undefined> | null
+  offChat: (() => void) | null
   /** Set when the roster drops the child while its open() is still settling. */
   released: boolean
 }
@@ -27,7 +37,11 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
   #offList: () => void
   #disposed = false
 
-  constructor(private readonly sessions: ISessions, private readonly sessionId: SessionId) {
+  constructor(
+    private readonly sessions: ISessions,
+    private readonly conversations: UiConversation,
+    private readonly sessionId: SessionId,
+  ) {
     this.#offList = sessions.list.subscribe(() => { this.#sync() })
     this.#sync()
   }
@@ -54,6 +68,9 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     child.released = true
     child.off?.()
     child.off = null
+    child.offChat?.()
+    child.offChat = null
+    child.chat = null
   }
 
   #sync(): void {
@@ -84,7 +101,7 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     // An unaddressable child stays untracked; the next list tick retries.
     const face = this.sessions.binding(id)?.session
     if (face === undefined) return
-    const child: TrackedChild = { face, off: null, released: false }
+    const child: TrackedChild = { face, off: null, chat: null, offChat: null, released: false }
     this.#children.set(id, child)
     // Background history open is a capability-line ability (absent through
     // rc.8): when the face has no open(), subscribe anyway — publish() keeps
@@ -94,6 +111,9 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     opening.then(() => {
       if (this.#disposed || child.released) return
       child.off = face.subscribe(() => { this.#publish() })
+      const chat = this.conversations.binding(id).target('chat')
+      child.chat = chat
+      child.offChat = chat.subscribe(() => { this.#publish() })
       this.#publish()
     }).catch(() => {
       // A child whose history refuses to open contributes nothing; drop it so
@@ -108,8 +128,11 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     const next: ChildSessionMaze[] = []
     for (const [id, child] of this.#children) {
       if (child.off === null) continue
-      const conversation = child.face.getSnapshot()
-      if (conversation.openState !== 'open') continue
+      if (child.face.getSnapshot().openState !== 'open') continue
+      // The Chat target publishes only once its view builder has run; until
+      // then the child contributes nothing rather than an empty lane.
+      const conversation = child.chat?.getSnapshot()
+      if (conversation === undefined) continue
       const row = byId[id]
       next.push({
         id,

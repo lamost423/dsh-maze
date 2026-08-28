@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Declaration merge only: ui-chat contributes `useChat` to SessionStandardProps
+// and the `chat` row to the Conversation view-snapshot map.
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ConvViewProps, UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { postLocaleTo } from './locale-sync.ts'
@@ -67,10 +70,15 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
  * trace-jump messages back; this component answers them by switching the
  * column to the Chat view and revealing the step's row.
  */
-export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useProjection }: TraceLiveViewProps) {
-  const snapshot = useSession(s => s)
+export function TraceLiveView({ useChat, sessionId, sessions, conversations, locale, t, useProjection }: TraceLiveViewProps) {
+  // Conversation content moved off the Session snapshot in host 0.1.2; the
+  // maze reads the Chat target, which owns the ordered node stream.
+  const snapshot = useChat(s => s)
   // One roster per (service, session); disposed with the view or on session switch.
-  const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
+  const source = useMemo(
+    () => new SubagentMazeSource(sessions, conversations, sessionId),
+    [sessions, conversations, sessionId],
+  )
   useEffect(() => () => { source.dispose() }, [source])
   const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
   // 模型名走宿主投影：request/header 不是 surface 事件，永远进不了浏览器侧会话快照
@@ -156,6 +164,8 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useP
 export type TraceLiveViewProps = ConvViewProps & PropsLocale<'traceCompare'> & {
   /** Root sessions service; supplies the subagent child roster and projections. */
   sessions: ISessions
+  /** Per-session Conversation assembly; the roster binds each child's Chat target through it. */
+  conversations: UiConversation
   /** 宿主 locale 服务：iframe 页面文案跟随其 active 语言。 */
   locale: LocaleRuntime
 }

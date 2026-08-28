@@ -1,13 +1,69 @@
 /**
- * Live maze data converter: ConversationSnapshot (the session's real-time
- * observable) → the same maze payload the upload page renders. Verdict and
- * main/detour partitioning mirror the upload page's logic so both modes
- * share one visual language. dsh subagent child sessions fold in as one
- * aggregated detour node each, on the parent's clock.
+ * Live maze data converter: the session's Chat target snapshot (the real-time
+ * observable published by ui-chat) → the same maze payload the upload page
+ * renders. Verdict and main/detour partitioning mirror the upload page's logic
+ * so both modes share one visual language. dsh subagent child sessions fold in
+ * as one aggregated detour node each, on the parent's clock.
+ *
+ * Host 0.1.2 moved Conversation to a target-neutral snapshot: the ordered node
+ * list now lives on the `chat` target, tool calls and their results arrive as
+ * one settled node instead of two events to pair, the in-flight step is an
+ * `assistant-step` node with `status: 'running'` rather than a separate
+ * `partial`, and turn boundaries come off the timeline instead of being counted
+ * from user messages.
  */
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ChatConversationViewNode, ChatNode, ChatSnapshot, ToolCallBlock, ToolResultNode,
+} from '@deepseek-ai/dsh-client-ui-chat/client'
 import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
+
+/** Narrow one ordered Chat node to a registered renderer kind. */
+function isKind<K extends ChatNode['kind']>(
+  node: ChatConversationViewNode,
+  kind: K,
+): node is Extract<ChatNode, { kind: K }> {
+  return node.kind === kind
+}
+
+/**
+ * A Tool root carries `kind: 'tool-result'` once settled; a running call has no
+ * `kind` field at all. Narrowed inline so ui-chat stays a type-only dependency
+ * (importing its `isSettledTool` would put ui-chat in the bundle's externals,
+ * and it is not one of the host's platform seed modules).
+ */
+function isSettled(block: ToolCallBlock): block is ToolResultNode {
+  return 'kind' in block
+}
+
+/** Ordered materialized nodes of the Chat target, in render order. */
+function orderedNodes(snap: ChatSnapshot): ChatConversationViewNode[] {
+  const out: ChatConversationViewNode[] = []
+  for (const key of snap.order) {
+    const node = snap.nodes.get(key)
+    if (node !== undefined) out.push(node)
+  }
+  return out
+}
+
+/** Owning turn of one Chat node from its engine-resolved location, when placed. */
+function locationTurn(node: ChatConversationViewNode): number | null {
+  const loc = node.location
+  return loc.kind === 'turn' || loc.kind === 'step' ? loc.turn.turn : null
+}
+
+/** Wall-clock time of one Chat node, or null for kinds that carry none. */
+function nodeTime(node: ChatConversationViewNode): number | null {
+  if (isKind(node, 'assistant-step')) return node.data.time
+  if (isKind(node, 'tool-call')) {
+    const root = node.data.root
+    return isSettled(root) ? (root.callTime ?? root.time) : root.time
+  }
+  if (isKind(node, 'model-retry')) return node.data.current.time
+  if (isKind(node, 'turn-error')) return node.data.time
+  if (isKind(node, 'turn-tail')) return node.data.time
+  return null
+}
 
 /** One tool event in the maze model. */
 export interface MazeTool {
@@ -105,8 +161,8 @@ export interface ChildSessionMaze {
   label: string
   /** Child still running: the node stays live and reads as in-flight. */
   running: boolean
-  /** The child's own conversation snapshot; times share the parent's clock. */
-  conversation: ConversationSnapshot
+  /** The child's own Chat target snapshot; times share the parent's clock. */
+  conversation: ChatSnapshot
 }
 
 /** Child detour steps start here so they never collide with parent step ids. */
@@ -123,13 +179,27 @@ function contentText(blocks: readonly { type?: string; text?: string }[] | undef
 }
 
 /** Latest wall-clock event time in a conversation, or null while empty. */
-function lastActivityTime(snap: ConversationSnapshot): number | null {
+function lastActivityTime(snap: ChatSnapshot): number | null {
   let last: number | null = null
-  for (const n of snap.nodes) {
-    const t = (n as { time?: number }).time
-    if (typeof t === 'number') last = last === null ? t : Math.max(last, t)
+  for (const n of orderedNodes(snap)) {
+    const t = nodeTime(n)
+    if (t !== null) last = last === null ? t : Math.max(last, t)
   }
   return last
+}
+
+/**
+ * Wall-clock start of the earliest loaded turn. Replaces the old "first user
+ * message" probe: turn boundaries are now resolved by the engine and published
+ * on the timeline, so the anchor no longer depends on a user node being inside
+ * the event window.
+ */
+function firstTurnStart(snap: ChatSnapshot): number | null {
+  for (const turn of snap.timeline.turnOrder) {
+    const start = snap.timeline.turns.get(turn)?.start
+    if (start !== undefined) return start.time
+  }
+  return null
 }
 
 /** Scanned, verdict-settled rows of one conversation on a caller-chosen clock. */
@@ -148,14 +218,15 @@ interface ScanResult {
  * session can share its parent's axis.
  * @returns rows in step order with settled verdicts.
  */
-function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanResult {
-  const nodes = snap.nodes
-  const firstUser = nodes.find(n => n.kind === 'user')
+function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
+  const nodes = orderedNodes(snap)
+  // Turn starts are engine-resolved now; the old probe counted user nodes,
+  // which broke whenever the event window opened mid-turn.
+  const anchor = firstTurnStart(snap)
 
-  interface PendingTool { tool: MazeTool }
+  /** Tool bars awaiting their result node, keyed by wire call identity. */
+  const pending = new Map<string, { tool: MazeTool; row: MazeNode }>()
   const rows: MazeNode[] = []
-  let cur: MazeNode | null = null
-  const pending: PendingTool[] = []
   let nextStep = 0
   let turn = 0
 
@@ -175,104 +246,105 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
   }
 
   let preWindow = 0
+  let liveRow: MazeNode | null = null
   for (const n of nodes) {
-    if (n.kind === 'user') {
-      turn += 1
-    } else if (n.kind === 'assistant') {
-      if (firstUser !== undefined && n.time < firstUser.time) {
+    const t = locationTurn(n)
+    if (t !== null) turn = t
+    if (isKind(n, 'assistant-step')) {
+      const d = n.data
+      if (anchor !== null && d.time < anchor) {
         preWindow += 1
         continue
       }
-      const s = rel(n.timing?.stepStartTime ?? n.time)
+      // The in-flight step keeps the old marker semantics: a short bar pinned at
+      // "now", not a measured span — it is a liveness indicator, and its real
+      // start would redraw the bar on every tick.
+      const running = d.status === 'running'
+      const now = rel(Date.now())
+      const s = running ? now : rel(d.finalNode?.timing?.stepStartTime ?? d.time)
       const tools: MazeTool[] = []
       let rz = 0
       let rzTxt = ''
-      for (const b of n.blocks) {
+      for (const b of d.blocks) {
         if (b.kind === 'reasoning') {
           rz += 1
           rzTxt += b.text
         } else if (b.kind === 'tool-call') {
-          const tool: MazeTool = {
+          tools.push({
             k: 't', name: b.name, s, e: null,
             args: b.argsRaw, res: '', err: false, dur: 0, v: 'ok',
             callId: b.callId,
-          }
-          tools.push(tool)
-          pending.push({ tool })
+          })
         }
       }
-      cur = pushStep(s, rel(n.time), tools, rz, rzTxt, n.seq)
+      if (running && rz === 0 && tools.length === 0) continue
+      const cur = pushStep(s, running ? now + 0.1 : rel(d.time), tools, rz, rzTxt, n.anchorSeq)
+      if (running) {
+        cur.live = true
+        liveRow = cur
+      }
+      // Tool bars settle from their own nodes; index them by wire call identity.
+      for (const tool of tools) {
+        if (tool.callId !== undefined) pending.set(tool.callId, { tool, row: cur })
+      }
       // usage 在节点契约上是 unknown（源自 assistant/message 事件），运行期窄化后取真实 token
-      const u = n.usage as { reasoningTokens?: unknown; outputTokens?: unknown; inputTokens?: unknown; cacheReadTokens?: unknown } | null | undefined
-      if (u !== null && typeof u === 'object') {
+      const u = (d.usage ?? d.finalNode?.usage) as { reasoningTokens?: unknown; outputTokens?: unknown; inputTokens?: unknown; cacheReadTokens?: unknown } | null | undefined
+      if (u !== null && u !== undefined && typeof u === 'object') {
         if (typeof u.reasoningTokens === 'number') cur.rzTok = u.reasoningTokens
         if (typeof u.outputTokens === 'number') cur.outTok = u.outputTokens
         if (typeof u.inputTokens === 'number') cur.inTok = u.inputTokens
         if (typeof u.cacheReadTokens === 'number') cur.cacheTok = u.cacheReadTokens
       }
-    } else if (n.kind === 'tool-result') {
-      const idx = pending.findIndex(p => p.tool.callId === n.callId)
-      const p = idx >= 0 ? pending[idx] : undefined
-      if (p !== undefined) {
-        pending.splice(idx, 1)
-        p.tool.e = rel(n.time)
-        p.tool.res = contentText(n.content)
-        p.tool.err = n.isError
-        p.tool.dur = Math.round((p.tool.e - p.tool.s) * 10) / 10
-        const tv = toolVerdict(p.tool)
-        p.tool.v = tv.v
-        p.tool.why = tv.why
-        p.tool.resFull = p.tool.res.slice(0, 5000)
-        p.tool.res = p.tool.res.slice(0, 380)
-        const toolEnd = p.tool.e
-        if (cur !== null) cur.e = Math.max(cur.e, toolEnd)
-      }
-    } else if (n.kind === 'model-retry') {
+    } else if (isKind(n, 'tool-call')) {
+      // One node now carries call and result together. Only roots the assistant
+      // actually requested get bars — Code Dispatch subcalls stay nested inside
+      // their root, which is the set the old pairing loop also produced.
+      const root = n.data.root
+      if (!isSettled(root)) continue
+      const p = pending.get(root.callId)
+      if (p === undefined) continue
+      pending.delete(root.callId)
+      p.tool.e = rel(root.time)
+      p.tool.res = contentText(root.content)
+      p.tool.err = root.isError
+      p.tool.dur = Math.round((p.tool.e - p.tool.s) * 10) / 10
+      const tv = toolVerdict(p.tool)
+      p.tool.v = tv.v
+      p.tool.why = tv.why
+      p.tool.resFull = p.tool.res.slice(0, 5000)
+      p.tool.res = p.tool.res.slice(0, 380)
+      p.row.e = Math.max(p.row.e, p.tool.e)
+    } else if (isKind(n, 'model-retry')) {
       // 请求失败后的重试排期：模型没吐出任何内容就挂了，快照里不会有对应 assistant
       // 节点——不画的话这段失败 + 退避在图上是纯空白（最误导的一类"什么都没发生"）。
       // 条长 = 退避等待窗口；用户中途按停止会取消重试（retryState='cancelled'），
       // 退避没真等完——画成时间点，不虚报满窗等待。
-      if (firstUser !== undefined && n.time < firstUser.time) continue
-      const s = rel(n.time)
-      const cancelled = n.retryState === 'cancelled'
-      const fail = `${n.failure.message}${n.failure.code === '' ? '' : ` [${n.failure.code}]`}`
-      rows.push({
-        step: EVT_STEP_BASE + n.seq, turn: Math.max(turn, 1), seq: n.seq,
-        s, e: cancelled ? s : Math.max(rel(n.time + n.delayMs), s),
-        tools: [], rz: 0, rzTxt: '',
-        v: 'error', evt: 'retry', label: `↻${n.retry}`,
-        why: { k: 'llmRetry', p: [n.retry, n.mode === 'always' ? '∞' : n.maxRetries, Math.round(n.delayMs / 100) / 10, fail, cancelled ? 1 : 0] },
-      })
-    } else if (n.kind === 'turn-error') {
+      // ui-chat 把一条重试链折叠成一个节点；仍按每次尝试各画一行，保持原有读图方式。
+      for (const attempt of n.data.attempts) {
+        if (anchor !== null && attempt.time < anchor) continue
+        const s = rel(attempt.time)
+        const cancelled = attempt.retryState === 'cancelled'
+        const fail = `${attempt.failure.message}${attempt.failure.code === '' ? '' : ` [${attempt.failure.code}]`}`
+        rows.push({
+          step: EVT_STEP_BASE + attempt.seq, turn: Math.max(turn, 1), seq: attempt.seq,
+          s, e: cancelled ? s : Math.max(rel(attempt.time + attempt.delayMs), s),
+          tools: [], rz: 0, rzTxt: '',
+          v: 'error', evt: 'retry', label: `↻${attempt.retry}`,
+          why: { k: 'llmRetry', p: [attempt.retry, attempt.mode === 'always' ? '∞' : attempt.maxRetries, Math.round(attempt.delayMs / 100) / 10, fail, cancelled ? 1 : 0] },
+        })
+      }
+    } else if (isKind(n, 'turn-error')) {
       // 终局失败（无再重试）：同样没有 assistant 节点承载，画成时间点标记。
-      if (firstUser !== undefined && n.time < firstUser.time) continue
-      const s = rel(n.time)
+      const d = n.data
+      if (anchor !== null && d.time < anchor) continue
+      const s = rel(d.time)
       rows.push({
-        step: EVT_STEP_BASE + n.seq, turn: Math.max(turn, 1), seq: n.seq,
+        step: EVT_STEP_BASE + d.seq, turn: Math.max(turn, 1), seq: d.seq,
         s, e: s,
         tools: [], rz: 0, rzTxt: '',
         v: 'error', evt: 'turnError', label: '✗',
-        why: { k: 'turnError', p: [n.message, n.code ?? ''] },
+        why: { k: 'turnError', p: [d.message, d.code ?? ''] },
       })
-    }
-  }
-
-  // In-flight step: the live partial (reasoning + tool calls still running).
-  let liveRow: MazeNode | null = null
-  if (snap.partial !== null) {
-    const now = rel(Date.now())
-    const tools: MazeTool[] = []
-    let rz = 0
-    let rzTxt = ''
-    for (const b of snap.partial.blocks) {
-      if (b.kind === 'reasoning') { rz += 1; rzTxt += b.text }
-      else if (b.kind === 'tool-call') {
-        tools.push({ k: 't', name: b.name, s: now, e: null, args: b.argsRaw, res: '', err: false, dur: 0, v: 'ok', callId: b.callId })
-      }
-    }
-    if (rz > 0 || tools.length > 0) {
-      liveRow = pushStep(now, now + 0.1, tools, rz, rzTxt)
-      liveRow.live = true
     }
   }
 
@@ -358,12 +430,12 @@ function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number
  * @param children - dsh subagent child sessions to fold in as detour nodes.
  */
 export function snapshotToMazeData(
-  snap: ConversationSnapshot,
+  snap: ChatSnapshot,
   children: readonly ChildSessionMaze[] = [],
 ): MazeData | null {
-  const nodes = snap.nodes
-  const firstUser = nodes.find(n => n.kind === 'user')
-  const anchor = firstUser !== undefined ? firstUser.time : (nodes[0]?.time ?? Date.now())
+  const nodes = orderedNodes(snap)
+  const firstNode = nodes.length === 0 ? null : nodeTime(nodes[0] as ChatConversationViewNode)
+  const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
   const { rows, preWindow } = scanRows(snap, rel)
@@ -423,11 +495,13 @@ export function snapshotToMazeData(
   const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
   const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
   const T = Math.max(...rows.map(r => r.e), childEnd, 0.1)
-  // requestConfig is only present on assistant nodes whose request header fell
-  // inside the snapshot window; take the latest carrier so the current model shows.
+  // requestConfig only rides assistant nodes whose request header fell inside
+  // the snapshot window; take the latest carrier so the current model shows.
   let model: string | null = null
   for (const n of nodes) {
-    if (n.kind === 'assistant' && n.requestConfig?.model !== undefined) model = n.requestConfig.model
+    if (!isKind(n, 'assistant-step')) continue
+    const named = n.data.finalNode?.requestConfig?.model
+    if (named !== undefined) model = named
   }
   const lane: MazeLane = {
     key: 'l1',

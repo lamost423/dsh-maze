@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { chatSnapshot } from './chat-fixture.ts'
 import { SubagentMazeSource } from '../src/client/subagent-lanes.ts'
 
 const sid = (s: string): SessionId => s as SessionId
@@ -13,7 +16,11 @@ interface FakeRow {
   displayTitle: string
 }
 
-/** In-memory ISessions double: a mutable list plus per-child conversation faces. */
+/**
+ * In-memory doubles for the two services the roster now needs: ISessions for
+ * the list and session lifecycle, and UiConversation for each child's Chat
+ * target (conversation content left the Session snapshot in host 0.1.2).
+ */
 function harness(rows: FakeRow[]) {
   const listListeners = new Set<() => void>()
   const byId = () => Object.fromEntries(rows.map(r => [r.id, r]))
@@ -21,7 +28,7 @@ function harness(rows: FakeRow[]) {
 
   function face(openState: 'open' | 'failed' = 'open') {
     const listeners = new Set<() => void>()
-    let snapshot = { openState, nodes: [], partial: null }
+    let snapshot = { openState }
     return {
       open: vi.fn(() => openState === 'open'
         ? Promise.resolve()
@@ -36,6 +43,35 @@ function harness(rows: FakeRow[]) {
     }
   }
 
+  const chats = new Map<SessionId, { listeners: Set<() => void>; snapshot: ReturnType<typeof chatSnapshot>; push(events: unknown[]): void }>()
+  const chatOf = (id: SessionId) => {
+    const found = chats.get(id)
+    if (found !== undefined) return found
+    const listeners = new Set<() => void>()
+    const entry = {
+      listeners,
+      snapshot: chatSnapshot([]),
+      push(events: unknown[]) {
+        entry.snapshot = chatSnapshot(events as never)
+        for (const l of [...listeners]) l()
+      },
+    }
+    chats.set(id, entry)
+    return entry
+  }
+
+  const conversations = {
+    binding: (id: SessionId) => ({
+      target: () => ({
+        getSnapshot: () => chatOf(id).snapshot,
+        subscribe: (l: () => void) => {
+          chatOf(id).listeners.add(l)
+          return () => chatOf(id).listeners.delete(l)
+        },
+      }),
+    }),
+  } as unknown as UiConversation
+
   const sessions = {
     list: {
       getSnapshot: () => ({ byId: byId() }),
@@ -49,6 +85,8 @@ function harness(rows: FakeRow[]) {
 
   return {
     sessions,
+    conversations,
+    chatOf,
     faces,
     addFace: (id: SessionId, state: 'open' | 'failed' = 'open') => {
       const f = face(state)
@@ -76,7 +114,7 @@ describe('SubagentMazeSource', () => {
     ]
     const h = harness(rows)
     h.addFace(sid('c1'))
-    const source = new SubagentMazeSource(h.sessions, sid('p'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
     await flush()
     const roster = source.getSnapshot()
     expect(roster.map(c => c.id)).toEqual(['c1'])
@@ -91,11 +129,11 @@ describe('SubagentMazeSource', () => {
     ]
     const h = harness(rows)
     const f = h.addFace(sid('c1'))
-    const source = new SubagentMazeSource(h.sessions, sid('p'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
     await flush()
     const seen = vi.fn()
     source.subscribe(seen)
-    f.push({ nodes: [{ kind: 'user', time: 1 }] })
+    h.chatOf(sid('c1')).push([{ kind: 'user', time: 1 }])
     expect(seen).toHaveBeenCalled()
     expect(f.listeners.size).toBe(1)
     h.setRows([])
@@ -110,7 +148,7 @@ describe('SubagentMazeSource', () => {
     ]
     const h = harness(rows)
     h.addFace(sid('bad'), 'failed')
-    const source = new SubagentMazeSource(h.sessions, sid('p'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
     await flush()
     expect(source.getSnapshot()).toHaveLength(0)
     source.dispose()
@@ -123,7 +161,7 @@ describe('SubagentMazeSource', () => {
       { id: sid('late'), parentId: sid('p'), origin: 'subagent', running: true, displayTitle: '晚到' },
     ]
     const h = harness(rows)
-    const source = new SubagentMazeSource(h.sessions, sid('p'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
     await flush()
     expect(source.getSnapshot()).toHaveLength(0)
     h.addFace(sid('late'))
