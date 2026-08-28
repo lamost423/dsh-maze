@@ -26,6 +26,8 @@ export interface FixtureEvent {
   usage?: unknown
   blocks?: readonly { kind: string; text?: string; name?: string; callId?: string; argsRaw?: string }[]
   callId?: string
+  /** When the call was issued; omitted models a call event outside the window. */
+  callTime?: number
   isError?: boolean
   content?: readonly { type?: string; text?: string }[]
   /** model-retry / turn-error payload fields, passed through verbatim. */
@@ -52,6 +54,18 @@ function turnLocation(turn: number, startTime: number): unknown {
 export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
   const order: string[] = []
   const byKey = new Map<string, ChatConversationViewNode>()
+  // The host backfills a settled root's call head from the in-window tool/call
+  // event; the fixture mirrors that by indexing the authored tool-call blocks.
+  const callHeads = new Map<string, { name: string; argsRaw: string }>()
+  const settledCalls = new Set<string>()
+  for (const e of events) {
+    for (const b of e.blocks ?? []) {
+      if (b.kind === 'tool-call' && b.callId !== undefined) {
+        callHeads.set(b.callId, { name: b.name ?? '?', argsRaw: b.argsRaw ?? '' })
+      }
+    }
+    if (e.kind === 'tool-result' && e.callId !== undefined) settledCalls.add(e.callId)
+  }
   const turnOrder: number[] = []
   const turns = new Map<number, unknown>()
   let turn = 0
@@ -83,7 +97,13 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
     if (e.kind === 'assistant' || e.kind === 'partial') {
       const running = e.kind === 'partial'
       if (!running) step += 1
-      const blocks = (e.blocks ?? []) as AssistantChatData['blocks']
+      // Verified against a live host: ui-chat promotes tool calls to their own
+      // `tool-call` rows, so an assistant node's blocks never carry them — a
+      // step that only called tools produces no assistant node at all. The
+      // fixture drops them the same way so tests cannot pass on a shape the
+      // host does not emit.
+      const blocks = (e.blocks ?? []).filter(b => b.kind !== 'tool-call') as AssistantChatData['blocks']
+      const issued = (e.blocks ?? []).filter(b => b.kind === 'tool-call')
       push('assistant-step', {
         status: running ? 'running' : 'settled',
         turn: Math.max(turn, 1),
@@ -102,14 +122,30 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
           } as AssistantMessageNode,
         }),
       }, e.seq ?? 0)
+      // A call the assistant issued that never returned stays a Tool row with a
+      // running root — the host publishes it that way rather than omitting it.
+      for (const b of issued) {
+        if (b.callId === undefined || settledCalls.has(b.callId)) continue
+        push('tool-call', {
+          root: {
+            callId: b.callId, name: b.name ?? '?', argsRaw: b.argsRaw ?? '',
+            turn: Math.max(turn, 1), step, time: e.time ?? 0, subCalls: [],
+          },
+        }, e.seq ?? 0)
+      }
       continue
     }
     if (e.kind === 'tool-result') {
-      // One settled Tool root now carries call and result together.
+      // One settled Tool root now carries call and result together, including
+      // the call head (name + arguments) the maze labels its bar with.
       push('tool-call', {
         root: {
           kind: 'tool-result', seq: e.seq ?? 0, time: e.time ?? 0,
-          callId: e.callId ?? '', call: null, callTime: null,
+          callId: e.callId ?? '',
+          call: callHeads.get(e.callId ?? '') ?? null,
+          // null models window truncation: the call event fell outside the
+          // loaded range, so the bar has no measured start of its own.
+          callTime: typeof e.callTime === 'number' ? e.callTime : null,
           content: (e.content ?? []) as ToolResultNode['content'],
           isError: e.isError ?? false, subCalls: [],
         },

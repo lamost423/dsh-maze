@@ -48,15 +48,56 @@ describe('snapshotToMazeData', () => {
     expect(new Set([...lane.main, ...lane.detours].map(n => n.turn))).toEqual(new Set([1]))
   })
 
+  it('measures a tool bar from when the call was issued, not from its step start', () => {
+    // 宿主 0.1.2 起结算的工具根节点带真实发起时间。步在 +1s 起，调用在 +4s 才发出，
+    // 结果 +6s 回来：条应为 2s（真实调用时长），而不是把 3s 的模型思考也算进去。
+    const lane = snapshotToMazeData(chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 6000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+        { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"ls"}' },
+      ] },
+      { kind: 'tool-result', time: t0 + 6000, callTime: t0 + 4000, callId: 'a', isError: false, content: [{ type: 'text', text: 'ok' }] },
+    ]))!.lanes[0]!
+    const tool = [...lane.main, ...lane.detours].flatMap(n => n.tools)[0]!
+    expect(tool.s).toBe(4)
+    expect(tool.e).toBe(6)
+    expect(tool.dur).toBe(2)
+  })
+
+  it('falls back to the step start when window truncation left the call event out', () => {
+    const lane = snapshotToMazeData(chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 6000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+        { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"ls"}' },
+      ] },
+      // callTime 缺失 = 调用事件在加载窗口之外
+      { kind: 'tool-result', time: t0 + 6000, callId: 'a', isError: false, content: [{ type: 'text', text: 'ok' }] },
+    ]))!.lanes[0]!
+    const tool = [...lane.main, ...lane.detours].flatMap(n => n.tools)[0]!
+    expect(tool.s).toBe(1)
+    expect(tool.dur).toBe(5)
+  })
+
   it('carries no retired milestone fields (v0.3.0: turn alignment replaced mlist/milestones)', () => {
     const data = snapshotToMazeData(syntheticSnapshot())!
     expect('milestones' in data).toBe(false)
     expect('mlist' in data.lanes[0]!).toBe(false)
   })
 
-  it('reports the latest model carried by a request header', () => {
-    const data = snapshotToMazeData(syntheticSnapshot())
-    expect(data!.lanes[0]!.model).toBe('deepseek-v4-flash')
+  it('reports the model from the Trajectory requests, preferring what was served', () => {
+    // 模型身份只存在于 Trajectory target（由持久化的 request/header 组装）；
+    // chat 的 assistant 节点上游根本不带 requestConfig。
+    const requests = [
+      { requestConfig: { model: 'deepseek-v4-flash' } },
+      { requestConfig: { model: 'deepseek-v4' }, provenance: { provider: 'deepseek', model: 'deepseek-v4-0821' } },
+    ] as never
+    const data = snapshotToMazeData(syntheticSnapshot(), [], requests)
+    // provenance（实际服务的）压过 requestConfig（请求时要的）
+    expect(data!.lanes[0]!.model).toBe('deepseek-v4-0821')
+  })
+
+  it('reports no model when the Trajectory target carries no request identity', () => {
+    expect(snapshotToMazeData(syntheticSnapshot())!.lanes[0]!.model).toBeNull()
   })
 
   it('returns null for an empty conversation', () => {
