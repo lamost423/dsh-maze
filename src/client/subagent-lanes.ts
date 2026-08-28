@@ -7,9 +7,9 @@
  * side-chat children also carry parentId but are the user's own work,
  * not task delegation.
  */
-import type {
-  ISessions, ObservableSnapshot, SessionFace, SessionId,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { ISessions, SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChildSessionMaze } from './live-data.ts'
 
 interface TrackedChild {

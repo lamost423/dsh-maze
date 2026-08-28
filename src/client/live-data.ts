@@ -5,7 +5,7 @@
  * share one visual language. dsh subagent child sessions fold in as one
  * aggregated detour node each, on the parent's clock.
  */
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 

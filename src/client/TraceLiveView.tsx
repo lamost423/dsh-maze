@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
