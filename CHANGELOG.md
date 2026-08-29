@@ -2,6 +2,17 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v2.0.0-alpha.2 — 2026-08-29
+
+**修 alpha.1 实机验收查出的一处数字打架：实时视图头部的 Token 总数少算。**
+
+- **现象**：同一画面上，头部指标条写「Token in 3 · out 23」，泳道标签写「output 25 tok」，宿主自己的底栏写「Input 6 · Output 25」。头部那个是错的。
+- **根因**：宿主 `0.1.2` 里只发工具调用的 assistant 步不产生 assistant 节点，它那次请求的 token 落不到任何一行迷宫上，只存在于轮级账里。上一版把泳道统计改成取轮级账，但页面头部仍然自己按行累加，于是漏掉了那一步。写代码的会话里纯工具调用的步骤占比很高，会话越长漏得越多。
+- **改法**：轮级账同时取出未命中缓存的输入（宿主 `TurnTokenUsage.uncachedInputTokens`，按其契约覆盖该轮每一次计费尝试），连同输出一起进泳道统计；页面头部优先用泳道统计里已经算对的值，没有时才回退按行累加。上传链路的日志每步都带 usage，走回退路径，行为不变。
+- 新增一条契约测试：一步只发工具调用、不产生 assistant 节点时，泳道总数必须等于轮级账而不是行累加。49 个测试全绿。
+
+_EN: Fixes one number disagreeing with itself, caught while accepting alpha.1 on a real host. The live view's header read "Token in 3 · out 23" while the lane label right beside it read "output 25 tok" and the host's own footer said "Input 6 · Output 25" — the header was wrong. Under host `0.1.2` an assistant step that only calls tools produces no assistant node, so that request's tokens land on no maze row and exist only in the turn account. The previous release moved lane stats onto the turn account but left the page header summing rows, so it dropped those steps — and coding sessions are full of them. The turn account now also carries uncached input (`TurnTokenUsage.uncachedInputTokens`, which by contract covers every billed attempt in the turn), and the header prefers the lane totals, falling back to row sums only when there are none (the upload path, whose logs carry per-step usage, is unchanged). A contract test pins it: with a tool-only step carrying no assistant node, lane totals must equal the turn account, not the row sum. 49 tests green._
+
 ## v2.0.0-alpha.1 — 2026-08-29
 
 **适配宿主 `0.1.2` 的客户端拆包与新会话模型。这一版只给自己从上游 master 构建宿主的人，发在 `next` 标签上；从 npm 装宿主的用户请继续用 `latest`（`1.1.x`），升上来反而会打挂。**
