@@ -28,6 +28,12 @@ export interface FixtureEvent {
   callId?: string
   /** When the call was issued; omitted models a call event outside the window. */
   callTime?: number
+  /**
+   * tool-result only: the call belongs to a step of its own that produced no
+   * assistant node. Host 0.1.2 emits no `assistant-step` for a step that only
+   * called tools, so that step's tokens ride the turn tail and nothing else.
+   */
+  ownStep?: true
   /** turn-tail only: provider-exact totals for every billed attempt in the turn. */
   tokenUsage?: { outputTokens: number; uncachedInputTokens: number; totalTokens: number; reasoningTokens?: number }
   isError?: boolean
@@ -138,6 +144,7 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
       continue
     }
     if (e.kind === 'tool-result') {
+      if (e.ownStep === true) step += 1
       // One settled Tool root now carries call and result together, including
       // the call head (name + arguments) the maze labels its bar with.
       push('tool-call', {

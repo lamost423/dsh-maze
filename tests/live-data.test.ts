@@ -112,17 +112,36 @@ describe('snapshotToMazeData', () => {
     ]))!.lanes[0]!
     expect(lane.stats.outTok).toBe(180)
     expect(lane.stats.rzTok).toBe(70)
+    expect(lane.stats.inTok).toBe(900)
+  })
+
+  it('counts a tool-only step whose tokens no assistant node carried', () => {
+    // 宿主 0.1.2 里「只发工具调用」的那一步不产生 assistant 节点,它那次请求的
+    // token 只存在于轮级账里。按行累加会漏掉(实测头部 out 23、泳道标签 25,同一
+    // 画面自相矛盾),所以泳道总数必须取轮级账。
+    const lane = snapshotToMazeData(chatSnapshot([
+      { kind: 'user', time: t0 },
+      { kind: 'tool-result', ownStep: true, time: t0 + 2000, callTime: t0 + 1000, callId: 'a', isError: false, content: [{ type: 'text', text: 'ok' }] },
+      { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { outputTokens: 23, inputTokens: 3 }, blocks: [
+        { kind: 'text', text: 'done' },
+      ] },
+      { kind: 'turn-tail', seq: 13, time: t0 + 4100, tokenUsage: { outputTokens: 25, uncachedInputTokens: 6, totalTokens: 31 } },
+    ]))!.lanes[0]!
+    expect(lane.stats.steps).toBe(2)
+    expect(lane.stats.outTok).toBe(25)
+    expect(lane.stats.inTok).toBe(6)
   })
 
   it('falls back to step sums for a turn that has not closed yet', () => {
     const lane = snapshotToMazeData(chatSnapshot([
       { kind: 'user', time: t0 },
-      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { outputTokens: 100, reasoningTokens: 40 }, blocks: [
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { outputTokens: 100, reasoningTokens: 40, inputTokens: 50 }, blocks: [
         { kind: 'text', text: 'still going' },
       ] },
     ]))!.lanes[0]!
     expect(lane.stats.outTok).toBe(100)
     expect(lane.stats.rzTok).toBe(40)
+    expect(lane.stats.inTok).toBe(50)
   })
 
   it('returns null for an empty conversation', () => {

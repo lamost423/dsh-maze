@@ -145,7 +145,11 @@ export interface MazeLane {
   preWindow: number
   main: MazeNode[]
   detours: MazeNode[]
-  stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
+  stats: {
+    steps: number; tools: number; rz: number
+    rzTok: number | null; outTok: number | null; inTok: number | null
+    T: number; main: number; detours: number
+  }
 }
 
 /** The maze payload the upload page consumes. */
@@ -179,27 +183,33 @@ const EVT_STEP_BASE = 200_000
  * every billed attempt — including requests that failed and were retried, whose
  * tokens no assistant node ever carried. A turn still running has no tail yet,
  * so its steps are summed as before. Each turn is counted once, from one source.
+ * Input counts uncached prompt tokens only, matching what the lane header
+ * reports: cache re-reads repeat the whole context on every request, so summing
+ * them yields a huge number that says nothing about real usage.
  * @param rows - scanned maze rows.
  * @param turnTokens - exact per-turn totals published by completed turns.
- * @returns lane reasoning and output totals, or null when nothing reported.
+ * @returns lane input, reasoning and output totals, or null when nothing reported.
  */
 function laneTokens(
   rows: readonly MazeNode[],
-  turnTokens: ReadonlyMap<number, { out: number; rz: number | null }>,
-): { rzTok: number | null; outTok: number | null } {
+  turnTokens: ReadonlyMap<number, { in: number; out: number; rz: number | null }>,
+): { rzTok: number | null; outTok: number | null; inTok: number | null } {
   let rzTok: number | null = null
   let outTok: number | null = null
+  let inTok: number | null = null
   const add = (into: number | null, value: number): number => (into ?? 0) + value
   for (const [, exact] of turnTokens) {
+    inTok = add(inTok, exact.in)
     outTok = add(outTok, exact.out)
     if (exact.rz !== null) rzTok = add(rzTok, exact.rz)
   }
   for (const r of rows) {
     if (r.turn !== undefined && turnTokens.has(r.turn)) continue
+    if (r.inTok != null) inTok = add(inTok, r.inTok)
     if (r.outTok != null) outTok = add(outTok, r.outTok)
     if (r.rzTok != null) rzTok = add(rzTok, r.rzTok)
   }
-  return { rzTok, outTok }
+  return { rzTok, outTok, inTok }
 }
 
 /** Fix a settled tool's duration and verdict once its span is final. */
@@ -256,7 +266,7 @@ interface ScanResult {
    * never sees, because a failed attempt produces no assistant node to carry
    * them. Turns still running are absent and fall back to their step sums.
    */
-  turnTokens: Map<number, { out: number; rz: number | null }>
+  turnTokens: Map<number, { in: number; out: number; rz: number | null }>
 }
 
 /**
@@ -318,7 +328,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
   const unanchored: { tool: MazeTool; row: MazeNode }[] = []
   /** Every settled bar, so result excerpts are cut after the verdicts settle. */
   const settledTools: MazeTool[] = []
-  const turnTokens = new Map<number, { out: number; rz: number | null }>()
+  const turnTokens = new Map<number, { in: number; out: number; rz: number | null }>()
   let preWindow = 0
   let liveRow: MazeNode | null = null
   for (const n of nodes) {
@@ -434,6 +444,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
       const usage = n.data.tokenUsage
       if (usage !== undefined) {
         turnTokens.set(n.data.turn, {
+          in: usage.uncachedInputTokens,
           out: usage.outputTokens,
           rz: usage.reasoningTokens ?? null,
         })
@@ -604,7 +615,7 @@ export function snapshotToMazeData(
 
   const toolsCount = rows.reduce((n, r) => n + r.tools.length, 0)
   const rzCount = rows.reduce((n, r) => n + r.rz, 0)
-  const { rzTok, outTok } = laneTokens(rows, turnTokens)
+  const { rzTok, outTok, inTok } = laneTokens(rows, turnTokens)
   const T = Math.max(...rows.map(r => r.e), childEnd, 0.1)
   // Model identity: the Trajectory target assembles it from the durable
   // request/header events, which is the only place it exists — the Chat
@@ -623,7 +634,10 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
-    stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
+    stats: {
+      steps: rows.length, tools: toolsCount, rz: rzCount,
+      rzTok, outTok, inTok, T, main: main.length, detours: detours.length,
+    },
   }
 
   return { Tmax: Math.max(T, 60), lanes: [lane] }
