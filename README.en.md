@@ -107,6 +107,14 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 
 Compatibility: `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance); `2.0.0-alpha.1` was smoke-tested on upstream master `0.1.2-alpha.1` (real session against a mock LLM).
 
+> **Building the host yourself from upstream master?** Host `0.1.2` re-split its client packages and swapped the conversation snapshot model, so the two lines are not interchangeable — everything else on this page describes `1.1.x`, the line for hosts installed from npm. On `0.1.2-alpha.1` or later, install 2.x:
+>
+> ```sh
+> dsh plugin --profile web add dsh-maze@2.0.0-alpha.2
+> ```
+>
+> The 2.x code lives on the `feat/host-0.1.2-package-split` branch and is deliberately not merged into main yet: the host packages it depends on are not published to npm, so merging would leave main unbuildable from source. Once `0.1.2` ships to npm it merges into main and npm's `latest` moves with it. Background in [#7](https://github.com/lamost423/dsh-maze/issues/7).
+
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
 dsh plugin --profile web add dsh-maze

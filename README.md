@@ -107,6 +107,14 @@
 
 兼容性：`1.1.x` 已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证；`2.0.0-alpha.1` 在上游 master `0.1.2-alpha.1` 上做过实机冒烟（真会话 + mock LLM）。
 
+> **自己从上游 master 构建宿主的人看这里。** 宿主 `0.1.2` 重新拆分了客户端包、并换掉了会话快照的数据模型，两条线的插件不通用——本页其余内容对应 `1.1.x`（也就是从 npm 装宿主的那条线）。宿主是 `0.1.2-alpha.1` 及以后的，装 2.x：
+>
+> ```sh
+> dsh plugin --profile web add dsh-maze@2.0.0-alpha.2
+> ```
+>
+> 2.x 的代码在 `feat/host-0.1.2-package-split` 分支上，暂时不合进 main：拆分出来的几个宿主新包还没发到 npm，合进来会让 main 没法从源码构建。等 `0.1.2` 正式上 npm，就把它合进 main、把 npm 的 `latest` 切过去。背景见 [#7](https://github.com/lamost423/dsh-maze/issues/7)。
+
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
 dsh plugin --profile web add dsh-maze
