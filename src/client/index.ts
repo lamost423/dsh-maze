@@ -5,6 +5,10 @@
 import { createElement } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// ctx.slots is declared on Context by the renderer package: without this the
+// entry compiles only when something else in the program happens to pull the
+// augmentation in (a test file used to), and `pnpm build` over src alone fails.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
