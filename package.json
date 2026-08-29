@@ -1,6 +1,6 @@
 {
   "name": "dsh-maze",
-  "version": "1.1.0",
+  "version": "2.0.0-alpha.1",
   "description": "The execution maze for DeepSeek Harness agents: see how the agent actually worked — main path, detours and backtracks on one timeline, with data tracks, deterministic analysis, and multi-session comparison",
   "keywords": [
     "deepseek",
@@ -95,6 +95,21 @@
     "@deepseek-ai/dsh-invariants": ">=0.1.2-alpha.1 <0.2.0",
     "@deepseek-ai/dsh-session": ">=0.1.2-alpha.1 <0.2.0",
     "react": ">=18.2.0 <19"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-api-session-controller": { "optional": true },
+    "@deepseek-ai/dsh-client-locale": { "optional": true },
+    "@deepseek-ai/dsh-client-store": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-chat": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-conversation": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-layout": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-renderer": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-sidebar": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-trajectory": { "optional": true },
+    "@deepseek-ai/dsh-invariants": { "optional": true },
+    "@deepseek-ai/dsh-session": { "optional": true }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",

@@ -96,7 +96,16 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 
 ## Install
 
-Compatibility: verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance); the peer range covers `rc.6` through the current rc line and is re-verified on every new rc.
+**Check where your host came from first.** Host `0.1.2` re-split its client packages (`dsh-client-runtime` became `dsh-client-store` and friends) and swapped the conversation snapshot model, so the two lines are not interchangeable:
+
+| Your host | Version to install | Command |
+|---|---|---|
+| Installed from npm (latest published is `0.1.1-rc.2`) | dsh-maze `1.1.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
+| Built yourself from upstream master (`0.1.2-alpha.1` or later) | dsh-maze `2.x`, tag `next` | `dsh plugin --profile web add dsh-maze@next` |
+
+`0.1.2` currently lives only on the upstream master branch, and the packages it split out are not on npm yet — so `2.x` is only useful if you build the host yourself. Once `0.1.2` ships to npm, `latest` moves to `2.x` and this table collapses to one row.
+
+Compatibility: `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance); `2.0.0-alpha.1` was smoke-tested on upstream master `0.1.2-alpha.1` (real session against a mock LLM).
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8

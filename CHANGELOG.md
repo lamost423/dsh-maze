@@ -2,6 +2,20 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v2.0.0-alpha.1 — 2026-08-29
+
+**适配宿主 `0.1.2` 的客户端拆包与新会话模型。这一版只给自己从上游 master 构建宿主的人，发在 `next` 标签上；从 npm 装宿主的用户请继续用 `latest`（`1.1.x`），升上来反而会打挂。**
+
+- **包迁移**：宿主删掉了 `@deepseek-ai/dsh-client-runtime`，`defineStore` / `EngineStoreHandle` 迁到新的 `@deepseek-ai/dsh-client-store`；`ClientContext` 回到 cordis 的 `Context`，`ISessions` / `SessionFace` 归 `dsh-api-session-controller`，`SessionId` 归 `dsh-session`。`package.json` 的 `dsh.client.inject` 与 `tsdown` 的 external 同步换名——旧名字留在那里会让宿主的模块表查不到而直接抛错，这正是 [#7](https://github.com/lamost423/dsh-maze/issues/7) 的现象。
+- **实时迷宫按新节点模型重写**：`0.1.2` 把 Conversation 拆成 target 中立的快照，节点不再挂在会话快照上、聊天内容归 ui-chat 的 chat target。有序节点改从 `order` + `nodes.get(key)` 走，工具调用与结果合成一个已结算节点，进行中的步改读 `assistant-step` 的 `running` 状态，轮次锚点改用 timeline 的 turn 起点（原来靠数用户消息推断，事件窗口从半途打开时会错）。
+- **按实测修扫描**：在真宿主上冒烟发现步数和工具数会读丢（日志里 2 个步骤 1 次工具调用，界面只显示「1 steps · 0 calls」）。原因是只发工具调用的 assistant 步根本不产生 assistant-step 节点，该步由独立的 tool-call 节点代表。扫描改为按 location 的 (turn, step) 归组，谁先到谁建行。
+- **turn 级精确 token**：完成的一轮在 turn-tail 上带宿主的精确账，覆盖该轮每一次计费尝试，包括失败后被重试的那些——这些 token 没有任何 assistant 节点承载，按步累加永远看不见。已完成的轮用轮级账，仍在跑的轮回退到步累加。
+- **子会话花名册改为不导航**：上一版调 `sessions.openSubagent()` 打开子会话，实测那是个导航动作，会把用户正在看的会话直接切走。现在改成纯被动观察，只订阅子会话的 Conversation 绑定。代价是在本视图挂载前就已结束的子会话读不到历史——宿主公开契约里没有「不导航地加载子会话历史」这条路。
+- **peer 依赖标为可选**：拆分出来的新包还没发到 npm，照常规写法声明会让 pnpm 自动去装 peer 而撞上 404，谁都装不上。宿主提供的包本来就不该从 registry 装，标成可选是如实的写法。
+- 测试 48 个全绿（新增按新节点模型对齐的 fixture、以及「绝不导航」「按内容而非 openState 放行」两条契约测试）。
+
+_EN: Adapts to host `0.1.2`, which re-split the client packages and swapped the conversation model. This build is for people who build the host from upstream master themselves — it ships on the `next` tag, while npm-host users stay on `latest` (`1.1.x`), where upgrading would break them. `dsh-client-runtime` is gone: `defineStore` / `EngineStoreHandle` move to `@deepseek-ai/dsh-client-store`, `ClientContext` returns to cordis `Context`, `ISessions` to `dsh-api-session-controller`, `SessionId` to `dsh-session` — with `dsh.client.inject` and the bundler externals renamed to match (a stale name misses the host module table and throws, which is [#7](https://github.com/lamost423/dsh-maze/issues/7)). The live maze is rewritten for the target-neutral snapshot: ordered nodes via `order` + `nodes.get(key)`, settled tool nodes instead of call/result pairing, in-flight steps from `assistant-step` status, turn anchors from the timeline. Smoke-testing on a real host caught steps and tool calls being dropped — an assistant step that only makes a tool call produces no assistant-step node at all, so scanning now groups by the location's (turn, step). Completed turns now report provider-exact tokens covering every billed attempt, including failed-and-retried requests no assistant node ever carried. The subagent roster no longer calls `openSubagent()`: that turned out to be a navigation action that switched the user's current session away — it is a passive observer now. Peer deps on the not-yet-published host packages are marked optional, otherwise pnpm auto-installs them and hits a 404. 48 tests green._
+
 ## v1.1.0 — 2026-08-26
 
 **观感大版本：空间收紧 + 轨道加高 + Token 脉冲双向 + 行内图例 + 柱形定版。**

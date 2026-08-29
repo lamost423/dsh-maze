@@ -96,7 +96,16 @@
 
 ## 安装
 
-兼容性：已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证；peer 范围覆盖 `rc.6` 到当前 rc 线，且随官方每个新 rc 版本跟进复验。
+**先看你的宿主是哪来的。** 宿主 `0.1.2` 把客户端包重新拆分了一次（`dsh-client-runtime` 拆成 `dsh-client-store` 等），同时换掉了会话快照的数据模型，所以两条线的插件不通用：
+
+| 你的宿主 | 装哪个版本 | 命令 |
+|---|---|---|
+| 从 npm 装的（目前最新 `0.1.1-rc.2`） | dsh-maze `1.1.x`，`latest` 标签 | `dsh plugin --profile web add dsh-maze` |
+| 自己从上游 master 构建的（`0.1.2-alpha.1` 及以后） | dsh-maze `2.x`，`next` 标签 | `dsh plugin --profile web add dsh-maze@next` |
+
+`0.1.2` 目前只存在于上游仓库的 master 分支，拆分出来的几个新包都还没发到 npm，所以 `2.x` 暂时只对自己构建宿主的人有意义。等 `0.1.2` 正式发到 npm，`latest` 会切到 `2.x`，这张表就并成一行。
+
+兼容性：`1.1.x` 已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证；`2.0.0-alpha.1` 在上游 master `0.1.2-alpha.1` 上做过实机冒烟（真会话 + mock LLM）。
 
 ```sh
 npm install --global @deepseek-ai/dsh@0.1.0-rc.8
