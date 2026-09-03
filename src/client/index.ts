@@ -4,6 +4,7 @@
  */
 import { createElement } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // ctx.slots is declared on Context by the renderer package: without this the
 // entry compiles only when something else in the program happens to pull the
@@ -59,9 +60,14 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     locale: NS,
     store: viewStore,
   }, BoundTraceCompareSurface))
+  // Context.sessions carries two upstream declaration merges: the client face
+  // (api-session-controller/client: ISessions) and the server store dragged in
+  // transitively through dsh-workspace/types (dsh-session: SessionStore). TS
+  // binds the server one first, so the client face is asserted here; on a
+  // client host the client layer is what installs ctx.sessions.
   const BoundTraceLiveView = (props: Omit<TraceLiveViewProps, 'sessions' | 'conversations' | 'locale'>) =>
     createElement(TraceLiveView, {
-      ...props, sessions: ctx.sessions, conversations: ctx.uiConversation, locale: ctx.locale,
+      ...props, sessions: ctx.sessions as unknown as ISessions, conversations: ctx.uiConversation, locale: ctx.locale,
     })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',

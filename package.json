@@ -1,6 +1,6 @@
 {
   "name": "dsh-maze",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0",
   "description": "The execution maze for DeepSeek Harness agents: see how the agent actually worked — main path, detours and backtracks on one timeline, with data tracks, deterministic analysis, and multi-session comparison",
   "keywords": [
     "deepseek",
@@ -97,30 +97,62 @@
     "react": ">=18.2.0 <19"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-api-session-controller": { "optional": true },
-    "@deepseek-ai/dsh-client-locale": { "optional": true },
-    "@deepseek-ai/dsh-client-store": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-chat": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-conversation": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-layout": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-renderer": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-sidebar": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-trajectory": { "optional": true },
-    "@deepseek-ai/dsh-invariants": { "optional": true },
-    "@deepseek-ai/dsh-session": { "optional": true }
+    "@deepseek-ai/dsh-api-session-controller": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-store": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-chat": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-layout": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-renderer": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-sidebar": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-trajectory": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-invariants": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",
-    "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-layout": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-api-session-controller": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-store": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-chat": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-session": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-trajectory": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-invariants": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-session": "0.1.2-rc.1",
     "@types/node": "22.20.0",
     "@types/react": "18.3.28",
     "fzstd": "^0.1.1",
