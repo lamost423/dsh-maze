@@ -3075,8 +3075,12 @@ function renderMetaStrip(){
     const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
     // Token 指标刻意不含缓存重读：每次请求都全量重读缓存，累计会得出「335.9M」这类
     // 吓人且无操作意义的数——输入（未命中缓存的新读入）与输出（含推理）才是真实用量。
-    const inTot = own.some(n => n.inTok != null) ? own.reduce((s, n) => s + (n.inTok ?? 0), 0) : null
-    const outTot = own.some(n => n.outTok != null) ? own.reduce((s, n) => s + (n.outTok ?? 0), 0) : null
+    // 泳道统计里若已有轮级精确账就用它，不再自己按行累加：新宿主里「只发工具调用」
+    // 的那一步不产生 assistant 节点，它的 token 落不到任何一行上，按行加会漏掉——
+    // 这类步骤在写代码的会话里占比很高，漏的量不小，而且会和泳道标签自相矛盾。
+    const rowSum = (key) => own.some(n => n[key] != null) ? own.reduce((s, n) => s + (n[key] ?? 0), 0) : null
+    const inTot = lane.stats.inTok ?? rowSum('inTok')
+    const outTot = lane.stats.outTok ?? rowSum('outTok')
     const ctxS = own.filter(n => n.inTok != null || n.cacheTok != null)
     const peak = ctxS.length > 0 ? Math.max(...ctxS.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
     const win = peak != null ? laneWindow(lane.model, peak) : null

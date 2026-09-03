@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+// Declaration merge only: ui-chat contributes `useChat` to SessionStandardProps
+// and the `chat` row to the Conversation view-snapshot map.
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+// Declaration merge only: ui-trajectory contributes `useTrajectory`.
+import type {} from '@deepseek-ai/dsh-client-ui-trajectory/client'
+import type { ConvViewProps, UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type MazeData } from './live-data.ts'
 import { postLocaleTo } from './locale-sync.ts'
@@ -67,16 +72,24 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
  * trace-jump messages back; this component answers them by switching the
  * column to the Chat view and revealing the step's row.
  */
-export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useProjection }: TraceLiveViewProps) {
-  const snapshot = useSession(s => s)
+export function TraceLiveView({ useChat, useTrajectory, sessionId, sessions, conversations, locale, t, useProjection }: TraceLiveViewProps) {
+  // Conversation content moved off the Session snapshot in host 0.1.2; the
+  // maze reads the Chat target, which owns the ordered node stream.
+  const snapshot = useChat(s => s)
+  // Model identity rides the Trajectory target: it is assembled from the
+  // durable request/header events, which never reach the Chat nodes.
+  const requests = useTrajectory(s => s.requests)
   // One roster per (service, session); disposed with the view or on session switch.
-  const source = useMemo(() => new SubagentMazeSource(sessions, sessionId), [sessions, sessionId])
+  const source = useMemo(
+    () => new SubagentMazeSource(sessions, conversations, sessionId),
+    [sessions, conversations, sessionId],
+  )
   useEffect(() => () => { source.dispose() }, [source])
   const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
-  // 模型名走宿主投影：request/header 不是 surface 事件，永远进不了浏览器侧会话快照
-  //（快照 assistant 节点的 requestConfig 是上游从未接线的预留字段）。宿主 fork 注册的
-  // modelIdentity 投影 host 侧折叠全量日志；stock dsh 没有这个键，读到 undefined 自然降级
-  //（照 SessionFace.open 的 fork 能力探测模式）。键在 rc.6 的投影表类型之外，断言调用。
+  // 宿主 fork 注册的 modelIdentity 投影：host 侧折叠全量日志，覆盖面比浏览器侧的
+  // 事件窗口宽（窗口滚出去的早期请求头它还留着）。0.1.2 起 Trajectory target 已经
+  // 原生带模型身份，所以这条降级成兜底；stock dsh 没有这个键，读到 undefined 自然降级
+  //（照 SessionFace.open 的 fork 能力探测模式）。键在投影表类型之外，断言调用。
   const identityRaw: unknown = (useProjection as (key: string) => unknown)('modelIdentity')
   const hostModel = ((v: unknown): string | null => {
     if (v === null || typeof v !== 'object') return null
@@ -84,12 +97,12 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useP
     return typeof m === 'string' && m !== '' ? m : null
   })(identityRaw)
   const data = useMemo<MazeData | null>(() => {
-    const d = snapshotToMazeData(snapshot, children)
+    const d = snapshotToMazeData(snapshot, children, requests)
     const lane = d?.lanes[0]
-    // 快照内 requestConfig（若上游未来接线）按请求级更精确，优先；投影兜全量场景。
+    // Trajectory 的请求级身份更精确，优先；窗口外的早期请求靠 fork 投影兜。
     if (lane !== undefined && lane.model === null && hostModel !== null) lane.model = hostModel
     return d
-  }, [snapshot, children, hostModel])
+  }, [snapshot, children, requests, hostModel])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data
@@ -156,6 +169,8 @@ export function TraceLiveView({ useSession, sessionId, sessions, locale, t, useP
 export type TraceLiveViewProps = ConvViewProps & PropsLocale<'traceCompare'> & {
   /** Root sessions service; supplies the subagent child roster and projections. */
   sessions: ISessions
+  /** Per-session Conversation assembly; the roster binds each child's Chat target through it. */
+  conversations: UiConversation
   /** 宿主 locale 服务：iframe 页面文案跟随其 active 语言。 */
   locale: LocaleRuntime
 }

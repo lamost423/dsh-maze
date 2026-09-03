@@ -13,7 +13,7 @@ const EXTERNALS = [
   'react/jsx-runtime',
   '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-runtime/client',
+  '@deepseek-ai/dsh-client-store',
 ] as const
 
 function sourceAssetPath(source: string, importer: string): string {

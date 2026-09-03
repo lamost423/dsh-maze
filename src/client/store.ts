@@ -1,5 +1,5 @@
 /** Shared transient visibility state for the trigger and center surface. */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
 type TraceCompareViewState = {
   open: boolean
