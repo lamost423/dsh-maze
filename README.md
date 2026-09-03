@@ -100,15 +100,15 @@
 
 | 你的宿主 | 装哪个版本 | 命令 |
 |---|---|---|
-| 从 npm 装的（目前最新 `0.1.1-rc.2`） | dsh-maze `1.1.x`，`latest` 标签 | `dsh plugin --profile web add dsh-maze` |
-| 自己从上游 master 构建的（`0.1.2-alpha.1` 及以后） | dsh-maze `2.x`，`next` 标签 | `dsh plugin --profile web add dsh-maze@next` |
+| `0.1.2` 线——DSH Desktop 2.x、npm 的 `@deepseek-ai/dsh@next`（`0.1.2-rc.1`）、或自建 master | dsh-maze `2.x`，`latest` 标签 | `dsh plugin --profile web add dsh-maze` |
+| 老宿主——npm `latest`（`0.1.0-rc.6` ~ `0.1.1-rc.2`） | dsh-maze `1.1.0`，手动钉版本 | `dsh plugin --profile web add dsh-maze@1.1.0` |
 
-`0.1.2` 目前只存在于上游仓库的 master 分支，拆分出来的几个新包都还没发到 npm，所以 `2.x` 暂时只对自己构建宿主的人有意义。等 `0.1.2` 正式发到 npm，`latest` 会切到 `2.x`，这张表就并成一行。
+宿主 `0.1.2-rc.1` 与拆分出的客户端包已发到 npm（`next` 标签），所以从 v2.0.0 起 `latest` 归 `2.x`；还在老宿主上的人钉住 `1.1.0` 即可。等宿主的 `latest` 也切到 `0.1.2`，这张表就并成一行。
 
-兼容性：`1.1.x` 已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证；`2.0.0-alpha.2` 在上游 master `0.1.2-alpha.1` 上做过实机验收——从 npm 装包、真会话跑通、界面数字与宿主自己的统计逐项对账。
+兼容性：`2.0.0` 对着 npm 的 `0.1.2-rc.1` 全家桶构建，类型检查与 49 个测试全绿；实机验收在 `2.0.0-alpha.2` × 上游 master `0.1.2-alpha.1` 上做过——从 npm 装包、真会话跑通、界面数字与宿主自己的统计逐项对账。`1.1.x` 已对官方 `0.1.0-rc.6`（构建 + 全量测试）与 `rc.8`（插槽/类型核对 + 实机验收）验证。
 
 ```sh
-npm install --global @deepseek-ai/dsh@0.1.0-rc.8
+npm install --global @deepseek-ai/dsh@next
 dsh plugin --profile web add dsh-maze
 dsh web
 ```

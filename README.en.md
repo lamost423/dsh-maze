@@ -100,15 +100,15 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 
 | Your host | Version to install | Command |
 |---|---|---|
-| Installed from npm (latest published is `0.1.1-rc.2`) | dsh-maze `1.1.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
-| Built yourself from upstream master (`0.1.2-alpha.1` or later) | dsh-maze `2.x`, tag `next` | `dsh plugin --profile web add dsh-maze@next` |
+| The `0.1.2` line — DSH Desktop 2.x, npm's `@deepseek-ai/dsh@next` (`0.1.2-rc.1`), or self-built master | dsh-maze `2.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
+| Older hosts — npm `latest` (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.0`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.0` |
 
-`0.1.2` currently lives only on the upstream master branch, and the packages it split out are not on npm yet — so `2.x` is only useful if you build the host yourself. Once `0.1.2` ships to npm, `latest` moves to `2.x` and this table collapses to one row.
+Host `0.1.2-rc.1` and its split-out client packages are on npm now (tag `next`), so as of v2.0.0 `latest` belongs to `2.x`; anyone still on an older host just pins `1.1.0`. Once the host's own `latest` moves to `0.1.2`, this table collapses to one row.
 
-Compatibility: `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance); `2.0.0-alpha.2` was accepted on upstream master `0.1.2-alpha.1` — installed from npm, driven through a real session, with every on-screen number reconciled against the host's own accounting.
+Compatibility: `2.0.0` builds against the npm `0.1.2-rc.1` package set, with typecheck and all 49 tests green; live acceptance was done as `2.0.0-alpha.2` × upstream master `0.1.2-alpha.1` — installed from npm, driven through a real session, with every on-screen number reconciled against the host's own accounting. `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance).
 
 ```sh
-npm install --global @deepseek-ai/dsh@0.1.0-rc.8
+npm install --global @deepseek-ai/dsh@next
 dsh plugin --profile web add dsh-maze
 dsh web
 ```

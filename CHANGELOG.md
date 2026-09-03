@@ -2,6 +2,18 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v2.0.0 — 2026-09-03
+
+**2.x 转正：`latest` 从 1.1.0 切到 2.0.0，修复新宿主上插件加载失败（[#10](https://github.com/lamost423/dsh-maze/issues/10)）。**
+
+- **为什么现在转正**：npm `latest`（1.1.0）的产物 require 已被宿主 `0.1.2` 移出模块表的 `@deepseek-ai/dsh-client-runtime`，在 DSH Desktop 2.0.4（内核 `0.1.2-alpha.1`）上迷宫入口直接抛错——普通用户按文档默认安装装到的就是坏的（#10）。上游宿主 `@deepseek-ai/dsh@0.1.2-rc.1` 与拆分出的客户端包本周发到了 npm（`next` 标签），2.x 第一次可以对着正式发布的宿主构建发版（[#7](https://github.com/lamost423/dsh-maze/issues/7) 一直在等的前提）。
+- **构建基座换轨**：devDependencies 从自建宿主软链换成 npm 的 `0.1.2-rc.1` 包组；补齐源码 type-import 到但此前没声明的包（api-session-controller、ui-chat、ui-renderer、ui-trajectory、ui-session、session、store）。
+- **适配 rc.1 类型**：`sessionId` / `useProjection` / `useSessions` 这些槽位标准 props 的声明合并在 rc.1 里归 `dsh-client-ui-session`，装进 devDependencies 后即解；`Context.sessions` 存在两份声明合并（客户端 `ISessions`，以及经 `dsh-workspace/types` 间接拖进来的服务端 `SessionStore`），TS 绑了服务端那份，在唯一使用点显式断言客户端面。
+- **兼容代价**：还在老宿主（npm `latest`，`0.1.0-rc.6` ~ `0.1.1-rc.2`）上的用户，装插件时手动钉 `dsh plugin add dsh-maze@1.1.0`；README 安装表已随之翻面。
+- 功能与 `2.0.0-alpha.2` 一致。typecheck + 49 测试 + 构建全绿；产物 require 审计：只剩 `dsh-client-store` / `dsh-client-ui-primitives` / `react`，旧包名零残留。
+
+_EN: Promotes the 2.x line: `latest` moves from 1.1.0 to 2.0.0, fixing the plugin failing to load on new hosts ([#10](https://github.com/lamost423/dsh-maze/issues/10)). The 1.1.0 bundle requires `@deepseek-ai/dsh-client-runtime`, which host `0.1.2` removed from its module table, so on DSH Desktop 2.0.4 (kernel `0.1.2-alpha.1`) the maze entry threw on load — and the documented default install handed exactly that to ordinary users. With host `@deepseek-ai/dsh@0.1.2-rc.1` and its split-out client packages now on npm (tag `next` — the precondition [#7](https://github.com/lamost423/dsh-maze/issues/7) was waiting for), 2.x can finally build and release against a published host. The build base switches from self-built host symlinks to the npm `0.1.2-rc.1` package set, declaring every package the source actually type-imports. Two rc.1 type adaptations: the slot standard props (`sessionId` / `useProjection` / `useSessions`) are declaration-merged by `dsh-client-ui-session`, now a devDependency; and `Context.sessions` carries two competing merges (client `ISessions` vs the server `SessionStore` dragged in via `dsh-workspace/types`), so the single use site asserts the client face. Users still on older hosts (`0.1.0-rc.6` ~ `0.1.1-rc.2`) pin `dsh-maze@1.1.0`. Functionally identical to `2.0.0-alpha.2`; typecheck + 49 tests + build green, and the bundle require audit shows only `dsh-client-store` / `dsh-client-ui-primitives` / `react` — zero traces of the old package name._
+
 ## v2.0.0-alpha.2 — 2026-08-29
 
 **修 alpha.1 实机验收查出的一处数字打架：实时视图头部的 Token 总数少算。**
