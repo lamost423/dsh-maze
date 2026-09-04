@@ -46,8 +46,8 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const t = ctx.locale.bind(NS)
   const viewStore = createTraceCompareViewStore()
   // The sidebar entry is switchable (#11: live-tab-only users never need it).
-  // The host has no config channel into a static client plugin, so the switch
-  // lives on our settings page below and persists per browser; slots.inject's
+  // The switch lives on our settings page below and persists per browser (see
+  // settings.ts for why not the Host settings document); slots.inject's
   // idempotent disposer makes the flip immediate — no reload.
   const mountSidebarEntry = () => ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
@@ -62,8 +62,11 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     if (wanted && disposeSidebarEntry === undefined) {
       disposeSidebarEntry = mountSidebarEntry()
     } else if (!wanted && disposeSidebarEntry !== undefined) {
-      disposeSidebarEntry()
+      // Clear the bookkeeping first: a throwing disposer must not wedge the
+      // entry in a "mounted" state it can never leave.
+      const dispose = disposeSidebarEntry
       disposeSidebarEntry = undefined
+      dispose()
     }
   }), 'ui-trace-compare: sidebar entry switch')
   // Absent settings shell (a host without ui-settings) leaves this waiting

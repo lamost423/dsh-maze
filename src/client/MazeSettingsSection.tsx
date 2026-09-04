@@ -5,7 +5,7 @@ import css from './MazeSettingsSection.module.css'
 
 /** Settings page ("设置 → 执行迷宫"): per-browser preferences for the maze surfaces. */
 export function MazeSettingsSection({ t }: MazeSettingsSectionProps) {
-  const settings = useSyncExternalStore(subscribeMazeSettings, getMazeSettings)
+  const settings = useSyncExternalStore(subscribeMazeSettings, getMazeSettings, getMazeSettings)
   return (
     <div className={css.section}>
       <h2 className={css.heading}>{t('title')}</h2>
