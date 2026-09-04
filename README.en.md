@@ -68,6 +68,7 @@ Two entries: the **Live Maze** tab inside every session (grows with the running 
 - **Export**: one click saves the current view (zoom window and filter dimming included) as SVG or 2x PNG with styles inlined; **exports are always light-background** regardless of the page's current theme (built for sharing).
 - **Bilingual UI** (since v0.5.0): the whole page (upload area, legend, lane stats, alignment lines, detour inventory, hover cards, detail panel, errors) ships in Chinese and English, live-follows the dsh host's language setting when embedded, and falls back to the browser language when opened standalone; verdict rationales are structured keys rendered in the current language, so switching languages needs no re-upload.
 - **Theme following** (since v0.3.1): the page tracks the host dsh light/dark theme (the host components watch `body[data-ds-dark-theme]` and postMessage into the iframe); standalone opens follow the system preference.
+- **Settings toggle** (since v2.1.0): "Settings → Maze" can hide the sidebar entry — live-tab-only users can drop the persistent button; the flip applies immediately with no reload, persists per browser, and never affects the Live Maze tab or an open maze page.
 - **Compact header** (since v0.3.1): once data renders, the intro text hides, the upload zone collapses to a slim strip, the per-lane stat cards hide (the same info lives in the lane bands), and the legend fits one row — the maze gets nearly the whole viewport.
 - Playback replays the whole run at up to 300×.
 

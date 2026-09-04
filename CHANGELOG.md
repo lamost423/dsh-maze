@@ -2,6 +2,18 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## v2.1.0 — 2026-09-04
+
+**新增设置页开关：可隐藏侧边栏入口（[#11](https://github.com/lamost423/dsh-maze/issues/11)）。**
+
+- **需求来源**：只用「实时迷宫」页签的用户用不上侧边栏底部的常驻入口（窄栏模式下占一个独立图标位），此前只能本地改包删掉那段注册。
+- **实现**：设置面板新增「Maze」一节（`settings.section` 槽位，生态先例 better-sidebar 同款），内含「侧边栏入口」开关，默认开、不改任何人的现有习惯。关闭即时生效——`slots.inject` 的幂等销毁器当场摘除注册，无需刷新；重开同理。「实时迷宫」页签与已打开的迷宫页不受开关影响。
+- **持久化**：存 localStorage（`dsh-maze:v1:settings`），按浏览器保存——宿主没有把 patch 层配置送进浏览器端静态插件的通道，这也是 better-sidebar 的既有做法。存储被禁/损坏时按默认值运行，开关在页面存续期内仍可用。
+- **兼容**：`@deepseek-ai/dsh-client-ui-settings` 仅作类型依赖（可选 peer），产物 require 零新增；宿主没有设置壳时该节静默不渲染，默认行为不变。
+- 实机验收于全新 `@deepseek-ai/dsh@0.1.2-rc.1` 宿主：加载零报错、开关双向即时生效、刷新后状态保持。测试 55 个全绿（新增 6 个覆盖设置存取：默认值/损坏 JSON/存储抛错/订阅通知）。
+
+_EN: Adds a settings toggle to hide the sidebar entry ([#11](https://github.com/lamost423/dsh-maze/issues/11)). Live-tab-only users never needed the persistent footer button (a full icon slot in rail mode) and previously had to patch the installed package locally. The settings panel now carries a "Maze" section (the `settings.section` slot, same seat better-sidebar uses) with a "Sidebar entry" switch — default on, so nobody's habits change. Flipping it takes effect immediately in both directions via the slot registration's idempotent disposer, no reload; the Live Maze tab and an open maze page are unaffected. The preference persists per browser in localStorage (`dsh-maze:v1:settings`) — the host has no channel that carries patch-layer config into a static client plugin's browser half, and the ecosystem precedent does the same; blocked or corrupted storage falls back to defaults with the switch still working for the page's lifetime. `@deepseek-ai/dsh-client-ui-settings` is a type-only optional peer, so the bundle's requires are unchanged, and on hosts without the settings shell the section silently never renders. Accepted live on a fresh `@deepseek-ai/dsh@0.1.2-rc.1` host: clean load, immediate two-way flips, state surviving reload. 55 tests green (6 new covering the settings facade: defaults, corrupted JSON, throwing storage, subscription)._
+
 ## v2.0.0 — 2026-09-03
 
 **2.x 转正：`latest` 从 1.1.0 切到 2.0.0，修复新宿主上插件加载失败（[#10](https://github.com/lamost423/dsh-maze/issues/10)）。**

@@ -13,6 +13,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Declares the 'settings.section' SlotMap key (the host settings shell's seat).
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import { MazeSettingsSection } from './MazeSettingsSection.tsx'
+import { getMazeSettings, subscribeMazeSettings } from './settings.ts'
 import { TraceCompareTrigger } from './TraceCompareTrigger.tsx'
 import { TraceCompareSurface, type TraceCompareSurfaceProps } from './TraceCompareSurface.tsx'
 import { TraceLiveView, type TraceLiveViewProps } from './TraceLiveView.tsx'
@@ -41,13 +45,36 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-trace-compare: dictionaries')
   const t = ctx.locale.bind(NS)
   const viewStore = createTraceCompareViewStore()
-  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+  // The sidebar entry is switchable (#11: live-tab-only users never need it).
+  // The host has no config channel into a static client plugin, so the switch
+  // lives on our settings page below and persists per browser; slots.inject's
+  // idempotent disposer makes the flip immediate — no reload.
+  const mountSidebarEntry = () => ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'trace-compare',
     order: 10,
     locale: NS,
     store: viewStore,
   }, TraceCompareTrigger))
+  let disposeSidebarEntry = getMazeSettings().sidebarEntry ? mountSidebarEntry() : undefined
+  ctx.effect(() => subscribeMazeSettings(() => {
+    const wanted = getMazeSettings().sidebarEntry
+    if (wanted && disposeSidebarEntry === undefined) {
+      disposeSidebarEntry = mountSidebarEntry()
+    } else if (!wanted && disposeSidebarEntry !== undefined) {
+      disposeSidebarEntry()
+      disposeSidebarEntry = undefined
+    }
+  }), 'ui-trace-compare: sidebar entry switch')
+  // Absent settings shell (a host without ui-settings) leaves this waiting
+  // forever — the switch is then unreachable but the default keeps the entry.
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'dsh-maze',
+    order: 50,
+    locale: NS,
+    label: () => t('title'),
+  }, MazeSettingsSection))
   // Service dependencies ride closure components: the slot kit owns the
   // per-slot props while the plugin owns its service dependencies (sessions,
   // and the locale runtime the iframe pages follow for their copy).

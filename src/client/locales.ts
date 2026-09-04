@@ -10,6 +10,8 @@ export const zh = {
   'view.live': '实时迷宫',
   'surface.close': '关闭（Esc）',
   'live.empty': '会话还没有可可视化的执行轨迹',
+  'settings.sidebarEntry': '侧边栏入口',
+  'settings.sidebarEntry.hint': '在侧边栏底部显示「执行迷宫」入口。关闭后「实时迷宫」页签不受影响。此开关按浏览器保存。',
 } satisfies Record<string, string>
 
 /** Trace Compare locale key union. */
@@ -25,4 +27,6 @@ export const en = {
   'view.live': 'Live Maze',
   'surface.close': 'Close (Esc)',
   'live.empty': 'No execution trace to visualize in this session yet',
+  'settings.sidebarEntry': 'Sidebar entry',
+  'settings.sidebarEntry.hint': 'Show the Maze entry at the bottom of the sidebar. The Live Maze tab is not affected. Saved per browser.',
 } satisfies Record<TraceCompareKey, string>

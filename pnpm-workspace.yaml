@@ -29,3 +29,4 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-util-values@0.1.2-rc.1'
   - '@deepseek-ai/dsh-util-workspace-path@0.1.2-rc.1'
   - '@deepseek-ai/dsh-client-ui-session@0.1.2-rc.1'
+  - '@deepseek-ai/dsh-client-ui-settings@0.1.2-rc.1'
