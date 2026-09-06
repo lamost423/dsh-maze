@@ -74,11 +74,98 @@ export declare function argSimilarity(a: string, b: string): number
  */
 export declare function markRetryClusters(calls: { name: string; args: string; v: string; why?: VerdictWhy; why2?: VerdictWhy }[]): number
 
-/** 分析层常量（失败恢复窗口 / 原样重试相似度门槛）。 */
+/** 分析层常量（失败恢复窗口 / 原样重试相似度门槛 / 结果与证据的命令正则清单）。 */
 export declare const ANALYSIS_RULES: {
   RECOVERY_WINDOW: number
   IDENTICAL_SIMILARITY: number
+  SHELL_TOOLS: string[]
+  CODE_TOOLS: string[]
+  ARTIFACT_TOOLS: string[]
+  TURN_END_INCOMPLETE: string[]
+  VALIDATION: { test: RegExp[]; build: RegExp[]; lint: RegExp[] }
+  VALIDATION_SPLIT: RegExp
+  VALIDATION_WRAP: RegExp
+  EXIT_CODE: RegExp
 }
+
+/* ---- 结果与证据（诊断层第 1 项） ---- */
+
+/** 验证类别。 */
+export type ValidationKind = 'test' | 'build' | 'lint'
+
+/** 一次 shell 类调用的命令文本（参数可为原始 JSON 串或摘要串）；参数里没有命令时 null。 */
+export declare function commandOf(args: unknown): string | null
+
+/** 一条命令里命中各验证类别的片段（归一去重）；「同一条命令取最后一次」按片段算，不按整行 bash。 */
+export declare function validationHits(command: string | null | undefined): Record<ValidationKind, string[]>
+
+/** 一条命令命中的验证类别（固定序 test → build → lint 的子集）；只看命令位置。 */
+export declare function detectValidationKinds(command: string | null | undefined): ValidationKind[]
+
+/** 返回文本末行的退出码；没有则 null。传未压空白的原文。 */
+export declare function exitCodeOf(text: string | null | undefined): number | null
+
+/** 验证类调用是否通过：isError 为假且末行没有非零退出码（tl.exit 缺席时回退扫 resFull/res）。 */
+export declare function validationPassed(tl: { err?: boolean; exit?: number | null; resFull?: string; res?: string }): boolean
+
+/** 写入/编辑类调用触及的文件路径（补丁可多条）；识别不出时空数组。 */
+export declare function artifactPaths(name: string, args: unknown): string[]
+
+/** 结果与证据里一格验证类别的结论。 */
+export interface ValidationCell<C> {
+  /** 该类命令的运行次数。 */
+  runs: number
+  /** 不同命令条数（空白归一后比较）。 */
+  commands: number
+  /** 最后一次运行失败的命令条数。 */
+  failedCommands: number
+  /** 没跑过为 null；否则每条不同命令的最后一次都通过才 true。 */
+  passed: boolean | null
+  /** 决定性的那次调用：最后一次失败，否则最后一次运行；没跑过为 null。 */
+  anchor: C | null
+  anchorCmd: string | null
+  anchorExit: number | null
+}
+
+/** outcomeEvidence 输入的泳道形状（页面与实时的 lane 都满足）。 */
+export interface OutcomeLane<N> extends AnalysisLane<N> {
+  turnEnds?: readonly { turn?: number; kind: string; s: number }[]
+  userMsgs?: readonly { s: number }[]
+}
+
+/** 结果与证据六格 + 综合。 */
+export interface OutcomeEvidence<N, T> {
+  task: {
+    /** done = 最后一轮正常收尾且有最终回答；failed = 以 error/aborted/interrupted/blocked 收尾；noAnswer = 收尾但最后一步不是回答；unfinished = 最后一轮没有结束事件；running = 实时链路仍在跑。 */
+    state: 'done' | 'failed' | 'noAnswer' | 'unfinished' | 'running'
+    turn: number | null
+    /** 最后一轮 turn/end 的 reason.kind；没有时 null。 */
+    reason: string | null
+    answer: N | null
+  }
+  test: ValidationCell<{ tl: T; n: N }>
+  build: ValidationCell<{ tl: T; n: N }>
+  lint: ValidationCell<{ tl: T; n: N }>
+  artifacts: { paths: string[]; writes: number; failedWrites: number }
+  /** responded 为 null = 没有最终回答可供回应。 */
+  human: { responded: boolean | null; answerAt: number | null }
+  overall: 'done' | 'partial' | 'unverified'
+  failedKinds: ValidationKind[]
+  missing: ValidationKind[]
+  anyValidation: boolean
+  /** code 模式外层调用次数（>0 时脚本内部派发的真实命令未被识别）。 */
+  codeCalls: number
+}
+
+/**
+ * 结果与证据：对已判定泳道数据的确定性聚合（口径见实现注释）。
+ * @param lane 泳道（turnEnds/userMsgs 为墙钟秒，不随空闲折叠变）
+ * @param wall 节点坐标 → 墙钟秒；页面折叠过时间轴时传 wallClock，否则可省略
+ */
+export declare function outcomeEvidence<
+  N extends { sub?: unknown; evt?: unknown; live?: unknown; turn?: number; s: number; e: number; v: string; tools?: readonly T[] },
+  T extends { name: string; args?: unknown; s?: number | null; e?: number | null; v: string; err?: boolean; exit?: number | null; resFull?: string; res?: string },
+>(lane: OutcomeLane<N>, wall?: (t: number) => number): OutcomeEvidence<N, T>
 
 /** analyzeFailureChains 的单条结论：一个失败调用之后发生了什么。 */
 export interface FailureChain {
