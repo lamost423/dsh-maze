@@ -506,8 +506,9 @@ const I18N = {
     },
     ocPass: '通过', ocFail: '最后一次失败', ocNotRun: '没有跑',
     ocRuns: (runs, cmds) => `${runs} 次运行 · ${cmds} 条命令`,
-    ocFailedCmds: n => `，${n} 条最后一次失败`,
+    ocFailedCmds: n => `，此前 ${n} 条命令的最后一次失败`,
     ocExit: code => `退出码 ${code}`,
+    ocBgUnresolved: n => `后台任务未取到退出码 ×${n}`,
     ocArtifactsN: n => `${n} 个文件`, ocArtifactsNone: '没有写入/编辑文件',
     ocWrites: (w, f) => `${w} 次成功写入${f > 0 ? ` · ${f} 次写入失败` : ''}`,
     ocPathsToggle: '文件列表',
@@ -518,7 +519,7 @@ const I18N = {
       unverified: '本场没有跑测试/构建/Lint，结果未经验证',
     },
     ocReason: { task: '任务没有正常结束', test: '测试最后一次失败', build: '构建最后一次失败', lint: 'Lint 最后一次失败' },
-    ocHint: '口径：测试/构建/Lint 按命令正则在命令位置识别（初版覆盖 JS/TS、Python、Rust、Go、Swift；npm/pnpm/yarn 的 check 脚本按测试计），一条命令命中多类分别记；通过 = 该调用没有错误标志、返回末行没有非零退出码；同一条命令多次执行取最后一次。产物 = 写入/编辑类调用成功触及的文件（去重）。任务完成 = 最后一轮的 turn/end 不是 error/aborted/interrupted/blocked，且最后一步是回答。人工确认只看最终回答之后有没有真人消息，不解读内容。「未验证」是中性的，不当失败。点测试/构建/Lint 格定位到决定性的那次命令（最后一次失败，否则最后一次运行）。',
+    ocHint: '口径：测试/构建/Lint 按命令正则在命令位置识别（初版覆盖 JS/TS、Python、Rust、Go、Swift；npm/pnpm/yarn 的 check 脚本按测试计），一条命令命中多类分别记；通过 = 该调用没有错误标志、返回末行没有非零退出码；后台任务按之后 job_output 末行的退出码计，取不到就不计并标注；每个类别以最后一次运行的结果为准，此前别的命令最后一次失败的条数小字注明。产物 = 写入/编辑类调用成功触及的文件（去重）。任务完成 = 最后一轮的 turn/end 不是 error/aborted/interrupted/blocked，且最后一步是回答。人工确认只看最终回答之后有没有真人消息，不解读内容。「未验证」是中性的，不当失败。点测试/构建/Lint 格定位到最后一次运行所在的那一步并打开该步详情。',
     ocCode: n => `code 模式会话（run_code ×${n}）：脚本内部派发的真实工具调用暂不识别，以上各格只统计直接调用。`,
     subPrefix: '子代理 ', subBranch: '子代理支路', detBranch: '探索支路',
     evtRetry: '请求失败重试', evtTurnError: '请求终局失败',
@@ -660,8 +661,9 @@ const I18N = {
     },
     ocPass: 'passed', ocFail: 'last run failed', ocNotRun: 'not run',
     ocRuns: (runs, cmds) => `${runs} runs · ${cmds} commands`,
-    ocFailedCmds: n => `, ${n} failing on their last run`,
+    ocFailedCmds: n => `, ${n} earlier command${n > 1 ? 's' : ''} failed on their last run`,
     ocExit: code => `exit code ${code}`,
+    ocBgUnresolved: n => `background job without an exit code ×${n}`,
     ocArtifactsN: n => `${n} files`, ocArtifactsNone: 'no files written or edited',
     ocWrites: (w, f) => `${w} successful writes${f > 0 ? ` · ${f} failed` : ''}`,
     ocPathsToggle: 'file list',
@@ -672,7 +674,7 @@ const I18N = {
       unverified: 'no tests, build or lint were run — the result is unverified',
     },
     ocReason: { task: 'the task did not finish normally', test: 'tests failed on their last run', build: 'the build failed on its last run', lint: 'lint failed on its last run' },
-    ocHint: 'Method: tests/build/lint are recognized by command-position regexes (JS/TS, Python, Rust, Go, Swift in this first cut; an npm/pnpm/yarn `check` script counts as tests); one command can count for several kinds. Passed = the call carried no error flag and the last line of its output has no non-zero exit code; a command run several times counts by its last run. Artifacts = files touched by successful write/edit calls, deduplicated. Task done = the last turn/end is not error/aborted/interrupted/blocked and the last step is an answer. Human check only asks whether a human message followed the final answer — content is never interpreted. "Unverified" is neutral, not a failure. Click the tests/build/lint cell to jump to the decisive command (the last failing run, otherwise the last run).',
+    ocHint: 'Method: tests/build/lint are recognized by command-position regexes (JS/TS, Python, Rust, Go, Swift in this first cut; an npm/pnpm/yarn `check` script counts as tests); one command can count for several kinds. Passed = the call carried no error flag and the last line of its output has no non-zero exit code; a background job counts by the exit code on its later job_output last line, and is left out (and noted) when none arrives; each category is judged by its last run, with earlier commands that failed on their last run noted in small print. Artifacts = files touched by successful write/edit calls, deduplicated. Task done = the last turn/end is not error/aborted/interrupted/blocked and the last step is an answer. Human check only asks whether a human message followed the final answer — content is never interpreted. "Unverified" is neutral, not a failure. Click the tests/build/lint cell to locate the step of the last run and open that step\'s details.',
     ocCode: n => `Code-mode session (run_code ×${n}): the real tool calls dispatched inside the script are not recognized yet; the cells above count direct calls only.`,
     subPrefix: 'Subagent ', subBranch: 'Subagent branch', detBranch: 'Exploration detour',
     evtRetry: 'Request retry', evtTurnError: 'Request failed for good',
@@ -2394,7 +2396,10 @@ function outcomeBlockHtml(lane){
     const ai = g.anchor ? anaRefs.push({ node: g.anchor.n, laneKey: lane.key }) - 1 : null
     const status = g.passed === null ? tr('ocNotRun') : g.passed ? '✓ ' + tr('ocPass') : '✗ ' + tr('ocFail')
     const cls = g.passed === null ? 'none' : g.passed ? 'pass' : 'fail'
-    const meta = g.runs === 0 ? '' : esc(tr('ocRuns')(g.runs, g.commands) + (g.failedCommands > 0 ? tr('ocFailedCmds')(g.failedCommands) : ''))
+    // 类别以最后一次运行为准；此前别的命令最后一次失败的条数小字注明（最后一次失败时它本身也在其中，减掉）
+    const prior = g.passed === false ? g.failedCommands - 1 : g.failedCommands
+    const meta = esc((g.runs === 0 ? '' : tr('ocRuns')(g.runs, g.commands) + (prior > 0 ? tr('ocFailedCmds')(prior) : ''))
+      + (g.unresolved > 0 ? (g.runs === 0 ? '' : ' · ') + tr('ocBgUnresolved')(g.unresolved) : ''))
     const cmdTxt = g.anchorCmd ? g.anchorCmd.replace(/\s+/g, ' ').trim() : ''
     const cmd = cmdTxt ? `<div class="om cmd" title="${esc(cmdTxt.slice(0, 400))}">${esc(cmdTxt.slice(0, 80))}${g.anchorExit != null && g.anchorExit !== 0 ? ` · ${esc(tr('ocExit')(g.anchorExit))}` : ''}</div>` : ''
     cells += cell(k, cls, status, meta, cmd, ai)

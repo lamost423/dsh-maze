@@ -183,12 +183,20 @@ export const ANALYSIS_RULES = {
    * 但 `-c` / `-lc` 之后的那段是要执行的脚本，保留内容（`bash -lc "go test ./..."`）。
    */
   QUOTED: /(-[A-Za-z]*c\s+)?(?:"((?:[^"\\]|\\[\s\S])*)"|'([^']*)')/g,
-  /** 命令位置前可剥掉的包装（循环剥到不变为止）；`bash -lc` 这类壳也在内，Codex 的数组形式命令走它。 */
-  VALIDATION_WRAP: /^(?:[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|\S*)\s+|(?:time|sudo|nice|nohup|env|command|exec|builtin|do|then|else|if|elif|while|until|timeout\s+\S+|poetry\s+run|uv\s+run|pipenv\s+run|hatch\s+run|pdm\s+run|conda\s+run|(?:bash|sh|zsh|dash)\s+-[A-Za-z]*c)\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*)/,
-  /** 退出码只认返回文本的**末行**：dsh 的 bash 工具在末尾追加 `[exit code: N]`（仅非零），
-   *  后台任务 job_output 末行是 `[status: completed, exit code: N]`；正文中间引用别的日志里的
-   *  "exit code: 1"（如 docker 构建输出被 head 出来）不算本次命令失败——2026-09-06 真实日志核对。 */
-  EXIT_CODE: /\bexit[ _]code[:=]?\s*(\d+)\)?\]?\.?\s*$/i,
+  /** 命令位置前可剥掉的包装（循环剥到不变为止）；`bash -lc` 这类壳也在内，Codex 的数组形式命令走它。
+   *  `command` 刻意不在内：`command -v pytest` 是探测有没有装，不是跑测试（评审 P2-2）。 */
+  VALIDATION_WRAP: /^(?:[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|\S*)\s+|(?:time|sudo|nice|nohup|env|exec|builtin|do|then|else|if|elif|while|until|timeout\s+\S+|poetry\s+run|uv\s+run|pipenv\s+run|hatch\s+run|pdm\s+run|conda\s+run|(?:bash|sh|zsh|dash)\s+-[A-Za-z]*c)\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*)/,
+  /** 命中片段的参数只剩这些旗标时是探测（`pytest --version`、`go test -h`、`cargo test --help`），不算跑了验证。 */
+  PROBE_FLAGS: /^(?:--version|-V|--help|-h)$/,
+  /** bash 带 run_in_background 时结果只有这一句；真正的退出码在后面 job_output 的末行，按 job id 关联（评审 P2-1）。 */
+  BACKGROUND_JOB: /^started background job (\S+)/i,
+  /** 后台任务读取工具：参数里的 job_id 关联回起任务的那次 shell 调用。 */
+  JOB_TOOLS: ['job_output'],
+  /** 退出码只认返回文本的**末行**，且必须在行首、`[` 之后或逗号之后：dsh 的 bash 工具在末尾追加
+   *  `[exit code: N]`（仅非零），后台任务 job_output 末行是 `[status: completed, exit code: N]`；
+   *  正文中间引用别的日志里的 "exit code: 1"（如 docker 构建输出被 head 出来）、末行的
+   *  "expected exit code: 1"（评审 P3-7）都不算本次命令的退出码——2026-09-06 真实日志核对。 */
+  EXIT_CODE: /(?:^|\[|,\s*)exit[ _]code[:=]?\s*(\d+)\)?\]?\.?\s*$/i,
 }
 
 /**
@@ -381,24 +389,54 @@ export function commandOf(args){
   return null
 }
 
-/** 命令拆成 shell 片段并剥掉命令位置前的包装（见 VALIDATION_WRAP）；heredoc 正文与引号串内容先抹掉。 */
+/**
+ * 命令拆成 shell 片段并剥掉命令位置前的包装（见 VALIDATION_WRAP）。每个片段给两份：
+ *   m   = 抹掉 heredoc 正文、引号串内容换成等长下划线（`-c "…"` 的脚本体保留）——只用于正则匹配；
+ *   raw = 同一片段的原文（heredoc 正文同样抹掉）——归一 key 用它，`pytest -k "a"` 和 `pytest -k "b"`
+ *         不会碰成一条（评审 P2-3）。等长替换保证两份文本的切分位置一致。
+ */
 function commandSegments(command){
   const out = []
-  const text = String(command ?? '')
-    .replace(ANALYSIS_RULES.HEREDOC, (m, q, tag) => '<<' + tag)
-    .replace(ANALYSIS_RULES.QUOTED, (m, c, dq, sq) => c !== undefined ? c + (dq ?? sq ?? '') : '""')
-  for (const raw of text.split(ANALYSIS_RULES.VALIDATION_SPLIT)){
-    let s = raw.replace(/^[\s({!]+/, '').trimEnd()
+  const raw = String(command ?? '').replace(ANALYSIS_RULES.HEREDOC, (m, q, tag) => '<<' + tag)
+  const blank = raw.replace(ANALYSIS_RULES.QUOTED, (m, c) => c !== undefined ? m : m[0] + '_'.repeat(m.length - 2) + m[m.length - 1])
+  const split = new RegExp(ANALYSIS_RULES.VALIDATION_SPLIT.source, 'g')
+  const spans = []
+  let pos = 0, mm
+  while ((mm = split.exec(blank)) !== null){
+    spans.push([pos, mm.index])
+    pos = mm.index + mm[0].length
+    if (mm[0] === '') split.lastIndex += 1
+  }
+  spans.push([pos, blank.length])
+  for (const [a, b] of spans){
+    const m0 = blank.slice(a, b).trimEnd()
+    let m = m0
     let prev
-    do { prev = s; s = s.replace(ANALYSIS_RULES.VALIDATION_WRAP, '') } while (s !== prev)
-    if (s !== '') out.push(s)
+    do {
+      prev = m
+      m = m.replace(/^[\s({!"']+/, '').replace(ANALYSIS_RULES.VALIDATION_WRAP, '')
+    } while (m !== prev)
+    const r = raw.slice(a, b).slice(m0.length - m.length, m0.length)
+    // 匹配副本再去掉尾引号（`sh -c 'cargo clippy'` 的脚本体收尾）；原文副本保留引号，归一时只去不成对的那个
+    m = m.replace(/["']+$/, '')
+    if (m !== '') out.push({ m, raw: r })
   }
   return out
 }
 
-/** 片段归一：去掉重定向与多余空白——`sh x_test.sh >/dev/null 2>&1` 和 `sh x_test.sh` 是同一条命令。 */
+/** 探测命令：命令词之外只剩 --version / -V / --help / -h（评审 P2-2）。 */
+function isProbe(seg){
+  const rest = seg.split(/\s+/).slice(1)
+    .filter(t => !/^(?:run|run-script|exec|dlx|x|test|t|tests|check|build|lint|typecheck|type-check|compile|bundle|eslint|stylelint|nextest|clippy|vet)(?::[\w:.-]+)?$/.test(t))
+  return rest.length > 0 && rest.every(t => ANALYSIS_RULES.PROBE_FLAGS.test(t))
+}
+
+/** 片段归一：去掉重定向、`$(…)` 留下的尾括号（评审 P3-8）与多余空白——`sh x_test.sh >/dev/null 2>&1` 和 `sh x_test.sh` 是同一条命令。 */
 function normalizeSegment(seg){
-  return seg.replace(/\s*(?:\d*>>?\s*\S+|\d*>&\d+|<\s*\S+)/g, '').replace(/\s+/g, ' ').trim()
+  let s = seg.replace(/\s*(?:\d*>>?\s*\S+|\d*>&\d+|<\s*\S+)/g, '').replace(/[\s)]+$/, '').replace(/\s+/g, ' ').trim()
+  // `bash -lc "go test"` 剥壳后原文只剩收尾的那个引号：不成对才去掉，`pytest -k "a"` 的成对引号保留
+  for (const q of ['"', "'"]) if (s.endsWith(q) && (s.split(q).length - 1) % 2 === 1) s = s.slice(0, -1).trimEnd()
+  return s
 }
 
 /**
@@ -413,12 +451,20 @@ export function validationHits(command){
   for (const kind of ['test', 'build', 'lint']){
     const pats = ANALYSIS_RULES.VALIDATION[kind]
     for (const seg of segs){
-      if (!pats.some(re => re.test(seg))) continue
-      const key = normalizeSegment(seg)
+      if (!pats.some(re => re.test(seg.m)) || isProbe(seg.m)) continue
+      const key = normalizeSegment(seg.raw)
       if (key !== '' && !hits[kind].includes(key)) hits[kind].push(key)
     }
   }
   return hits
+}
+
+/** job_output 类调用的 job id（原始 JSON 或摘要串）；没有则 null。 */
+export function jobIdOf(args){
+  const a = parseArgs(args)
+  if (typeof a === 'string') return a.trim() === '' ? null : a.trim()
+  for (const k of ['job_id', 'jobId', 'id']) if (typeof a[k] === 'string' && a[k] !== '') return a[k]
+  return null
 }
 
 /** 一条命令命中的验证类别，固定序 ['test','build','lint'] 的子集；一条命令命中多类分别记。 */
@@ -473,8 +519,8 @@ export function artifactPaths(name, args){
 /**
  * 结果与证据：六格 + 综合。全部是对已判定数据的确定性聚合，不信 Agent 自述。
  *   任务完成 = 最后一轮 turn/end 的原因不在 TURN_END_INCOMPLETE 里且该轮最后一步是回答节点；
- *   测试/构建/Lint = shell 类调用命令按 detectValidationKinds 归类，同一条命令多次执行取最后一次，
- *     类别通过 = 该类每条不同命令的最后一次都通过（anchor 指向决定性的那次：最后一次失败，否则最后一次运行）；
+ *   测试/构建/Lint = shell 类调用命令按 validationHits 归类，类别通过 = 该类别最后一次运行通过
+ *     （anchor 指向它）；此前别的命令最后一次失败的条数记在 failedCommands，展示端小字注明；
  *   产物 = 写入/编辑类调用成功触及的文件去重；
  *   人工确认 = 最终回答之后有没有用户消息（只给布尔，不解读内容）；
  *   综合：任务没正常结束 → partial；有验证类命令且某类最后一次失败 → partial；一条验证命令都没有 → unverified；其余 done。
@@ -485,14 +531,35 @@ export function outcomeEvidence(lane, wall){
   const toWall = typeof wall === 'function' ? wall : (t => t)
   const calls = settledLaneCalls(lane)
   const R = ANALYSIS_RULES
-  const mk = () => ({ runs: 0, byCmd: new Map(), last: null })
+  const mk = () => ({ runs: 0, byCmd: new Map(), last: null, unresolved: 0 })
   const kinds = { test: mk(), build: mk(), lint: mk() }
   let codeCalls = 0
   const paths = new Map()
   let writes = 0, failedWrites = 0
+  /** 后台任务：起任务的那次 shell 调用先挂着，等 job_output 末行给出退出码再计入（评审 P2-1）。 */
+  const bgPending = new Map()
+  const record = (call, hits, passed, exit) => {
+    for (const k of ['test', 'build', 'lint']){
+      if (hits[k].length === 0) continue
+      const g = kinds[k]
+      g.runs += 1
+      // 同一条命令（归一后的片段）多次执行：后者覆盖前者；退出码是整次调用的，片段共享它
+      for (const key of hits[k]) g.byCmd.set(key, { call, passed, cmd: key, exit })
+      g.last = { call, passed, cmd: hits[k][hits[k].length - 1], exit }
+    }
+  }
   for (const c of calls){
     const name = c.tl.name
     if (R.CODE_TOOLS.includes(name)) codeCalls += 1
+    if (R.JOB_TOOLS.includes(name)){
+      const pend = bgPending.get(jobIdOf(c.tl.args))
+      if (pend === undefined) continue
+      const code = c.tl.exit !== undefined ? c.tl.exit : exitCodeOf(c.tl.resFull ?? c.tl.res ?? '')
+      if (code === null && !c.tl.err) continue   // 还在跑（[status: running]），继续挂着
+      bgPending.delete(jobIdOf(c.tl.args))
+      record(pend.call, pend.hits, !c.tl.err && code !== null && code === 0, code)
+      continue
+    }
     if (R.ARTIFACT_TOOLS.includes(name)){
       const ps = artifactPaths(name, c.tl.args)
       if (ps.length > 0){
@@ -505,27 +572,26 @@ export function outcomeEvidence(lane, wall){
     const cmd = commandOf(c.tl.args)
     if (cmd === null || cmd.trim() === '') continue
     const hits = validationHits(cmd)
-    const passed = validationPassed(c.tl)
-    for (const k of ['test', 'build', 'lint']){
-      if (hits[k].length === 0) continue
-      const g = kinds[k]
-      g.runs += 1
-      // 同一条命令（归一后的片段）多次执行：后者覆盖前者；退出码是整次调用的，片段共享它
-      for (const key of hits[k]) g.byCmd.set(key, { call: c, passed, cmd: key })
-      g.last = { call: c, passed, cmd: hits[k][hits[k].length - 1] }
-    }
+    if (hits.test.length + hits.build.length + hits.lint.length === 0) continue
+    const bg = R.BACKGROUND_JOB.exec(String(c.tl.res ?? c.tl.resFull ?? '').trimStart())
+    if (bg !== null){ bgPending.set(bg[1], { call: c, hits }); continue }
+    record(c, hits, validationPassed(c.tl), c.tl.exit ?? null)
   }
+  // 起了后台任务却始终没拿到退出码的：不计入运行，格里如实标注
+  for (const pend of bgPending.values()) for (const k of ['test', 'build', 'lint']) if (pend.hits[k].length > 0) kinds[k].unresolved += 1
   const out = {}
   for (const k of ['test', 'build', 'lint']){
     const g = kinds[k]
-    const failed = [...g.byCmd.values()].filter(x => !x.passed).sort((a, b) => a.call.tl.s - b.call.tl.s)
-    const decisive = failed.length > 0 ? failed[failed.length - 1] : g.last
+    // 类别通过与否以该类别**最后一次运行**为准（吴昊 2026-09-06 拍板的 B 方案）：单文件 pytest 失败后
+    // 整套 pytest 通过就是通过；此前别的命令最后一次失败的条数另给出，格里小字注明。决定性的那次 = 最后一次运行。
+    const failed = [...g.byCmd.values()].filter(x => !x.passed)
+    const decisive = g.last
     out[k] = {
-      runs: g.runs, commands: g.byCmd.size, failedCommands: failed.length,
-      passed: g.runs === 0 ? null : failed.length === 0,
+      runs: g.runs, commands: g.byCmd.size, failedCommands: failed.length, unresolved: g.unresolved,
+      passed: decisive === null ? null : decisive.passed,
       anchor: decisive ? decisive.call : null,
       anchorCmd: decisive ? decisive.cmd : null,
-      anchorExit: decisive ? (decisive.call.tl.exit ?? null) : null,
+      anchorExit: decisive ? decisive.exit : null,
     }
   }
 
