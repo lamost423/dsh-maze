@@ -119,6 +119,33 @@ describe('detectValidationKinds（命令位置识别，一条命令命中多类�
     expect(detectValidationKinds('sh -x deploy/x_test.sh 2>&1 | grep -A6 assume')).toEqual(['test'])
   })
 
+  it('probe commands are not runs: command -v / --version / --help / -h (review P2-2)', () => {
+    expect(detectValidationKinds('command -v pytest')).toEqual([])
+    expect(detectValidationKinds('pytest --version')).toEqual([])
+    expect(detectValidationKinds('pnpm test --version')).toEqual([])
+    expect(detectValidationKinds('cargo test --help')).toEqual([])
+    expect(detectValidationKinds('go test -h')).toEqual([])
+    expect(detectValidationKinds('which vitest && vitest -V')).toEqual([])
+    // 带真实参数的仍然算
+    expect(detectValidationKinds('pytest -h tests/')).toEqual(['test'])
+    expect(detectValidationKinds('go test -v ./...')).toEqual(['test'])
+  })
+
+  it('normalized keys keep quoted arguments, so `pytest -k "a"` and `pytest -k "b"` stay two commands (review P2-3)', () => {
+    expect(validationHits('pytest -k "a" && pytest -k "b"')).toEqual({ test: ['pytest -k "a"', 'pytest -k "b"'], build: [], lint: [] })
+    expect(validationHits("pytest -k 'x; y'")).toEqual({ test: ["pytest -k 'x; y'"], build: [], lint: [] })
+    const oc = outcomeEvidence(synth(finished([
+      ['bash', 'pytest -k "a"', { res: '[exit code: 1]' }],
+      ['bash', 'pytest -k "b"', { res: 'ok' }],
+    ])))
+    expect(oc.test).toMatchObject({ commands: 2, failedCommands: 1, passed: true, anchorCmd: 'pytest -k "b"' })
+  })
+
+  it('drops the trailing `)` left by `$(…)` from the normalized key (review P3-8)', () => {
+    expect(validationHits('echo $(pnpm test)')).toEqual({ test: ['pnpm test'], build: [], lint: [] })
+    expect(validationHits('out=$(go test ./... 2>&1)')).toEqual({ test: ['go test ./...'], build: [], lint: [] })
+  })
+
   it('cannot see through shell variables or project-specific wrappers (honest limit)', () => {
     expect(detectValidationKinds('for t in a_test.sh b_test.sh; do sh $t; done')).toEqual([])
     expect(detectValidationKinds('deploy/release/clean-python.sh deploy/hk-uat/test_hksql.py')).toEqual([])
@@ -131,6 +158,14 @@ describe('exitCodeOf（只认末行）', () => {
     expect(exitCodeOf('FAIL tests/a.py\n[exit code: 1]\n')).toBe(1)
     expect(exitCodeOf('indexed 852\n[status: completed, exit code: 0]')).toBe(0)
     expect(exitCodeOf('error\n[status: completed, exit code: 2]')).toBe(2)
+  })
+
+  it('needs the marker at line start, after `[` or after a comma — "expected exit code: 1" is prose (review P3-7)', () => {
+    expect(exitCodeOf('assert failed: expected exit code: 1')).toBeNull()
+    expect(exitCodeOf('ok\nexpected exit code: 1')).toBeNull()
+    expect(exitCodeOf('ok\nexit code: 2')).toBe(2)
+    expect(exitCodeOf('ok\nExit code 2')).toBe(2)
+    expect(exitCodeOf('ok\n[exit code: 3]')).toBe(3)
   })
 
   it('ignores an "exit code" quoted above the last line, and reports null without a marker', () => {
@@ -232,13 +267,22 @@ describe('outcomeEvidence（六格 + 综合）', () => {
     expect(oc.overall).toBe('partial')
   })
 
-  it('不同命令各取最后一次：一条最后失败、另一条最后通过 → 类别失败，锚点指向最后失败的那条', () => {
+  it('类别以最后一次运行为准（B 方案）：单文件失败后整套通过 → 通过并注明 1 条此前失败，锚点指向最后一次', () => {
     const oc = outcomeEvidence(synth(finished([
       ['bash', 'pytest tests/a.py', { res: '[exit code: 1]' }],
-      ['bash', 'pytest tests/b.py', { res: 'ok' }],
-      ['bash', 'pytest tests/b.py', { res: 'ok' }],
+      ['bash', 'pytest', { res: '40 passed' }],
     ])))
-    expect(oc.test).toMatchObject({ runs: 3, commands: 2, failedCommands: 1, passed: false, anchorCmd: 'pytest tests/a.py' })
+    expect(oc.test).toMatchObject({ runs: 2, commands: 2, failedCommands: 1, passed: true, anchorCmd: 'pytest', anchorExit: null })
+    expect(oc.overall).toBe('done')
+  })
+
+  it('类别以最后一次运行为准（B 方案）：最后一次失败 → 失败，即使此前同类别通过过', () => {
+    const oc = outcomeEvidence(synth(finished([
+      ['bash', 'pytest', { res: '40 passed' }],
+      ['bash', 'pytest tests/a.py', { res: '[exit code: 1]' }],
+    ])))
+    expect(oc.test).toMatchObject({ runs: 2, commands: 2, failedCommands: 1, passed: false, anchorCmd: 'pytest tests/a.py', anchorExit: 1 })
+    expect(oc.overall).toBe('partial')
   })
 
   it('「同一条命令」按命中的那段算，不按整行 bash：cd 前缀、重定向、echo 装饰不同的同一个测试是一条命令（big2 真实日志的情形）', () => {
@@ -312,6 +356,39 @@ describe('outcomeEvidence（六格 + 综合）', () => {
     const late = { ...folded, userMsgs: [{ s: 5 }] }   // 墙钟 5s：在回答（墙钟 ≥ 40s）之前
     expect(outcomeEvidence(late, t => t * 10).human.responded).toBe(false)
     expect(outcomeEvidence(late).human.responded).toBe(true)   // 不还原就会错——这就是要传 wall 的原因
+  })
+
+  it('后台任务：起任务的 bash 不直接计，按 job id 关联到 job_output 末行的退出码再计（评审 P2-1）', () => {
+    const job = (id: string, res: string): Ev => ['job_output', `{"job_id":"${id}"}`, { res }]
+    // 失败：job_output 末行 exit code 1 → 该次测试记失败，锚点仍是起任务的那次 bash
+    const fail = outcomeEvidence(synth(finished([
+      ['bash', 'pnpm test', { res: 'started background job bash-1' }],
+      job('bash-1', '[status: running]'),
+      job('bash-1', 'FAIL 1\n[status: completed, exit code: 1]'),
+    ])))
+    expect(fail.test).toMatchObject({ runs: 1, commands: 1, failedCommands: 1, passed: false, anchorExit: 1, unresolved: 0 })
+    expect(fail.test.anchor!.tl.name).toBe('bash')
+    // 通过：完成且 exit code 0
+    const ok = outcomeEvidence(synth(finished([
+      ['bash', 'pnpm test', { res: 'started background job bash-2' }],
+      job('bash-2', '12 passed\n[status: completed, exit code: 0]'),
+    ])))
+    expect(ok.test).toMatchObject({ runs: 1, passed: true, anchorExit: 0 })
+    // 关联不到：只看到 [status: running] 或根本没读 → 不计入运行，unresolved 计数，综合按未验证
+    const lost = outcomeEvidence(synth(finished([
+      ['bash', 'pnpm test', { res: 'started background job bash-3' }],
+      job('bash-3', '[status: running]'),
+      ['bash', 'pnpm build', { res: 'started background job bash-4' }],
+    ])))
+    expect(lost.test).toMatchObject({ runs: 0, passed: null, unresolved: 1 })
+    expect(lost.build).toMatchObject({ runs: 0, passed: null, unresolved: 1 })
+    expect(lost.overall).toBe('unverified')
+    // 不是验证命令的后台任务不进任何格
+    const other = outcomeEvidence(synth(finished([
+      ['bash', 'python3 index.py', { res: 'started background job bash-5' }],
+      job('bash-5', '[status: completed, exit code: 1]'),
+    ])))
+    expect(other.test.runs + other.test.unresolved).toBe(0)
   })
 
   it('code 模式：run_code 只计数，不当 shell 命令识别；块里据此提示「内部派发暂不识别」', () => {

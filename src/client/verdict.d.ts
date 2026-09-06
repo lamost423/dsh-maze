@@ -84,7 +84,11 @@ export declare const ANALYSIS_RULES: {
   TURN_END_INCOMPLETE: string[]
   VALIDATION: { test: RegExp[]; build: RegExp[]; lint: RegExp[] }
   VALIDATION_SPLIT: RegExp
+  HEREDOC: RegExp
+  QUOTED: RegExp
   VALIDATION_WRAP: RegExp
+  PROBE_FLAGS: RegExp
+  BACKGROUND_JOB: RegExp
   EXIT_CODE: RegExp
 }
 
@@ -108,6 +112,9 @@ export declare function exitCodeOf(text: string | null | undefined): number | nu
 /** 验证类调用是否通过：isError 为假且末行没有非零退出码（tl.exit 缺席时回退扫 resFull/res）。 */
 export declare function validationPassed(tl: { err?: boolean; exit?: number | null; resFull?: string; res?: string }): boolean
 
+/** job_output 类调用的 job id；没有则 null。 */
+export declare function jobIdOf(args: unknown): string | null
+
 /** 写入/编辑类调用触及的文件路径（补丁可多条）；识别不出时空数组。 */
 export declare function artifactPaths(name: string, args: unknown): string[]
 
@@ -117,11 +124,13 @@ export interface ValidationCell<C> {
   runs: number
   /** 不同命令条数（空白归一后比较）。 */
   commands: number
-  /** 最后一次运行失败的命令条数。 */
+  /** 最后一次运行失败的不同命令条数（类别通过时它们是「此前失败」的那些）。 */
   failedCommands: number
-  /** 没跑过为 null；否则每条不同命令的最后一次都通过才 true。 */
+  /** 起了后台任务却没从 job_output 拿到退出码的次数（不计入 runs）。 */
+  unresolved: number
+  /** 没跑过为 null；否则以该类别最后一次运行的结果为准。 */
   passed: boolean | null
-  /** 决定性的那次调用：最后一次失败，否则最后一次运行；没跑过为 null。 */
+  /** 决定性的那次调用 = 该类别最后一次运行；没跑过为 null。 */
   anchor: C | null
   anchorCmd: string | null
   anchorExit: number | null
