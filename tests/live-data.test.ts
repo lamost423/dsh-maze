@@ -1,6 +1,7 @@
 /** Verdict settlement and partitioning for the live maze converter. */
 import { describe, expect, it } from 'vitest'
 import { snapshotToMazeData } from '../src/client/live-data.ts'
+import { outcomeEvidence } from '../src/client/verdict.js'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 
 const t0 = 1_787_000_000_000
@@ -284,5 +285,64 @@ describe('snapshotToMazeData', () => {
     const node = [...data!.lanes[0]!.main, ...data!.lanes[0]!.detours].find(n => n.seq === 11)!
     expect(node.rzTxt).toHaveLength(240)
     expect(node.rzTxtFull).toHaveLength(2000)
+  })
+
+  it('carries what the outcome block needs: exit code off the raw last line, turn endings, human message times', () => {
+    // 1.x 快照没有 turn/end 的 reason：turnEnds 只列已收尾的轮，配合 turn-error / turn-max-tokens 节点定原因
+    const snap = {
+      partial: null,
+      turnEnds: new Map([[1, 99]]),
+      turnTimings: new Map([[1, { startTime: t0, endTime: t0 + 8100 }]]),
+      nodes: [
+        { kind: 'user', seq: 1, time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'a', argsRaw: '{"command":"pnpm test"}' },
+        ] },
+        // 输出超过 5000 字：退出码在末行，截断后的面板文本里已经看不到它
+        { kind: 'tool-result', time: t0 + 3000, callId: 'a', isError: false, content: [{ type: 'text', text: `${'x'.repeat(6000)}\nFAIL\n[exit code: 1]` }] },
+        { kind: 'assistant', seq: 12, time: t0 + 5000, timing: { stepStartTime: t0 + 4000 }, blocks: [
+          { kind: 'tool-call', name: 'bash', callId: 'b', argsRaw: '{"command":"pnpm test"}' },
+        ] },
+        { kind: 'tool-result', time: t0 + 6000, callId: 'b', isError: false, content: [{ type: 'text', text: '12 passed' }] },
+        { kind: 'assistant', seq: 13, time: t0 + 8000, timing: { stepStartTime: t0 + 7000 }, blocks: [{ kind: 'text', text: 'done' }] },
+        { kind: 'user', seq: 15, time: t0 + 20_000 },
+      ],
+    } as never as ConversationSnapshot
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    const tools = [...lane.main, ...lane.detours].flatMap(n => n.tools)
+    expect(tools.find(t => t.callId === 'a')!.exit).toBe(1)
+    expect(tools.find(t => t.callId === 'a')!.resFull!.length).toBe(5000)
+    expect(tools.find(t => t.callId === 'b')!.exit).toBeNull()
+    expect(lane.turnEnds).toEqual([{ turn: 1, kind: 'completed', s: 8.1 }])
+    expect(lane.userMsgs).toEqual([{ s: 0 }, { s: 20 }])
+    const oc = outcomeEvidence(lane)
+    expect(oc.test).toMatchObject({ runs: 2, commands: 1, passed: true })
+    expect(oc.task).toMatchObject({ state: 'done', reason: 'completed', turn: 1 })
+    expect(oc.human.responded).toBe(true)
+    expect(oc.overall).toBe('done')
+  })
+
+  it('derives error / max-tokens endings from the nodes, completed from the snapshot turnEnds map', () => {
+    const snap = {
+      partial: null,
+      turnEnds: new Map([[1, 12], [2, 22]]),
+      turnTimings: new Map([[1, { startTime: t0, endTime: t0 + 2500 }], [2, { startTime: t0 + 10_000, endTime: t0 + 12_600 }]]),
+      nodes: [
+        { kind: 'user', seq: 1, time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [{ kind: 'text', text: 'a' }] },
+        { kind: 'user', seq: 20, time: t0 + 10_000 },
+        { kind: 'assistant', seq: 21, time: t0 + 12_000, timing: { stepStartTime: t0 + 11_000 }, blocks: [{ kind: 'text', text: 'b' }] },
+        { kind: 'turn-max-tokens', seq: 22, time: t0 + 12_500, turn: 2, step: 1 },
+        { kind: 'user', seq: 30, time: t0 + 20_000 },
+        { kind: 'turn-error', seq: 31, time: t0 + 21_000, turn: 3, step: 1, message: 'boom', code: 'X' },
+      ],
+    } as never as ConversationSnapshot
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.turnEnds).toEqual([
+      { turn: 1, kind: 'completed', s: 2.5 },
+      { turn: 2, kind: 'max-tokens', s: 12.5 },
+      { turn: 3, kind: 'error', s: 21 },
+    ])
+    expect(outcomeEvidence(lane).task).toMatchObject({ state: 'failed', reason: 'error', turn: 3 })
   })
 })

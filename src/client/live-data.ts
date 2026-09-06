@@ -6,7 +6,7 @@
  * aggregated detour node each, on the parent's clock.
  */
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import { exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 
 /** One tool event in the maze model. */
@@ -21,6 +21,11 @@ export interface MazeTool {
   /** Detail-panel text of the result (≤5000 chars). */
   resFull?: string
   err: boolean
+  /**
+   * 返回原文末行的退出码（dsh 把 `[exit code: N]` 追加在末尾，仅非零）；没有则 null。
+   * 在压空白与截断之前算好——结果与证据块靠它判验证命令通过与否，不能从 5000 字截断文本里找。
+   */
+  exit?: number | null
   dur: number
   v: 'error' | 'deadend' | 'retry' | 'ok'
   /** 结构化判定依据（展示端按界面语言渲染）。 */
@@ -88,6 +93,10 @@ export interface MazeLane {
   preWindow: number
   main: MazeNode[]
   detours: MazeNode[]
+  /** 每轮怎么收尾（completed / error / max-tokens），结果与证据块判「任务完成」用；s 为泳道秒。 */
+  turnEnds?: { turn: number; kind: string; s: number }[]
+  /** 真人消息（user / steering 节点）的时刻，结果与证据块判「人工确认」用；只有时刻，不带内容。 */
+  userMsgs?: { s: number }[]
   stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
 }
 
@@ -115,11 +124,12 @@ const CHILD_STEP_BASE = 100_000
 /** Request-failure marker steps start here (offset by node seq — unique and replay-stable). */
 const EVT_STEP_BASE = 200_000
 
-function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
+/** Concatenated text blocks with whitespace untouched — the exit-code reader wants the real last line. */
+function rawText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
   const out: string[] = []
   for (const b of blocks) if (b.type === 'text' && b.text !== undefined) out.push(b.text)
-  return out.join('').replace(/\s+/g, ' ').trim()
+  return out.join('')
 }
 
 /** Latest wall-clock event time in a conversation, or null while empty. */
@@ -139,6 +149,10 @@ interface ScanResult {
   liveRow: MazeNode | null
   /** Dropped stale pre-window steps (see MazeLane.preWindow). */
   preWindow: number
+  /** How each in-window turn ended (see MazeLane.turnEnds). */
+  turnEnds: { turn: number; kind: string; s: number }[]
+  /** Human message times (see MazeLane.userMsgs). */
+  userMsgs: { s: number }[]
 }
 
 /**
@@ -175,9 +189,19 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
   }
 
   let preWindow = 0
+  const userMsgs: { s: number }[] = []
+  /** Turn endings read off the nodes: turn-error → error, turn-max-tokens → max-tokens; the rest complete. */
+  const endByNode = new Map<number, { kind: string; s: number }>()
   for (const n of nodes) {
     if (n.kind === 'user') {
       turn += 1
+      // 人工确认只看真人消息：user = 开轮消息，steering = 轮中插入的消息；context 注入不算
+      userMsgs.push({ s: rel(n.time) })
+    } else if (n.kind === 'steering') {
+      userMsgs.push({ s: rel(n.time) })
+    } else if (n.kind === 'turn-max-tokens') {
+      if (firstUser !== undefined && n.time < firstUser.time) continue
+      if (endByNode.get(n.turn)?.kind !== 'error') endByNode.set(n.turn, { kind: 'max-tokens', s: rel(n.time) })
     } else if (n.kind === 'assistant') {
       if (firstUser !== undefined && n.time < firstUser.time) {
         preWindow += 1
@@ -216,7 +240,10 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
       if (p !== undefined) {
         pending.splice(idx, 1)
         p.tool.e = rel(n.time)
-        p.tool.res = contentText(n.content)
+        // 退出码从原文末行读，先于压空白（dsh 把 [exit code: N] 追加在末尾）
+        const raw = rawText(n.content)
+        p.tool.exit = exitCodeOf(raw)
+        p.tool.res = raw.replace(/\s+/g, ' ').trim()
         p.tool.err = n.isError
         p.tool.dur = Math.round((p.tool.e - p.tool.s) * 10) / 10
         const tv = toolVerdict(p.tool)
@@ -254,8 +281,25 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
         v: 'error', evt: 'turnError', label: '✗',
         why: { k: 'turnError', p: [n.message, n.code ?? ''] },
       })
+      endByNode.set(n.turn, { kind: 'error', s })
     }
   }
+
+  // 每轮怎么收尾：快照的 turnEnds 列出窗口内已收尾的轮（reason 不在快照里），配合节点：
+  // turn-error → error，turn-max-tokens → max-tokens，其余 completed；时刻取 turnTimings 的 endTime。
+  const turnEnds: { turn: number; kind: string; s: number }[] = []
+  const seen = new Set<number>()
+  // 老测试夹具没有这两张表：按空表处理，不抛
+  const endsMap = (snap as { turnEnds?: ReadonlyMap<number, number> }).turnEnds ?? new Map<number, number>()
+  const timings = (snap as { turnTimings?: ReadonlyMap<number, { endTime?: number }> }).turnTimings ?? new Map<number, { endTime?: number }>()
+  for (const [t] of endsMap) {
+    const byNode = endByNode.get(t)
+    const endTime = timings.get(t)?.endTime
+    turnEnds.push({ turn: t, kind: byNode?.kind ?? 'completed', s: byNode?.s ?? (endTime !== undefined ? rel(endTime) : 0) })
+    seen.add(t)
+  }
+  for (const [t, e] of endByNode) if (!seen.has(t)) turnEnds.push({ turn: t, ...e })
+  turnEnds.sort((a, b) => a.turn - b.turn)
 
   // In-flight step: the live partial (reasoning + tool calls still running).
   let liveRow: MazeNode | null = null
@@ -305,7 +349,7 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
     }
   }
 
-  return { rows, liveRow, preWindow }
+  return { rows, liveRow, preWindow, turnEnds, userMsgs }
 }
 
 /**
@@ -366,7 +410,7 @@ export function snapshotToMazeData(
   const anchor = firstUser !== undefined ? firstUser.time : (nodes[0]?.time ?? Date.now())
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow } = scanRows(snap, rel)
+  const { rows, preWindow, turnEnds, userMsgs } = scanRows(snap, rel)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -434,6 +478,7 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
+    turnEnds, userMsgs,
     stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
   }
 
