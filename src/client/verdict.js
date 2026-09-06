@@ -96,11 +96,98 @@ export function argSimilarity(a, b){
 
 /* ==================== 分析层（v0.7）：失败恢复链 + 模型上下文窗口 ==================== */
 
+/** 包管理器脚本调用的前缀：`pnpm -r test` / `npm --prefix x run build` / `yarn -s lint` 这类带旗标的写法。 */
+const PM = '^(?:npm|pnpm|yarn|bun)\\s+(?:(?:-{1,2}[\\w-]+(?:=\\S+)?|(?:-F|--filter|-C|--dir|--prefix|-w|--workspace|--cwd)\\s+\\S+)\\s+)*(?:run\\s+|run-script\\s+)?'
+/** 直接执行二进制的启动器：npx / pnpm exec / yarn / bun x / node_modules/.bin/……，可无。 */
+const RUNNER = '^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+exec|\\s+dlx|\\s+run)?|npm\\s+exec|yarn(?:\\s+exec|\\s+run)?|bun(?:\\s+x|\\s+run)?)\\s+(?:-{1,2}[\\w-]+(?:=\\S+)?\\s+)*(?:--\\s+)?|\\.?\\/?(?:\\S*\\/)?node_modules\\/\\.bin\\/)?'
+/** `python -m xxx`（含 python3.12 / py / pypy）。 */
+const PY_M = '^(?:python[0-9.]*|py|pypy[0-9]*)\\s+(?:-[\\w-]+\\s+)*-m\\s+'
+/** 命令词之后必须是空白、行尾或 shell 边界，`vitest.config.ts`、`pytest.ini` 这类文件名不算命令。 */
+const END = '(?=\\s|$|[;&|)])'
+
 export const ANALYSIS_RULES = {
   /** 失败恢复窗口（秒）：失败后任意工具在此窗口内出现成功调用即算「已恢复」。 */
   RECOVERY_WINDOW: 120,
   /** 恢复方式分类：失败后下一次同工具调用的参数相似度 ≥ 此值判「原样重试」，否则「换参数」。 */
   IDENTICAL_SIMILARITY: 0.6,
+
+  /* ---- 结果与证据（诊断层第 1 项，2026-09-06）---- */
+  /** 只在这些工具的命令文本里识别验证类命令；code 模式的 run_code 另计（脚本内部派发的真实工具日志未展开）。 */
+  SHELL_TOOLS: ['bash', 'shell', 'sh', 'zsh', 'exec', 'shell_command', 'run_command', 'terminal', 'local_shell'],
+  /** code 模式的外层调用名：命中即在结果块里如实标注「内部派发暂不识别」。 */
+  CODE_TOOLS: ['run_code'],
+  /** 产物 = 这些写入/编辑类调用成功触及的文件路径（去重）；todo_write 不是产物。 */
+  ARTIFACT_TOOLS: ['write', 'edit', 'multi_edit', 'apply_patch', 'write_file', 'edit_file', 'create_file', 'str_replace_editor', 'str_replace_based_edit_tool', 'notebook_edit'],
+  /** 最后一轮以这些原因收尾即「任务未完成」：error（终局失败）/ interrupted（崩溃遗留）/ aborted（用户或父会话取消）/ blocked。
+   *  max-tokens 不在其中——轮次仍算结束，但结果块会写明原因。 */
+  TURN_END_INCOMPLETE: ['error', 'interrupted', 'aborted', 'blocked'],
+  /**
+   * 验证类命令识别：命令按 shell 边界（换行、&&、||、;、|、$(、反引号）拆成片段，每个片段
+   * 剥掉命令位置前的包装（环境变量赋值、time/sudo/env、timeout N、poetry/uv run、do/then/if
+   * 等关键字）后，在**命令位置**匹配下面的正则——`cat vitest.config.ts`、`grep pytest`、
+   * `wc -l build-all.sh` 都不算跑了验证。一条命令命中多类分别记（`pnpm lint && pnpm test`）。
+   * 初版覆盖 JS/TS、Python、Rust、Go、Swift 与 make/ctest/docker build；项目自定义的测试
+   * 包装脚本（如 `deploy/x.sh test_y.py`）识别不到，块里会如实显示「没有跑」。
+   */
+  VALIDATION: {
+    test: [
+      new RegExp(PM + '(?:test|t|tests)(?::[\\w:.-]+)?' + END),
+      new RegExp(RUNNER + '(?:vitest|jest|mocha|ava|tap|tape|uvu|karma|jasmine|cypress\\s+run|playwright\\s+test|bun\\s+test|deno\\s+test)' + END),
+      /^node\s+(?:-[\w-]+\s+)*--test(?=\s|$|[;&|)])/,
+      /^(?:pytest|py\.test|nose2|nosetests|tox)(?=\s|$|[;&|)])/,
+      new RegExp(PY_M + '(?:pytest|unittest|nose2)' + END),
+      /^cargo\s+(?:\+\S+\s+)?(?:test|nextest)(?=\s|$|[;&|)])/,
+      /^go\s+test(?=\s|$|[;&|)])/,
+      /^swift\s+test(?=\s|$|[;&|)])/,
+      /^xcodebuild\b(?=.*\s(?:test|test-without-building)(?=\s|$|[;&|)]))/,
+      /^(?:make\s+(?:-[\w-]+\s+)*(?:test|check)|ctest)(?=\s|$|[;&|)])/,
+      // 直接执行测试文件：sh x_test.sh / python3 test_x.py / node x.test.js / ./x_test.sh（`sh -n` 只查语法，不算跑）
+      /^(?:sh|bash|zsh|dash|python[0-9.]*|py|node|bun|tsx|ts-node)\s+(?:-(?!n(?:\s|$))[\w-]+\s+)*(?:\S*\/)?(?:test_[\w.-]*\.py|[\w.-]*_test\.(?:sh|py|js|mjs|cjs|ts|mts)|[\w.-]*\.(?:test|spec)\.(?:js|mjs|cjs|ts|mts|tsx|jsx))(?=\s|$|[;&|)])/,
+      /^(?:\.\/|\S*\/)?[\w.-]*_test\.sh(?=\s|$|[;&|)])/,
+    ],
+    build: [
+      new RegExp(PM + '(?:build|typecheck|type-check|tsc|compile|bundle)(?::[\\w:.-]+)?' + END),
+      new RegExp(RUNNER + '(?:tsc|vite\\s+build|next\\s+build|nuxt\\s+build|tsup|tsdown|esbuild|rollup|webpack|turbo\\s+(?:run\\s+)?build|nx\\s+build|ng\\s+build|vue-cli-service\\s+build)' + END),
+      /^cargo\s+(?:\+\S+\s+)?(?:build|check)(?=\s|$|[;&|)])/,
+      /^go\s+build(?=\s|$|[;&|)])/,
+      /^swift\s+build(?=\s|$|[;&|)])/,
+      /^xcodebuild\b(?!.*\s(?:test|test-without-building)(?=\s|$|[;&|)]))/,
+      /^make(?:\s+-[\w=-]+)*(?:\s+(?:all|build))?\s*$/,
+      /^cmake\s+--build(?=\s|$|[;&|)])/,
+      /^docker\s+(?:buildx\s+)?build(?=\s|$|[;&|)])/,
+      /^docker\s+compose\s+(?:-[\w-]+(?:=\S+)?\s+)*build(?=\s|$|[;&|)])/,
+    ],
+    lint: [
+      new RegExp(PM + '(?:lint|eslint|stylelint|format:check|prettier:check|fmt:check)(?::[\\w:.-]+)?' + END),
+      new RegExp(RUNNER + '(?:eslint|oxlint|biome\\s+(?:lint|check|ci)|stylelint|prettier\\s+(?:-c|--check)|tslint|standard|xo)' + END),
+      /^(?:ruff\s+check|ruff\s+format\s+--check|flake8|pylint|mypy|pyright|black\s+--check|isort\s+(?:--check|--check-only|-c)|bandit|pyflakes|pycodestyle)(?=\s|$|[;&|)])/,
+      new RegExp(PY_M + '(?:ruff|flake8|pylint|mypy|pyright|pyflakes|pycodestyle|bandit)' + END),
+      /^cargo\s+(?:\+\S+\s+)?(?:clippy|fmt\s+(?:--all\s+)?--check)(?=\s|$|[;&|)])/,
+      /^(?:go\s+vet|golangci-lint|staticcheck|gofmt\s+-l|goimports\s+-l)(?=\s|$|[;&|)])/,
+      /^(?:swiftlint|swift-format\s+lint)(?=\s|$|[;&|)])/,
+      /^make\s+(?:-[\w-]+\s+)*lint(?=\s|$|[;&|)])/,
+      /^(?:shellcheck|hadolint|yamllint|markdownlint(?:-cli2?)?|actionlint)(?=\s|$|[;&|)])/,
+    ],
+  },
+  /** shell 片段边界。 */
+  VALIDATION_SPLIT: /\r?\n|&&|\|\||;|\||\$\(|`/,
+  /**
+   * 拆片段前先抹掉 heredoc 正文（`<<'PY' … PY`）：2026-09-06 真实日志里大量 `python3 - <<'PY'` 脚本在
+   * **编辑**测试文件，脚本正文里的 `sh x_test.sh` 字样和正则串里的 `…|docker build|…` 都会被当成命令。
+   * 只留 `<<TAG` 这一行本身。
+   */
+  HEREDOC: /<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1[^\n]*\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g,
+  /**
+   * 拆片段前再抹掉引号串的内容（`git commit -m "…多行… sh x_test.sh…"`、`echo "npm test"`），
+   * 但 `-c` / `-lc` 之后的那段是要执行的脚本，保留内容（`bash -lc "go test ./..."`）。
+   */
+  QUOTED: /(-[A-Za-z]*c\s+)?(?:"((?:[^"\\]|\\[\s\S])*)"|'([^']*)')/g,
+  /** 命令位置前可剥掉的包装（循环剥到不变为止）；`bash -lc` 这类壳也在内，Codex 的数组形式命令走它。 */
+  VALIDATION_WRAP: /^(?:[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|\S*)\s+|(?:time|sudo|nice|nohup|env|command|exec|builtin|do|then|else|if|elif|while|until|timeout\s+\S+|poetry\s+run|uv\s+run|pipenv\s+run|hatch\s+run|pdm\s+run|conda\s+run|(?:bash|sh|zsh|dash)\s+-[A-Za-z]*c)\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*)/,
+  /** 退出码只认返回文本的**末行**：dsh 的 bash 工具在末尾追加 `[exit code: N]`（仅非零），
+   *  后台任务 job_output 末行是 `[status: completed, exit code: N]`；正文中间引用别的日志里的
+   *  "exit code: 1"（如 docker 构建输出被 head 出来）不算本次命令失败——2026-09-06 真实日志核对。 */
+  EXIT_CODE: /\bexit[ _]code[:=]?\s*(\d+)\)?\]?\.?\s*$/i,
 }
 
 /**
@@ -269,4 +356,212 @@ export function markRetryClusters(calls){
     start = i
   }
   return clusters
+}
+
+/* ==================== 诊断层第 1 项（2026-09-06）：结果与证据 ==================== */
+
+/** 工具参数：实时链路给的是原始 JSON 字符串，上传链路给的是 argSummary 摘要（命令 / 路径）；两种都收。 */
+function parseArgs(args){
+  if (args != null && typeof args === 'object') return args
+  const s = String(args ?? '')
+  try {
+    const v = JSON.parse(s)
+    return v != null && typeof v === 'object' ? v : s
+  } catch { return s }
+}
+
+/** 一次 shell 类调用的命令文本；参数里没有命令时 null。Codex 风格的 `command: [...]` 数组也收。 */
+export function commandOf(args){
+  const a = parseArgs(args)
+  if (typeof a === 'string') return a
+  if (typeof a.command === 'string') return a.command
+  if (Array.isArray(a.command)) return a.command.map(String).join(' ')
+  if (typeof a.cmd === 'string') return a.cmd
+  return null
+}
+
+/** 命令拆成 shell 片段并剥掉命令位置前的包装（见 VALIDATION_WRAP）；heredoc 正文与引号串内容先抹掉。 */
+function commandSegments(command){
+  const out = []
+  const text = String(command ?? '')
+    .replace(ANALYSIS_RULES.HEREDOC, (m, q, tag) => '<<' + tag)
+    .replace(ANALYSIS_RULES.QUOTED, (m, c, dq, sq) => c !== undefined ? c + (dq ?? sq ?? '') : '""')
+  for (const raw of text.split(ANALYSIS_RULES.VALIDATION_SPLIT)){
+    let s = raw.replace(/^[\s({!]+/, '').trimEnd()
+    let prev
+    do { prev = s; s = s.replace(ANALYSIS_RULES.VALIDATION_WRAP, '') } while (s !== prev)
+    if (s !== '') out.push(s)
+  }
+  return out
+}
+
+/** 片段归一：去掉重定向与多余空白——`sh x_test.sh >/dev/null 2>&1` 和 `sh x_test.sh` 是同一条命令。 */
+function normalizeSegment(seg){
+  return seg.replace(/\s*(?:\d*>>?\s*\S+|\d*>&\d+|<\s*\S+)/g, '').replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * 一条命令里命中验证类别的片段：{ test: [...], build: [...], lint: [...] }，片段已归一去重。
+ * 只看命令位置（`cat vitest.config.ts`、`grep -n pytest` 不算），规则见 ANALYSIS_RULES.VALIDATION。
+ * 「同一条命令多次执行取最后一次」按这里的片段算，而不是整行 bash——`cd x && sh a_test.sh` 与
+ * `sh a_test.sh 2>&1 | tail -3` 跑的是同一个测试。
+ */
+export function validationHits(command){
+  const segs = commandSegments(command)
+  const hits = { test: [], build: [], lint: [] }
+  for (const kind of ['test', 'build', 'lint']){
+    const pats = ANALYSIS_RULES.VALIDATION[kind]
+    for (const seg of segs){
+      if (!pats.some(re => re.test(seg))) continue
+      const key = normalizeSegment(seg)
+      if (key !== '' && !hits[kind].includes(key)) hits[kind].push(key)
+    }
+  }
+  return hits
+}
+
+/** 一条命令命中的验证类别，固定序 ['test','build','lint'] 的子集；一条命令命中多类分别记。 */
+export function detectValidationKinds(command){
+  const hits = validationHits(command)
+  return ['test', 'build', 'lint'].filter(k => hits[k].length > 0)
+}
+
+/**
+ * 返回文本末行里的退出码；没有则 null。要传**未压空白**的原文（两条链路都在截断/压空白前算好
+ * 存到 tl.exit）；压过空白的文本整段算一行，dsh 追加在末尾的 `[exit code: N]` 仍能命中。
+ */
+export function exitCodeOf(text){
+  const t = String(text ?? '').trimEnd()
+  if (t === '') return null
+  const line = t.slice(t.lastIndexOf('\n') + 1)
+  const m = ANALYSIS_RULES.EXIT_CODE.exec(line)
+  return m ? Number(m[1]) : null
+}
+
+/** 验证类调用是否通过：isError 为假且末行没有非零退出码。judged v 刻意不参与——退出码才是命令的裁判。 */
+export function validationPassed(tl){
+  if (tl.err) return false
+  const code = tl.exit !== undefined ? tl.exit : exitCodeOf(tl.resFull ?? tl.res ?? '')
+  return !(typeof code === 'number' && code !== 0)
+}
+
+/** apply_patch 补丁文本里触及的文件（Add/Update/Delete File 头）。 */
+function patchPaths(text){
+  const out = []
+  const re = /\*\*\* (?:Add|Update|Delete) File: ([^\n\r"]+)/g
+  let m
+  while ((m = re.exec(String(text ?? ''))) !== null) out.push(m[1].trim())
+  return out
+}
+
+/** 写入/编辑类调用触及的文件路径（可能多条：补丁）；识别不出路径时空数组。 */
+export function artifactPaths(name, args){
+  const a = parseArgs(args)
+  if (typeof a !== 'string'){
+    for (const k of ['file_path', 'path', 'filePath', 'filename', 'target_file', 'notebook_path']){
+      if (typeof a[k] === 'string' && a[k].trim() !== '') return [a[k].trim()]
+    }
+    return patchPaths(typeof a.patch === 'string' ? a.patch : typeof a.input === 'string' ? a.input : '')
+  }
+  const s = a.trim()
+  if (s === '') return []
+  if (s.includes('*** ') && /\*\*\* (?:Add|Update|Delete) File:/.test(s)) return patchPaths(s)
+  return [s]   // 上传链路的参数摘要就是文件路径
+}
+
+/**
+ * 结果与证据：六格 + 综合。全部是对已判定数据的确定性聚合，不信 Agent 自述。
+ *   任务完成 = 最后一轮 turn/end 的原因不在 TURN_END_INCOMPLETE 里且该轮最后一步是回答节点；
+ *   测试/构建/Lint = shell 类调用命令按 detectValidationKinds 归类，同一条命令多次执行取最后一次，
+ *     类别通过 = 该类每条不同命令的最后一次都通过（anchor 指向决定性的那次：最后一次失败，否则最后一次运行）；
+ *   产物 = 写入/编辑类调用成功触及的文件去重；
+ *   人工确认 = 最终回答之后有没有用户消息（只给布尔，不解读内容）；
+ *   综合：任务没正常结束 → partial；有验证类命令且某类最后一次失败 → partial；一条验证命令都没有 → unverified；其余 done。
+ * @param lane { main, detours, turnEnds?: [{turn, kind, s}], userMsgs?: [{s}] }（s 为墙钟秒，不随空闲折叠变）
+ * @param wall 节点坐标 → 墙钟秒（页面折叠过时间轴时传 wallClock；否则恒等）
+ */
+export function outcomeEvidence(lane, wall){
+  const toWall = typeof wall === 'function' ? wall : (t => t)
+  const calls = settledLaneCalls(lane)
+  const R = ANALYSIS_RULES
+  const mk = () => ({ runs: 0, byCmd: new Map(), last: null })
+  const kinds = { test: mk(), build: mk(), lint: mk() }
+  let codeCalls = 0
+  const paths = new Map()
+  let writes = 0, failedWrites = 0
+  for (const c of calls){
+    const name = c.tl.name
+    if (R.CODE_TOOLS.includes(name)) codeCalls += 1
+    if (R.ARTIFACT_TOOLS.includes(name)){
+      const ps = artifactPaths(name, c.tl.args)
+      if (ps.length > 0){
+        if (c.tl.err || c.tl.v === 'error') failedWrites += 1
+        else { writes += 1; for (const p of ps) paths.set(p, (paths.get(p) ?? 0) + 1) }
+      }
+      continue
+    }
+    if (!R.SHELL_TOOLS.includes(name)) continue
+    const cmd = commandOf(c.tl.args)
+    if (cmd === null || cmd.trim() === '') continue
+    const hits = validationHits(cmd)
+    const passed = validationPassed(c.tl)
+    for (const k of ['test', 'build', 'lint']){
+      if (hits[k].length === 0) continue
+      const g = kinds[k]
+      g.runs += 1
+      // 同一条命令（归一后的片段）多次执行：后者覆盖前者；退出码是整次调用的，片段共享它
+      for (const key of hits[k]) g.byCmd.set(key, { call: c, passed, cmd: key })
+      g.last = { call: c, passed, cmd: hits[k][hits[k].length - 1] }
+    }
+  }
+  const out = {}
+  for (const k of ['test', 'build', 'lint']){
+    const g = kinds[k]
+    const failed = [...g.byCmd.values()].filter(x => !x.passed).sort((a, b) => a.call.tl.s - b.call.tl.s)
+    const decisive = failed.length > 0 ? failed[failed.length - 1] : g.last
+    out[k] = {
+      runs: g.runs, commands: g.byCmd.size, failedCommands: failed.length,
+      passed: g.runs === 0 ? null : failed.length === 0,
+      anchor: decisive ? decisive.call : null,
+      anchorCmd: decisive ? decisive.cmd : null,
+      anchorExit: decisive ? (decisive.call.tl.exit ?? null) : null,
+    }
+  }
+
+  // 任务完成：最后一轮（步骤与 turn/end 里最大的轮次）怎么收的尾
+  const steps = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
+  const turnEnds = lane.turnEnds ?? []
+  let lastTurn = 0
+  for (const n of steps) lastTurn = Math.max(lastTurn, n.turn ?? 1)
+  for (const t of turnEnds) lastTurn = Math.max(lastTurn, t.turn ?? 1)
+  const running = steps.some(n => n.live && (n.turn ?? 1) === lastTurn)
+  const inTurn = steps.filter(n => !n.live && (n.turn ?? 1) === lastTurn).sort((a, b) => a.s - b.s || a.e - b.e)
+  const lastNode = inTurn.length > 0 ? inTurn[inTurn.length - 1] : null
+  const answer = lastNode !== null && lastNode.v === 'answer' ? lastNode : null
+  const end = turnEnds.filter(t => (t.turn ?? 1) === lastTurn).pop() ?? null
+  let state
+  if (running) state = 'running'
+  else if (end !== null && R.TURN_END_INCOMPLETE.includes(end.kind)) state = 'failed'
+  else if (end === null) state = 'unfinished'
+  else if (answer === null) state = 'noAnswer'
+  else state = 'done'
+  const task = { state, turn: lastTurn > 0 ? lastTurn : null, reason: end ? end.kind : null, answer }
+
+  // 人工确认：最终回答之后有没有真人消息（source.kind = user）
+  const responded = answer === null ? null
+    : (lane.userMsgs ?? []).some(u => u.s > toWall(answer.e))
+
+  const anyValidation = out.test.runs + out.build.runs + out.lint.runs > 0
+  const failedKinds = ['test', 'build', 'lint'].filter(k => out[k].passed === false)
+  const missing = ['test', 'build', 'lint'].filter(k => out[k].runs === 0)
+  const overall = state !== 'done' ? 'partial'
+    : !anyValidation ? 'unverified'
+    : failedKinds.length > 0 ? 'partial'
+    : 'done'
+  return {
+    task, test: out.test, build: out.build, lint: out.lint,
+    artifacts: { paths: [...paths.keys()], writes, failedWrites },
+    human: { responded, answerAt: answer !== null ? toWall(answer.e) : null },
+    overall, failedKinds, missing, anyValidation, codeCalls,
+  }
 }
