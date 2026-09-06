@@ -66,6 +66,17 @@ describe('detectValidationKinds（命令位置识别，一条命令命中多类�
     expect(detectValidationKinds('if pytest; then echo ok; fi')).toEqual(['test'])
   })
 
+  it('counts a package-manager `check` script as tests (project convention: pnpm check = typecheck + vitest + build)', () => {
+    expect(detectValidationKinds('pnpm check')).toEqual(['test'])
+    expect(detectValidationKinds('npm run check')).toEqual(['test'])
+    expect(detectValidationKinds('yarn check:all')).toEqual(['test'])
+    expect(detectValidationKinds('cd /repo && pnpm check 2>&1 | tail -20')).toEqual(['test'])
+    // 只认包管理器脚本：裸 `check` 或别的工具的 check 子命令不算测试
+    expect(detectValidationKinds('cargo check')).toEqual(['build'])
+    expect(detectValidationKinds('ruff check .')).toEqual(['lint'])
+    expect(detectValidationKinds('git diff --check')).toEqual([])
+  })
+
   it('one command hitting several kinds records each of them, in fixed order', () => {
     expect(detectValidationKinds('cd /x && pnpm lint && pnpm test && pnpm build')).toEqual(['test', 'build', 'lint'])
     expect(detectValidationKinds('pnpm build\npnpm test')).toEqual(['test', 'build'])
@@ -81,6 +92,11 @@ describe('detectValidationKinds（命令位置识别，一条命令命中多类�
     expect(detectValidationKinds('make clean')).toEqual([])
     expect(detectValidationKinds('')).toEqual([])
     expect(detectValidationKinds(null)).toEqual([])
+  })
+
+  it('a bare `check` outside a package-manager script is not a test', () => {
+    expect(detectValidationKinds('check')).toEqual([])
+    expect(detectValidationKinds('./check.sh')).toEqual([])
   })
 
   it('blanks heredoc bodies and quoted strings before segmenting (real-log false positives, 2026-09-06)', () => {

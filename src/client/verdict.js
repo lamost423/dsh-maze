@@ -131,7 +131,8 @@ export const ANALYSIS_RULES = {
    */
   VALIDATION: {
     test: [
-      new RegExp(PM + '(?:test|t|tests)(?::[\\w:.-]+)?' + END),
+      // 项目自定义的 `check` 脚本（如本仓库的 pnpm check = 类型检查 + 测试 + 构建）按测试计——2026-09-06 吴昊拍板
+      new RegExp(PM + '(?:test|t|tests|check)(?::[\\w:.-]+)?' + END),
       new RegExp(RUNNER + '(?:vitest|jest|mocha|ava|tap|tape|uvu|karma|jasmine|cypress\\s+run|playwright\\s+test|bun\\s+test|deno\\s+test)' + END),
       /^node\s+(?:-[\w-]+\s+)*--test(?=\s|$|[;&|)])/,
       /^(?:pytest|py\.test|nose2|nosetests|tox)(?=\s|$|[;&|)])/,
