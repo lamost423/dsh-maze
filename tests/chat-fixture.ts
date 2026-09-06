@@ -10,7 +10,7 @@
  */
 import type {
   AssistantChatData, AssistantMessageNode, ChatConversationViewNode, ChatNode, ChatSnapshot,
-  ModelRetryNode, ToolResultNode, TurnErrorNode,
+  ModelRetryNode, ToolResultNode, TurnErrorNode, TurnMaxTokensNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 
 /** The payload type upstream declares for one registered Chat node kind. */
@@ -18,9 +18,11 @@ type DataOf<K extends ChatNode['kind']> = Extract<ChatNode, { kind: K }>['data']
 
 /** One logical conversation event, in the flat form the tests author. */
 export interface FixtureEvent {
-  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'turn-tail' | 'partial'
+  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'turn-tail' | 'turn-max-tokens' | 'turn-end' | 'partial'
   seq?: number
   time?: number
+  /** turn-end only: the turn/end reason kind recorded on the timeline (default 'completed'). */
+  reason?: string
   timing?: { stepStartTime?: number }
   requestConfig?: { model?: string }
   usage?: unknown
@@ -82,14 +84,14 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
   // Payloads are checked against the kinds upstream actually registers, so a
   // fixture that drifts from the host contract fails to compile rather than
   // quietly validating the converter against a shape the host never emits.
-  const push = <K extends ChatNode['kind']>(kind: K, data: DataOf<K>, anchorSeq: number): void => {
+  const push = <K extends ChatNode['kind']>(kind: K, data: DataOf<K>, anchorSeq: number, location?: unknown): void => {
     const key = `k${String(order.length)}`
     order.push(key)
     byKey.set(key, {
       key, id: key, kind, target: 'chat', anchorSeq, visibility: 'visible',
-      location: turn === 0
+      location: location ?? (turn === 0
         ? { kind: 'session' }
-        : { kind: 'step', turn: turns.get(turn), step: { turn, step, status: 'closed' } },
+        : { kind: 'step', turn: turns.get(turn), step: { turn, step, status: 'closed' } }),
       data,
     } as unknown as ChatConversationViewNode)
   }
@@ -100,6 +102,27 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
       step = 0
       turnOrder.push(turn)
       turns.set(turn, turnLocation(turn, e.time ?? 0))
+      // The human's turn-opening message is a Chat node of its own (kind 'user'),
+      // placed on the turn rather than on a step.
+      push('user', {
+        kind: 'user', seq: e.seq ?? 0, time: e.time ?? 0, content: [], source: { kind: 'user' },
+      } as DataOf<'user'>, e.seq ?? 0, { kind: 'turn', turn: turns.get(turn) })
+      continue
+    }
+    if (e.kind === 'turn-end') {
+      // The timeline records how the current turn ended; the converter reads
+      // reason.kind off this event for the outcome block.
+      const loc = turns.get(turn) as { end?: unknown; status?: string } | undefined
+      if (loc !== undefined) {
+        loc.end = { type: 'turn/end', seq: e.seq ?? 0, time: e.time ?? 0, data: { turn, reason: { kind: e.reason ?? 'completed' } } }
+        loc.status = 'closed'
+      }
+      continue
+    }
+    if (e.kind === 'turn-max-tokens') {
+      push('turn-max-tokens', {
+        kind: 'turn-max-tokens', turn: Math.max(turn, 1), seq: e.seq ?? 0, time: e.time ?? 0,
+      } as unknown as TurnMaxTokensNode, e.seq ?? 0)
       continue
     }
     if (e.kind === 'assistant' || e.kind === 'partial') {

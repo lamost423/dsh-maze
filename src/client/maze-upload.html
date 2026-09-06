@@ -255,6 +255,30 @@
   .chaintag.identical{color:var(--retry); background:rgba(136,145,159,.16)}
   .chaintag.none{color:var(--err); background:rgba(192,69,63,.11)}
   .anahint{color:var(--dim); font-size:10.5px; margin:6px 2px 2px}
+  /* 结果与证据（诊断层第 1 项）：六格 + 综合徽标；颜色全走 CSS 变量，明暗同步 */
+  .ochead{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+  .ochead > .bt{margin-bottom:0}
+  .ocverdict{font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; flex:0 0 auto}
+  .ocverdict.done{color:var(--ans); background:rgba(63,125,85,.13)}
+  .ocverdict.partial{color:var(--ctx-warn); background:rgba(217,119,6,.13)}
+  .ocverdict.unverified{color:var(--dim); background:var(--sel)}
+  .ocsum{color:var(--dim); font-size:11px; flex:1 1 200px; min-width:0}
+  .ocgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px}
+  .occell{background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:8px 10px; min-width:0}
+  .occell[data-ai]{cursor:pointer; transition:background .12s}
+  .occell[data-ai]:hover{background:var(--hover)}
+  .occell .ol{font-size:10.5px; color:var(--dim); font-weight:600; letter-spacing:.02em}
+  .occell .os{font-size:12.5px; font-weight:700; margin-top:2px; color:var(--txt)}
+  .occell .os.pass{color:var(--ans)} .occell .os.fail{color:var(--err)} .occell .os.warn{color:var(--ctx-warn)}
+  .occell .os.none{color:var(--dim); font-weight:600}
+  .occell .om{font-size:10.5px; color:var(--dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .occell .om.cmd{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; color:var(--code)}
+  .occell details{margin-top:3px}
+  .occell summary{font-size:10.5px; color:var(--main-f); cursor:pointer; list-style:none}
+  .occell summary::-webkit-details-marker{display:none}
+  .ocpaths{margin:4px 0 0; padding:0; list-style:none; max-height:160px; overflow:auto; font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:10.5px; color:var(--code)}
+  .ocpaths li{padding:1px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ocnote{color:var(--seam-txt); font-size:10.5px; margin:6px 2px 0}
   /* 耗时分布散点图（分析区 SVG）：颜色走 CSS 变量，主题切换零重绘 */
   .dsc-row{font-size:10.5px; font-weight:600; fill:var(--txt)}
   .dsc-cnt{font-size:9.5px; fill:var(--dim)}
@@ -469,6 +493,33 @@ const I18N = {
     agTok: n => `${fmtTok(n)} tok`, agTokNone: '（日志未报 token）',
     agCalls: n => `${n} 次工具调用`, agRunningTag: '运行中',
     agHint: '节点大小 = 该 Agent 消耗的 token（输入+缓存+输出）；连线粗细 = 工具调用数。点子代理节点跳到它在时间轴上的位置。',
+    ocHeader: '结果与证据',
+    ocOverall: { done: '已完成', partial: '部分成功', unverified: '未验证' },
+    ocCell: { task: '任务完成', test: '测试', build: '构建', lint: 'Lint', artifacts: '产物', human: '人工确认' },
+    ocTaskS: { done: '已结束', failed: '未正常结束', noAnswer: '没有最终回答', unfinished: '未收尾', running: '进行中' },
+    ocTask: {
+      done: (turn, reason) => `第 ${turn} 轮正常结束` + (reason !== 'completed' ? `（结束原因：${reason}）` : ''),
+      failed: (turn, reason) => `第 ${turn} 轮以 ${reason} 收尾`,
+      noAnswer: turn => `第 ${turn} 轮结束了，但最后一步不是回答`,
+      unfinished: turn => turn != null ? `第 ${turn} 轮没有结束事件（会话没收尾，或日志没加载完）` : '没有任何轮次',
+      running: turn => `第 ${turn} 轮仍在进行`,
+    },
+    ocPass: '通过', ocFail: '最后一次失败', ocNotRun: '没有跑',
+    ocRuns: (runs, cmds) => `${runs} 次运行 · ${cmds} 条命令`,
+    ocFailedCmds: n => `，${n} 条最后一次失败`,
+    ocExit: code => `退出码 ${code}`,
+    ocArtifactsN: n => `${n} 个文件`, ocArtifactsNone: '没有写入/编辑文件',
+    ocWrites: (w, f) => `${w} 次成功写入${f > 0 ? ` · ${f} 次写入失败` : ''}`,
+    ocPathsToggle: '文件列表',
+    ocHumanYes: '用户已回应', ocHumanNo: '回答后没有用户消息', ocHumanNA: '没有最终回答可回应',
+    ocSummary: {
+      done: (ran, missing) => `最后一轮正常结束，${ran}通过` + (missing ? `；没有跑${missing}` : ''),
+      partial: reasons => reasons.join('；'),
+      unverified: '本场没有跑测试/构建/Lint，结果未经验证',
+    },
+    ocReason: { task: '任务没有正常结束', test: '测试最后一次失败', build: '构建最后一次失败', lint: 'Lint 最后一次失败' },
+    ocHint: '口径：测试/构建/Lint 按命令正则在命令位置识别（初版覆盖 JS/TS、Python、Rust、Go、Swift），一条命令命中多类分别记；通过 = 该调用没有错误标志、返回末行没有非零退出码；同一条命令多次执行取最后一次。产物 = 写入/编辑类调用成功触及的文件（去重）。任务完成 = 最后一轮的 turn/end 不是 error/aborted/interrupted/blocked，且最后一步是回答。人工确认只看最终回答之后有没有真人消息，不解读内容。「未验证」是中性的，不当失败。点测试/构建/Lint 格定位到决定性的那次命令（最后一次失败，否则最后一次运行）。',
+    ocCode: n => `code 模式会话（run_code ×${n}）：脚本内部派发的真实工具调用暂不识别，以上各格只统计直接调用。`,
     subPrefix: '子代理 ', subBranch: '子代理支路', detBranch: '探索支路',
     evtRetry: '请求失败重试', evtTurnError: '请求终局失败',
     mainStep: '主干推进', finalAnswer: '最终回答', rejected: '（被打回）',
@@ -596,6 +647,33 @@ const I18N = {
     agTok: n => `${fmtTok(n)} tok`, agTokNone: '(no token usage in log)',
     agCalls: n => `${n} tool calls`, agRunningTag: 'running',
     agHint: 'Node size = tokens consumed by that agent (input+cache+output); edge width = tool call count. Click a subagent node to jump to its span on the timeline.',
+    ocHeader: 'Outcome & evidence',
+    ocOverall: { done: 'Completed', partial: 'Partial', unverified: 'Unverified' },
+    ocCell: { task: 'Task', test: 'Tests', build: 'Build', lint: 'Lint', artifacts: 'Artifacts', human: 'Human check' },
+    ocTaskS: { done: 'finished', failed: 'not finished', noAnswer: 'no final answer', unfinished: 'unfinished', running: 'running' },
+    ocTask: {
+      done: (turn, reason) => `turn ${turn} ended normally` + (reason !== 'completed' ? ` (end reason: ${reason})` : ''),
+      failed: (turn, reason) => `turn ${turn} ended with ${reason}`,
+      noAnswer: turn => `turn ${turn} ended, but its last step is not an answer`,
+      unfinished: turn => turn != null ? `turn ${turn} has no end event (session not wrapped up, or log not fully loaded)` : 'no turns at all',
+      running: turn => `turn ${turn} still running`,
+    },
+    ocPass: 'passed', ocFail: 'last run failed', ocNotRun: 'not run',
+    ocRuns: (runs, cmds) => `${runs} runs · ${cmds} commands`,
+    ocFailedCmds: n => `, ${n} failing on their last run`,
+    ocExit: code => `exit code ${code}`,
+    ocArtifactsN: n => `${n} files`, ocArtifactsNone: 'no files written or edited',
+    ocWrites: (w, f) => `${w} successful writes${f > 0 ? ` · ${f} failed` : ''}`,
+    ocPathsToggle: 'file list',
+    ocHumanYes: 'user responded', ocHumanNo: 'no user message after the answer', ocHumanNA: 'no final answer to respond to',
+    ocSummary: {
+      done: (ran, missing) => `last turn ended normally; ${ran} passed` + (missing ? `; ${missing} not run` : ''),
+      partial: reasons => reasons.join('; '),
+      unverified: 'no tests, build or lint were run — the result is unverified',
+    },
+    ocReason: { task: 'the task did not finish normally', test: 'tests failed on their last run', build: 'the build failed on its last run', lint: 'lint failed on its last run' },
+    ocHint: 'Method: tests/build/lint are recognized by command-position regexes (JS/TS, Python, Rust, Go, Swift in this first cut); one command can count for several kinds. Passed = the call carried no error flag and the last line of its output has no non-zero exit code; a command run several times counts by its last run. Artifacts = files touched by successful write/edit calls, deduplicated. Task done = the last turn/end is not error/aborted/interrupted/blocked and the last step is an answer. Human check only asks whether a human message followed the final answer — content is never interpreted. "Unverified" is neutral, not a failure. Click the tests/build/lint cell to jump to the decisive command (the last failing run, otherwise the last run).',
+    ocCode: n => `Code-mode session (run_code ×${n}): the real tool calls dispatched inside the script are not recognized yet; the cells above count direct calls only.`,
     subPrefix: 'Subagent ', subBranch: 'Subagent branch', detBranch: 'Exploration detour',
     evtRetry: 'Request retry', evtTurnError: 'Request failed for good',
     mainStep: 'Main-path step', finalAnswer: 'Final answer', rejected: ' (rejected)',
@@ -820,13 +898,18 @@ function buildLane(text){
   const t0 = first !== undefined ? tOf(first) : tOf(evs[0])
   const rows = []
   const rowByStep = new Map()
+  const turnEnds = []   // 结果与证据块：每轮以什么原因收尾（turn/end 的 reason.kind）
+  const userMsgs = []   // 结果与证据块：真人消息的时刻（source.kind = user；指令文件/插件注入/子代理回报不算）
   let cur = null
   const pending = []
   for (const e of evs){
     const t = e.type
     const d = e.data ?? {}
     const tm = (tOf(e) - t0) / 1000
-    if (t === 'step/start'){
+    if (t === 'user/message'){
+      const sk = d.source?.kind
+      if (sk === undefined || sk === 'user') userMsgs.push({ s: Math.round(tm * 10) / 10 })
+    } else if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
       cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null, inTok: null, cacheTok: null }
       rows.push(cur)
@@ -857,7 +940,10 @@ function buildLane(text){
     } else if (t === 'tool/result' && pending.length > 0){
       const ev = pending.shift()
       ev.e = tm
-      ev.res = resultText(d).replace(/\s+/g, ' ').trim()
+      const raw = resultText(d)
+      // 退出码在压空白前从原文**末行**读（dsh 把 [exit code: N] 追加在末尾）；结果与证据块据此判验证命令通过与否
+      ev.exit = exitCodeOf(raw)
+      ev.res = raw.replace(/\s+/g, ' ').trim()
       ev.err = d.isError === true || hasErrorFlag(d)
     } else if (t === 'llm/retry'){
       // 请求失败后的重试排期：失败的那次请求没有 assistant 输出，不画就是纯空白。
@@ -868,11 +954,14 @@ function buildLane(text){
       rows.push({ step: 'r' + rows.length, turn: d.turn, s: tm, e: tm + delay, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
         evt: 'retry', label: '↻' + (d.retry ?? ''),
         why: { k: 'llmRetry', p: [d.retry ?? '?', d.mode === 'always' ? '∞' : (d.maxRetries ?? '?'), Math.round((d.delayMs ?? 0) / 100) / 10, (d.failure?.message ?? '') + (d.failure?.code ? ' [' + d.failure.code + ']' : ''), cancelled ? 1 : 0] } })
-    } else if (t === 'turn/end' && d.reason?.kind === 'error'){
-      // 终局失败（无再重试）：同样没有输出承载，画成时间点标记。
-      rows.push({ step: 'e' + rows.length, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
-        evt: 'turnError', label: '✗',
-        why: { k: 'turnError', p: [d.reason.error?.message ?? '', d.reason.error?.code ?? ''] } })
+    } else if (t === 'turn/end'){
+      turnEnds.push({ turn: d.turn, kind: d.reason?.kind ?? 'unknown', s: Math.round(tm * 10) / 10 })
+      if (d.reason?.kind === 'error'){
+        // 终局失败（无再重试）：同样没有输出承载，画成时间点标记。
+        rows.push({ step: 'e' + rows.length, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null,
+          evt: 'turnError', label: '✗',
+          why: { k: 'turnError', p: [d.reason.error?.message ?? '', d.reason.error?.code ?? ''] } })
+      }
     }
   }
   const modelHeader = evs.find(e => e.type === 'request/header')
@@ -899,7 +988,7 @@ function buildLane(text){
     r.s = Math.round(r.s * 10) / 10
     r.e = Math.round(r.e * 10) / 10
   }
-  return { rows, model, firstUser: firstUserText, title: model ?? (rows.length ? 'Session' : '?') }
+  return { rows, model, firstUser: firstUserText, turnEnds, userMsgs, title: model ?? (rows.length ? 'Session' : '?') }
 }
 
 /* 判定逻辑（toolVerdict/stepVerdict/markRetryClusters/VERDICT_RULES/SEV）构建期
@@ -908,7 +997,7 @@ function buildLane(text){
 
 function buildData(fileTexts, fileNames){
   const lanes = fileTexts.map((text, i) => {
-    const { rows, model, firstUser } = buildLane(text)
+    const { rows, model, firstUser, turnEnds, userMsgs } = buildLane(text)
     const fname = fileNames?.[i] ?? null
     // 工具级判定已在 buildLane 的全文上完成；这里做跨步骤盲目重试簇标注（会改工具判定），再步级聚合
     const allEvs = []
@@ -939,7 +1028,7 @@ function buildData(fileTexts, fileNames){
     const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
     const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
     const T = Math.round(Math.max(...rows.map(r => r.e)) * 10) / 10
-    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
+    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, turnEnds, userMsgs, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
   // 轴跨度贴合内容：短会话不再被 460s 固定下限压扁在左侧（×1.04 给右缘旗标留呼吸位）。
   const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
@@ -2286,6 +2375,55 @@ function agentGraphSvg(lane, li){
   return s + '</svg>'
 }
 
+/**
+ * 结果与证据块（诊断层第 1 项）：六格（任务完成 / 测试 / 构建 / Lint / 产物 / 人工确认）+ 综合徽标。
+ * 聚合全在 verdict.js 的 outcomeEvidence（可测），这里只排版；时间轴折叠后节点坐标不是墙钟，
+ * 人工确认的先后比较经 wallClock 还原。测试/构建/Lint 格点击复用失败恢复链的 data-ai 定位。
+ */
+function outcomeBlockHtml(lane){
+  const oc = outcomeEvidence(lane, wallClock)
+  const names = tr('ocCell')
+  const cell = (key, cls, status, meta, extra, ai) =>
+    `<div class="occell"${ai != null ? ` data-ai="${ai}"` : ''}><div class="ol">${esc(names[key])}</div><div class="os ${cls}">${status}</div>`
+    + (meta ? `<div class="om">${meta}</div>` : '') + (extra ?? '') + `</div>`
+  const tk = oc.task
+  const taskCls = tk.state === 'done' ? 'pass' : tk.state === 'failed' || tk.state === 'noAnswer' ? 'fail' : tk.state === 'running' ? 'warn' : 'none'
+  let cells = cell('task', taskCls, esc(tr('ocTaskS')[tk.state]), esc(tr('ocTask')[tk.state](tk.turn, tk.reason ?? '')))
+  for (const k of ['test', 'build', 'lint']){
+    const g = oc[k]
+    const ai = g.anchor ? anaRefs.push({ node: g.anchor.n, laneKey: lane.key }) - 1 : null
+    const status = g.passed === null ? tr('ocNotRun') : g.passed ? '✓ ' + tr('ocPass') : '✗ ' + tr('ocFail')
+    const cls = g.passed === null ? 'none' : g.passed ? 'pass' : 'fail'
+    const meta = g.runs === 0 ? '' : esc(tr('ocRuns')(g.runs, g.commands) + (g.failedCommands > 0 ? tr('ocFailedCmds')(g.failedCommands) : ''))
+    const cmdTxt = g.anchorCmd ? g.anchorCmd.replace(/\s+/g, ' ').trim() : ''
+    const cmd = cmdTxt ? `<div class="om cmd" title="${esc(cmdTxt.slice(0, 400))}">${esc(cmdTxt.slice(0, 80))}${g.anchorExit != null && g.anchorExit !== 0 ? ` · ${esc(tr('ocExit')(g.anchorExit))}` : ''}</div>` : ''
+    cells += cell(k, cls, status, meta, cmd, ai)
+  }
+  const ar = oc.artifacts
+  const list = ar.paths.length > 0
+    ? `<details><summary>${esc(tr('ocPathsToggle'))} ▾</summary><ul class="ocpaths">${ar.paths.map(p => `<li title="${esc(p)}">${esc(p)}</li>`).join('')}</ul></details>` : ''
+  cells += cell('artifacts', ar.paths.length > 0 ? '' : 'none', esc(ar.paths.length > 0 ? tr('ocArtifactsN')(ar.paths.length) : tr('ocArtifactsNone')),
+    ar.writes + ar.failedWrites > 0 ? esc(tr('ocWrites')(ar.writes, ar.failedWrites)) : '', list)
+  const hm = oc.human
+  cells += cell('human', hm.responded === true ? 'pass' : 'none', esc(hm.responded === null ? tr('ocHumanNA') : hm.responded ? tr('ocHumanYes') : tr('ocHumanNo')), '')
+  let sum
+  if (oc.overall === 'unverified') sum = tr('ocSummary').unverified
+  else if (oc.overall === 'done') sum = tr('ocSummary').done(
+    ['test', 'build', 'lint'].filter(k => oc[k].runs > 0).map(k => names[k]).join(' / '),
+    oc.missing.map(k => names[k]).join(' / '))
+  else {
+    const reasons = []
+    if (oc.task.state !== 'done') reasons.push(tr('ocReason').task)
+    for (const k of oc.failedKinds) reasons.push(tr('ocReason')[k])
+    sum = tr('ocSummary').partial(reasons)
+  }
+  return `<div class="anablock" style="margin-bottom:10px"><div class="ochead"><div class="bt">${esc(tr('ocHeader'))}</div>`
+    + `<span class="ocverdict ${oc.overall}">${esc(tr('ocOverall')[oc.overall])}</span><span class="ocsum">${esc(sum)}</span></div>`
+    + `<div class="ocgrid">${cells}</div>`
+    + (oc.codeCalls > 0 ? `<div class="ocnote">${esc(tr('ocCode')(oc.codeCalls))}</div>` : '')
+    + `<div class="anahint">${esc(tr('ocHint'))}</div></div>`
+}
+
 function renderAnalysis(){
   if (!DATA) return
   anaRefs = []
@@ -2320,6 +2458,8 @@ function renderAnalysis(){
     const evtFails = countRequestFailures(lane)
 
     if (DATA.lanes.length > 1) h += `<div class="analane">${laneName(lane)}<span class="m">${esc(lane.fname ?? lane.model ?? '')}</span></div>`
+    // 结果与证据先于三卡：先回答「做成没有、凭什么说做成」，再看过程指标
+    h += outcomeBlockHtml(lane)
     h += `<div class="anacards">`
     h += `<div class="anacard"><div class="num">01</div><div><div class="t">${tr('cardFail')}</div><div class="v">`
       + (fails === 0 && evtFails === 0 ? `<span class="good">${tr('cardFailNone')}</span>`
@@ -3173,7 +3313,8 @@ let liveSig = null
 function mazeSignature(data){
   const parts = []
   for (const l of data.lanes){
-    parts.push('m' + l.main.length, 'd' + l.detours.length)
+    // 轮次收尾与真人消息只改结果与证据块，但它们到达时未必伴随节点变化，得单独进签名
+    parts.push('m' + l.main.length, 'd' + l.detours.length, 't' + (l.turnEnds?.length ?? 0), 'u' + (l.userMsgs?.length ?? 0))
     for (const arr of [l.main, l.detours]){
       for (const n of arr){
         if (n.live){ parts.push('L' + n.tools.length); continue }

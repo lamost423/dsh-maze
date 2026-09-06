@@ -16,7 +16,7 @@ import type {
   ChatConversationViewNode, ChatNode, ChatSnapshot, ToolCallBlock, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
-import { markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import { exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 
 /** Narrow one ordered Chat node to a registered renderer kind. */
@@ -78,6 +78,11 @@ export interface MazeTool {
   /** Detail-panel text of the result (≤5000 chars). */
   resFull?: string
   err: boolean
+  /**
+   * 返回原文末行的退出码（dsh 把 `[exit code: N]` 追加在末尾，仅非零）；没有则 null。
+   * 在压空白与截断之前算好——结果与证据块靠它判验证命令通过与否，不能从 5000 字截断文本里找。
+   */
+  exit?: number | null
   dur: number
   v: 'error' | 'deadend' | 'retry' | 'ok'
   /** 结构化判定依据（展示端按界面语言渲染）。 */
@@ -145,6 +150,10 @@ export interface MazeLane {
   preWindow: number
   main: MazeNode[]
   detours: MazeNode[]
+  /** 每轮怎么收尾（turn/end 的 reason.kind），结果与证据块判「任务完成」用；s 为泳道秒。 */
+  turnEnds?: { turn: number; kind: string; s: number }[]
+  /** 真人消息（user / steering 节点）的时刻，结果与证据块判「人工确认」用；只有时刻，不带内容。 */
+  userMsgs?: { s: number }[]
   stats: {
     steps: number; tools: number; rz: number
     rzTok: number | null; outTok: number | null; inTok: number | null
@@ -221,11 +230,12 @@ function settleToolSpan(tool: MazeTool): void {
   tool.why = tv.why
 }
 
-function contentText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
+/** Concatenated text blocks with whitespace untouched — the exit-code reader wants the real last line. */
+function rawText(blocks: readonly { type?: string; text?: string }[] | undefined): string {
   if (!blocks) return ''
   const out: string[] = []
   for (const b of blocks) if (b.type === 'text' && b.text !== undefined) out.push(b.text)
-  return out.join('').replace(/\s+/g, ' ').trim()
+  return out.join('')
 }
 
 /** Latest wall-clock event time in a conversation, or null while empty. */
@@ -267,6 +277,10 @@ interface ScanResult {
    * them. Turns still running are absent and fall back to their step sums.
    */
   turnTokens: Map<number, { in: number; out: number; rz: number | null }>
+  /** How each loaded turn ended (see MazeLane.turnEnds). */
+  turnEnds: { turn: number; kind: string; s: number }[]
+  /** Human message times (see MazeLane.userMsgs). */
+  userMsgs: { s: number }[]
 }
 
 /**
@@ -329,6 +343,9 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
   /** Every settled bar, so result excerpts are cut after the verdicts settle. */
   const settledTools: MazeTool[] = []
   const turnTokens = new Map<number, { in: number; out: number; rz: number | null }>()
+  const userMsgs: { s: number }[] = []
+  /** Turn endings read off the nodes themselves — the fallback when the timeline carries no turn/end event. */
+  const endByNode = new Map<number, { kind: string; s: number }>()
   let preWindow = 0
   let liveRow: MazeNode | null = null
   for (const n of nodes) {
@@ -400,7 +417,11 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
         // Full text here on purpose: the verdict scans the head AND the tail of
         // the output, so truncating before judging would hide a crash appended
         // at the end. Excerpts are cut once every verdict has been settled.
-        tool.res = contentText(root.content)
+        // The exit code is read off the untouched last line first — collapsing
+        // whitespace would fold it into the body.
+        const raw = rawText(root.content)
+        tool.exit = exitCodeOf(raw)
+        tool.res = raw.replace(/\s+/g, ' ').trim()
         tool.err = root.isError
         cur.e = Math.max(cur.e, tool.e)
         settledTools.push(tool)
@@ -438,6 +459,12 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
         v: 'error', evt: 'turnError', label: '✗',
         why: { k: 'turnError', p: [d.message, d.code ?? ''] },
       })
+      endByNode.set(Math.max(turn, 1), { kind: 'error', s })
+    } else if (isKind(n, 'turn-max-tokens')) {
+      // The provider cut the turn at its output cap; a tail may still follow, but the cap is the truer ending.
+      const d = n.data
+      if (anchor !== null && d.time < anchor) continue
+      if (endByNode.get(d.turn)?.kind !== 'error') endByNode.set(d.turn, { kind: 'max-tokens', s: rel(d.time) })
     } else if (isKind(n, 'turn-tail')) {
       // The turn's closing row carries the exact provider accounting. It is not
       // a maze row of its own — its closing assistant already has one.
@@ -449,8 +476,27 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
           rz: usage.reasoningTokens ?? null,
         })
       }
+      if (!endByNode.has(n.data.turn)) endByNode.set(n.data.turn, { kind: 'completed', s: rel(n.data.time) })
+    } else if (isKind(n, 'user') || isKind(n, 'steering')) {
+      // 人工确认只看真人消息：user = 开轮消息，steering = 轮中插入的消息。注入的上下文
+      //（指令文件 / 技能目录 / 插件提醒 / 子代理回报）是 'context' 节点，不算。
+      if (anchor !== null && n.data.time < anchor) continue
+      userMsgs.push({ s: rel(n.data.time) })
     }
   }
+
+  // How each turn ended: the timeline's own turn/end event (with reason.kind)
+  // wins; when the window holds no such event, fall back to what the nodes say.
+  const turnEnds: { turn: number; kind: string; s: number }[] = []
+  const fromTimeline = new Set<number>()
+  for (const t of snap.timeline.turnOrder) {
+    const endEv = snap.timeline.turns.get(t)?.end
+    if (endEv === undefined) continue
+    turnEnds.push({ turn: t, kind: endEv.data.reason.kind, s: rel(endEv.time) })
+    fromTimeline.add(t)
+  }
+  for (const [t, e] of endByNode) if (!fromTimeline.has(t)) turnEnds.push({ turn: t, ...e })
+  turnEnds.sort((a, b) => a.turn - b.turn)
 
   // Anchor the truncated calls now that every node has folded into its step.
   for (const { tool, row } of unanchored) {
@@ -497,7 +543,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
     }
   }
 
-  return { rows, liveRow, preWindow, turnTokens }
+  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs }
 }
 
 /**
@@ -561,7 +607,7 @@ export function snapshotToMazeData(
   const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnTokens } = scanRows(snap, rel)
+  const { rows, preWindow, turnTokens, turnEnds, userMsgs } = scanRows(snap, rel)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -634,6 +680,7 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
+    turnEnds, userMsgs,
     stats: {
       steps: rows.length, tools: toolsCount, rz: rzCount,
       rzTok, outTok, inTok, T, main: main.length, detours: detours.length,
