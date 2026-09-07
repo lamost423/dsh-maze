@@ -637,8 +637,9 @@ export function outcomeEvidence(lane, wall){
 
 /**
  * 阈值全部按 2026-09-06 本机 202 份会话（149 场有效）校准，脚本
- * trace-compare-verdict-calibration/behavior-signals-calib.mjs；定阈值的原则：「中」落在最差的
- * 15%~20% 会话，「高」落在最差的 3%~5%。改这里必须重跑校准脚本，把命中占比记进 CHANGELOG。
+ * trace-compare-verdict-calibration/behavior-signals-calib.mjs（2026-09-07 独立评审后修正三处——循环去重、签名同规则、
+ * 失败改用 toolVerdict——并重跑，各条命中占比见下）；定阈值的原则：「中」落在最差的 15%~20% 会话，「高」落在最差的
+ * 3%~5%。改这里必须重跑校准脚本，把命中占比记进 CHANGELOG。
  */
 ANALYSIS_RULES.SIGNALS = {
   /** 轮询 / 记账类工具：不参与重复与循环计数（它们本来就要反复调）。 */
@@ -649,17 +650,17 @@ ANALYSIS_RULES.SIGNALS = {
   READ_SHELL: /^(?:cat|sed|head|tail|rg|grep|ls|find|wc|git (?:log|status|diff|show)) /,
   /** 参数签名截断长度（与校准脚本一致）。 */
   SIG_MAX: 300,
-  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（校准命中 9% / 3%）。 */
+  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（重跑校准 9% / 3%；换策略恢复 4%）。 */
   MECHANICAL: { medium: 1, high: 3 },
-  /** 同轮重复调用：占本场调用的比例且次数（低 ≥10% 且 ≥5；中 ≥20% 且 ≥10；校准 37% / 16%）。 */
+  /** 同轮重复调用：占本场调用的比例且次数（低 ≥10% 且 ≥5；中 ≥20% 且 ≥10；2026-09-07 重跑校准 30% / 8%，签名与页面同规则后比首轮的 37% / 16% 低）。 */
   REPEAT: { low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } },
-  /** 重复读取子标签：同轮重复里读取类 ≥5（校准 32%，只作子标签）。 */
+  /** 重复读取子标签：同轮重复里读取类 ≥5（重跑校准 26%，只作子标签）。 */
   REPEAT_READ: 5,
-  /** 循环：排除轮询类后长度 1~3 的序列连续 3 次；占用步数 中 ≥9，高 ≥30（校准 19% / 6%）。 */
+  /** 循环：排除轮询类后长度 1~3 的序列连续 3 次，长窗口先扫、已覆盖的下标不再数；占用步数 中 ≥9，高 ≥30（去重后重跑校准 16% / 4%，落在目标区间）。 */
   LOOP: { medium: 9, high: 30 },
-  /** 工具失败：中 = 失败 ≥5 次或失败率 ≥5%；高 = 失败率 ≥10% 且 ≥5 次（校准 13% / 3%）。 */
+  /** 工具失败：中 = 失败 ≥5 次或失败率 ≥5%；高 = 失败率 ≥10% 且 ≥5 次（校准脚本改用 toolVerdict 判失败后重跑 15% / 2%）。 */
   FAIL: { medium: { count: 5, rate: 0.05 }, high: { count: 5, rate: 0.10 } },
-  /** 慢调用：单次 ≥120 秒；低 ≥1 次，中 ≥3 次（校准 15% / 7%）。相对均值的口径在 72% 会话触发，没有区分度，已弃。 */
+  /** 慢调用：单次 ≥120 秒；低 ≥1 次，中 ≥3 次（校准 14% / 3%，2026-09-07 去掉压缩重发的 tool/result 后重算）。相对均值的口径在 72% 会话触发，没有区分度，已弃。 */
   SLOW_SEC: 120,
   SLOW: { low: 1, medium: 3 },
   /** 工具集中度：调用 ≥20 次且赫芬达尔指数 ≥0.85（低，校准 10%）。 */
@@ -682,7 +683,9 @@ export function callSignature(name, args){
   else if (typeof a.command === 'string') body = a.command
   else if (Array.isArray(a.command)) body = a.command.map(String).join(' ')
   else if (typeof a.file_path === 'string') body = a.file_path
-  else if (typeof a.path === 'string') body = a.path
+  // grep/glob 这类带 pattern 的工具与 query 类工具：和页面 argSummary 同一形态（评审 P1-2，两条链路签名一致）
+  else if (typeof a.pattern === 'string') body = 'pattern=' + a.pattern + (a.path ? ' path=' + a.path : '')
+  else if (typeof a.query === 'string') body = a.query
   else body = JSON.stringify(a)
   return name + '|' + String(body).replace(/\s+/g, ' ').trim().slice(0, ANALYSIS_RULES.SIGNALS.SIG_MAX)
 }
@@ -752,18 +755,24 @@ export function behaviorSignals(lane, wall){
   // 循环：排除轮询类后，长度 1~3 的序列连续 3 次（与校准脚本同扫描：按长度分别扫，不去重叠）
   const seq = calls.filter(c => !R.POLL_TOOLS.includes(c.name))
   const sigs = seq.map(c => c.sig)
-  let loops = 0, loopSteps = 0
-  const loopRefs = []
-  for (let w = 1; w <= 3; w++){
+  // 长窗口先扫：一段被长窗口命中后短窗口不再数（评审 P1-1：9 次相同调用是 1 段 9 步，不是 24 步）
+  const covered = new Set()
+  let loops = 0
+  for (const w of [3, 2, 1]){
     for (let at = 0; at + w * 3 <= sigs.length; at++){
+      let clash = false
+      for (let j = at; j < at + w * 3; j++) if (covered.has(j)){ clash = true; break }
+      if (clash) continue
       const pat = sigs.slice(at, at + w).join('||')
       if ([1, 2].every(k => sigs.slice(at + k * w, at + (k + 1) * w).join('||') === pat)){
-        loops += 1; loopSteps += w * 3
-        for (let j = at; j < at + w * 3; j++) loopRefs.push(seq[j].ref)
+        loops += 1
+        for (let j = at; j < at + w * 3; j++) covered.add(j)
         at += w * 3 - 1
       }
     }
   }
+  const loopSteps = covered.size
+  const loopRefs = [...covered].sort((x, y) => x - y).map(j => seq[j].ref)
   if (loopSteps >= R.LOOP.medium) push('loop', loopSteps >= R.LOOP.high ? 'high' : 'medium', loopRefs, { k: 'sigLoop', p: [loops, loopSteps] })
 
   // 工具失败（沿用现有判定 v = error）
@@ -792,23 +801,26 @@ export function behaviorSignals(lane, wall){
   const occ = contextOccupancy(lane)
   const compStarts = (lane.compaction?.starts ?? [])
   if (occ.valid && occ.samples.length > 0){
-    // 窗口值不可信而被略过的样本没有占用，不参与相邻比较（否则会冒出 0% → 55% 的假骤升）
-    const own = occ.samples.filter(sm => sm.ratio != null)
+    // 窗口值不可信而被略过的样本没有占用：不参与比较，而且把比较链在它这里断开——它两侧不跨着比（评审 P2-3）
     let peak = 0, peakNode = null
     const ups = [], downs = []
     let compacted = 0
-    for (let i = 0; i < own.length; i++){
-      const r = own[i].ratio
-      if (r > peak){ peak = r; peakNode = own[i].n }
-      if (i === 0) continue
-      const d = r - own[i - 1].ratio
-      if (d >= R.CTX_JUMP) ups.push({ n: own[i].n, from: own[i - 1].ratio, to: r })
-      if (d <= -R.CTX_JUMP){
-        const a = toWall(own[i - 1].n.s), b = toWall(own[i].n.e)
-        const near = compStarts.some(t => t >= a && t <= b)
-        if (near) compacted += 1
-        downs.push({ n: own[i].n, from: own[i - 1].ratio, to: r, near })
+    let prev = null
+    for (const sm of occ.samples){
+      if (sm.ratio == null){ prev = null; continue }
+      const r = sm.ratio
+      if (r > peak){ peak = r; peakNode = sm.n }
+      if (prev !== null){
+        const d = r - prev.ratio
+        if (d >= R.CTX_JUMP) ups.push({ n: sm.n, from: prev.ratio, to: r })
+        if (d <= -R.CTX_JUMP){
+          const a = toWall(prev.n.s), b = toWall(sm.n.e)
+          const near = compStarts.some(t => t >= a && t <= b)
+          if (near) compacted += 1
+          downs.push({ n: sm.n, from: prev.ratio, to: r, near })
+        }
       }
+      prev = sm
     }
     const nodeRef = n => ({ tl: (n.tools ?? [])[0] ?? null, n })
     if (ups.length > 0) push('ctxJump', 'medium', ups.map(x => nodeRef(x.n)), { k: 'sigCtxUp', p: [ups.length, Math.round(ups[0].from * 100), Math.round(ups[0].to * 100)] })

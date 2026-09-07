@@ -49,7 +49,12 @@ describe('callSignature（与校准脚本同规则）', () => {
     expect(callSignature('bash', 'ls   -la')).toBe('bash|ls -la')
     expect(callSignature('read', '{"file_path":"/a.ts"}')).toBe('read|/a.ts')
     expect(callSignature('read', '/a.ts')).toBe('read|/a.ts')
-    expect(callSignature('grep', '{"pattern":"x","path":"src"}')).toBe('grep|src')
+    // 评审 P1-2：带 pattern / query 的工具两条链路同一形态（实时链路原始 JSON = 上传链路 argSummary 摘要）
+    expect(callSignature('grep', '{"pattern":"x","path":"src"}')).toBe('grep|pattern=x path=src')
+    expect(callSignature('grep', 'pattern=x path=src')).toBe('grep|pattern=x path=src')
+    expect(callSignature('glob', '{"pattern":"**/*.ts"}')).toBe('glob|pattern=**/*.ts')
+    expect(callSignature('web_search', '{"query":"dsh maze"}')).toBe('web_search|dsh maze')
+    expect(callSignature('web_search', 'dsh maze')).toBe('web_search|dsh maze')
     expect(callSignature('bash', 'x'.repeat(400)).length).toBe('bash|'.length + R.SIG_MAX)
   })
 })
@@ -95,17 +100,26 @@ describe('behaviorSignals', () => {
 
   it('循环：排除轮询类后长度 1~3 序列连续 3 次；占用 ≥9 步为中，≥30 步为高；只重复 2 次不算', () => {
     const abc = (): Call[] => [bash('a'), bash('b'), bash('c')]
-    const nine = synth([...abc(), ...abc(), ...abc()])
-    const s = byType(nine, 'loop')!
+    const abc3 = synth([...abc(), ...abc(), ...abc()])
+    const s = byType(abc3, 'loop')!
     expect(s).toMatchObject({ severity: 'medium', count: 9 })
     expect(s.why.p).toEqual([1, 9])
     expect(byType(synth([...abc(), ...abc()]), 'loop')).toBeUndefined()
-    // 长度 1 的序列连续 3 次是 3 步，不到 9；连续 9 次（分 3 段各 3 步）到 9
+    // 长度 1 的序列连续 3 次是 3 步，不到 9
     expect(byType(synth(rep(3, bash('a'))), 'loop')).toBeUndefined()
-    expect(byType(synth(rep(9, bash('a'))), 'loop')).toMatchObject({ severity: 'medium' })
+    // 评审 P1-1：跨窗口长度不重复计数——9 次相同调用是 1 段 9 步（长窗口先命中），不是 24 步
+    const nine = byType(synth(rep(9, bash('a'))), 'loop')!
+    expect(nine).toMatchObject({ severity: 'medium', count: 9 })
+    expect(nine.why.p).toEqual([1, 9])
+    // 6 次相同调用只有 6 步（长度 2 的窗口命中一段），不触发中
+    expect(byType(synth(rep(6, bash('a'))), 'loop')).toBeUndefined()
     // 循环按「连续 3 次」成段计数：12 段 abc = 4 个循环、36 步 → 高；10 段只凑出 3 个循环 27 步 → 仍是中
     expect(byType(synth(Array.from({ length: 10 }, abc).flat()), 'loop')).toMatchObject({ severity: 'medium', count: 27 })
-    expect(byType(synth(Array.from({ length: 12 }, abc).flat()), 'loop')).toMatchObject({ severity: 'high', count: 36 })
+    const twelve = byType(synth(Array.from({ length: 12 }, abc).flat()), 'loop')!
+    expect(twelve).toMatchObject({ severity: 'high', count: 36 })
+    expect(twelve.why.p).toEqual([4, 36])
+    // refs 去重：涉及调用数 = 覆盖的步数
+    expect(new Set(nine.refs).size).toBe(9)
     // 中间插着轮询调用不打断循环
     expect(byType(synth([...abc(), ['job_output', 'j'], ...abc(), ...abc()]), 'loop')).toMatchObject({ severity: 'medium' })
   })
@@ -195,6 +209,17 @@ describe('behaviorSignals', () => {
     expect(o2.windows).toEqual([1_000_000])
     expect(byType(mixed, 'ctxPeak')!.why.p).toEqual([70, 1_000_000])
     expect(byType(mixed, 'ctxJump')).toBeUndefined()   // 被略过的样本不参与相邻比较
+  })
+
+  it('略过样本处断开比较链：10% → 略过 → 40% 不报骤升，两侧不跨着比（评审 P2-3）', () => {
+    const lane = synth([bash('a', { ctx: 100_000 }), bash('b', { ctx: 350_000 }), bash('c', { ctx: 400_000 })], { ctxWindow: 1_000_000 })
+    ;(lane.main[1] as { ctxWin?: number }).ctxWin = 262_144   // 声称 262144 却跑了 350K：作废
+    expect(contextOccupancy(lane as never).skipped).toBe(1)
+    expect(byType(lane, 'ctxJump')).toBeUndefined()
+    expect(byType(lane, 'ctxDrop')).toBeUndefined()
+    // 同样的三步没有略过时是一次骤升（10% → 35%）
+    const plain = synth([bash('a', { ctx: 100_000 }), bash('b', { ctx: 350_000 }), bash('c', { ctx: 400_000 })], { ctxWindow: 1_000_000 })
+    expect(byType(plain, 'ctxJump')).toMatchObject({ count: 1 })
   })
 
   it('压缩发生：start ≥1 为信息；prune ≥10 另加一句', () => {
