@@ -2,6 +2,18 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## 未发布
+
+**诊断层第 2 项：分析区新增「行为信号」块——12 种信号，阈值按本机 202 份会话校准。**
+
+- **信号与阈值**（`ANALYSIS_RULES.SIGNALS`，与 2026-09-06 的校准表逐条对应；「中」落在最差的 15%~20% 会话，「高」落在最差的 3%~5%）：失败后原样重试（中 ≥1，高 ≥3）、同轮重复调用（排除 job_output/todo_write/list_agents/send_message 等轮询记账类，原样重试不算；低 ≥10% 且 ≥5 次，中 ≥20% 且 ≥10 次；重复读取 ≥5 作子标签）、循环（排除轮询类后长度 1~3 序列连续 3 次；占用 ≥9 步中，≥30 步高）、工具失败（沿用现有判定；≥5 次或失败率 ≥5% 中，失败率 ≥10% 且 ≥5 次高）、慢调用（单次 ≥120 秒；≥1 低，≥3 中）、工具集中度（≥20 次且赫芬达尔指数 ≥0.85，低）、上下文骤升（≥20 个百分点，中）/ 骤降（信息，落在压缩事件附近标「压缩」）、上下文峰值（50/70/90% → 低/中/高；窗口优先取日志 `request/context` 真值，其次模型表）、压缩发生（`compaction/start` ≥1 信息，prune ≥10 另加一句）、待办陈旧（todo-freshness-guard 提醒 ≥10 低，≥30 中）、换策略恢复（信息）。参数签名与校准脚本同规则（bash 取整条命令压空白，读写类取路径）。
+- **块**：失败恢复链旁；每条严重度徽标 + 一句话依据（含具体数字）+ 涉及调用数；点一条淡化其他节点（复用过滤淡化）并缩放到该段第一个调用、打开详情，再点取消；没有信号时明说「本场没有触发任何信号」。方法说明写明阈值来源、各信号独立计数（循环与重复、原样重试与失败可能指向同一段调用）、code 模式重复率天然偏高。中英双语、明暗主题。
+- **两条链路**：上传链路解析时记录 `compaction/*` 事件（start 时刻、prune/summary 次数）、todo-freshness-guard 提醒次数、`request/context` 的上下文窗口真值、每次调用的 callId；实时链路用落地的 compaction 节点与 `context` 节点（插件来源）补同样的原料，窗口真值快照里没有、退回模型表；只多几个小字段。
+- **校准脚本的一处失真（发现于对照）**：压缩会为被折叠的调用重新发一遍 `tool/result`，校准脚本按 callId 取最后一条结果，这些调用的「耗时」变成了「调用时刻到压缩时刻」（big2 里 12 条各约 31000 秒）；页面按顺序配对不受影响。慢调用的校准占比（低 15% / 中 7%）可能因此偏高，建议去重后重跑校准。
+- 新增 14 个单元测试（每种信号触发与不触发、阈值常量固定、参数签名两种形态、在途/子代理/请求级标记排除、严重度排序），共 115 个全绿。
+
+_EN: Diagnosis layer, item 2 — the analysis section gains a **Behavior signals** block: 12 signals with thresholds calibrated on 202 local sessions (constants in `ANALYSIS_RULES.SIGNALS`, matching the 2026-09-06 calibration table line by line: "medium" lands in the worst 15–20% of sessions, "high" in the worst 3–5%). Identical retry after failure, same-turn repeats (polling/bookkeeping tools excluded, identical retries not counted, repeated reads as a sub-tag), loops (a 1–3 call sequence repeated 3 times), tool failures, slow calls (≥120 s), tool concentration (Herfindahl ≥0.85 at ≥20 calls), context jumps/drops (≥20 points; a drop next to a compaction event is tagged), context peak (50/70/90%, window from the log's `request/context` when present, else the model table), compaction (with a prune note at ≥10), stale todo reminders, adaptive recovery. Each row shows severity, a numeric rationale and the calls involved; clicking dims everything else and locates the first call; with nothing fired the block says so. Both render paths carry the raw material (compaction events, plugin reminders, context window, call ids). Found while cross-checking: compaction re-emits `tool/result` for shadowed calls, and the calibration script keys results by callId with last-write-wins, so those calls measured as "call time → compaction time" (12 calls of ~31 000 s in one real log); the page pairs in order and is unaffected, but the slow-call calibration shares are likely inflated and worth re-running. 14 new unit tests, 115 green._
+
 ## v2.2.0 — 2026-09-07
 
 **诊断层第 1 项：分析区新增「结果与证据」块——不信 Agent 自述，用日志证据回答「做成没有、凭什么说做成」。**
