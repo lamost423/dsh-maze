@@ -31,7 +31,7 @@ describe('ANALYSIS_RULES.SIGNALS（阈值固定在 2026-09-06 校准表上）', 
     expect(R.REPEAT).toEqual({ low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } })
     expect(R.REPEAT_READ).toBe(5)
     expect(R.LOOP).toEqual({ medium: 9, high: 30 })
-    expect(R.FAIL).toEqual({ medium: { count: 5, rate: 0.05 }, high: { count: 5, rate: 0.10 } })
+    expect(R.FAIL).toEqual({ medium: { count: 10, rate: 0.08 }, high: { count: 10, rate: 0.15 } })
     expect(R.SLOW_SEC).toBe(120)
     expect(R.SLOW).toEqual({ low: 1, medium: 3 })
     expect(R.HHI).toEqual({ minCalls: 20, min: 0.85 })
@@ -124,12 +124,16 @@ describe('behaviorSignals', () => {
     expect(byType(synth([...abc(), ['job_output', 'j'], ...abc(), ...abc()]), 'loop')).toMatchObject({ severity: 'medium' })
   })
 
-  it('工具失败：失败 ≥5 次或失败率 ≥5% 为中；失败率 ≥10% 且 ≥5 次为高', () => {
-    const ok = Array.from({ length: 95 }, (_, i) => bash('ok' + i))
-    expect(byType(synth([...ok, ...Array.from({ length: 5 }, (_, i) => bash('bad' + i, { err: true }))]), 'toolFail')).toMatchObject({ severity: 'medium', count: 5 })   // 5%
-    expect(byType(synth([...ok.slice(0, 40), ...Array.from({ length: 5 }, (_, i) => bash('bad' + i, { err: true }))]), 'toolFail')).toMatchObject({ severity: 'high' })    // 11%
-    expect(byType(synth([...ok, bash('bad', { err: true })]), 'toolFail')).toBeUndefined()   // 1%
-    expect(byType(synth([bash('bad', { err: true }), bash('ok')]), 'toolFail')).toMatchObject({ severity: 'medium' })   // 50% 但只 1 次：按失败率也算中
+  it('工具失败：失败率 ≥8% 或 ≥10 次为中；失败率 ≥15% 且 ≥10 次为高（第二轮校准重定）', () => {
+    const ok = (n: number) => Array.from({ length: n }, (_, i) => bash('ok' + i))
+    const bad = (n: number) => Array.from({ length: n }, (_, i) => bash('bad' + i, { err: true }))
+    expect(byType(synth([...ok(90), ...bad(10)]), 'toolFail')).toMatchObject({ severity: 'medium', count: 10 })   // 10%，10 次
+    expect(byType(synth([...ok(92), ...bad(8)]), 'toolFail')).toMatchObject({ severity: 'medium' })               // 8% 够率不够次数：中
+    expect(byType(synth([...ok(140), ...bad(10)]), 'toolFail')).toMatchObject({ severity: 'medium' })             // 6.7% 但 ≥10 次：中
+    expect(byType(synth([...ok(30), ...bad(10)]), 'toolFail')).toMatchObject({ severity: 'high' })                // 25% 且 ≥10 次：高
+    expect(byType(synth([...ok(20), ...bad(5)]), 'toolFail')).toMatchObject({ severity: 'medium' })               // 20% 但只 5 次：中不到高
+    expect(byType(synth([...ok(95), ...bad(5)]), 'toolFail')).toBeUndefined()                                     // 5%、5 次：旧阈值会亮，现在不亮
+    expect(byType(synth([...ok(99), bash('bad', { err: true })]), 'toolFail')).toBeUndefined()                    // 1%
   })
 
   it('慢调用：单次 ≥120 秒；≥1 次低，≥3 次中；点名最长的那次', () => {
@@ -185,9 +189,9 @@ describe('behaviorSignals', () => {
     const peak = byType(lane, 'ctxPeak')!
     expect(peak).toMatchObject({ severity: 'medium' })
     expect(peak.why.p).toEqual([76.3, 262_144])
-    // 200K → 300K token 是上升，但按各自窗口是 76% → 30%：记骤降，不记骤升
-    expect(byType(lane, 'ctxJump')).toMatchObject({ count: 1 })   // 19% → 76%
-    expect(byType(lane, 'ctxDrop')!.why.p.slice(0, 3)).toEqual([1, 76, 30])
+    // 200K → 300K 跨了窗口切换（76%@262K → 30%@1M）：换了尺子，不比，既不记骤升也不记骤降
+    expect(byType(lane, 'ctxJump')).toMatchObject({ count: 1 })   // 19% → 76%，同一窗口内
+    expect(byType(lane, 'ctxDrop')).toBeUndefined()
     // 按最后一条窗口（1M）算会把切换前的 76% 看成 20%：这就是要逐请求换算的原因
     const flat = synth([bash('a', { ctx: 200_000 })], { ctxWindow: 1_000_000 })
     expect(byType(flat, 'ctxPeak')).toBeUndefined()
@@ -220,6 +224,22 @@ describe('behaviorSignals', () => {
     // 同样的三步没有略过时是一次骤升（10% → 35%）
     const plain = synth([bash('a', { ctx: 100_000 }), bash('b', { ctx: 350_000 }), bash('c', { ctx: 400_000 })], { ctxWindow: 1_000_000 })
     expect(byType(plain, 'ctxJump')).toMatchObject({ count: 1 })
+  })
+
+  it('窗口切换处断开比较链：30%@1M 切到 78%@128K 不报骤升，反过来不报骤降（第二轮评审 A）', () => {
+    const up = synth([bash('a', { ctx: 300_000 }), bash('b', { ctx: 100_000 })])
+    ;(up.main[0] as { ctxWin?: number }).ctxWin = 1_000_000
+    ;(up.main[1] as { ctxWin?: number }).ctxWin = 128_000
+    expect(contextOccupancy(up as never).samples.map(s => Math.round(s.ratio! * 100))).toEqual([30, 78])
+    expect(byType(up, 'ctxJump')).toBeUndefined()
+    expect(byType(up, 'ctxPeak')!.why.p).toEqual([78.1, 128_000])   // 峰值照算
+    const down = synth([bash('a', { ctx: 100_000 }), bash('b', { ctx: 300_000 })])
+    ;(down.main[0] as { ctxWin?: number }).ctxWin = 128_000
+    ;(down.main[1] as { ctxWin?: number }).ctxWin = 1_000_000
+    expect(byType(down, 'ctxDrop')).toBeUndefined()
+    // 同一窗口内的同样变化仍然报
+    const same = synth([bash('a', { ctx: 300_000 }), bash('b', { ctx: 780_000 })], { ctxWindow: 1_000_000 })
+    expect(byType(same, 'ctxJump')).toMatchObject({ count: 1 })
   })
 
   it('压缩发生：start ≥1 为信息；prune ≥10 另加一句', () => {
