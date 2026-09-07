@@ -154,6 +154,12 @@ export interface MazeLane {
   turnEnds?: { turn: number; kind: string; s: number }[]
   /** 真人消息（user / steering 节点）的时刻，结果与证据块判「人工确认」用；只有时刻，不带内容。 */
   userMsgs?: { s: number }[]
+  /** 压缩事件（行为信号块）：start 的时刻与 prune / summary 次数。快照只有落地的压缩节点，prune 不在窗口里，记 0。 */
+  compaction?: { starts: number[]; prunes: number; summaries: number; ends: number }
+  /** todo-freshness-guard 插件提醒次数（行为信号「待办陈旧」）。 */
+  todoReminders?: number
+  /** 上下文窗口真值（request/context）；实时快照拿不到时省略，页面退回模型表。 */
+  ctxWindow?: number
   stats: {
     steps: number; tools: number; rz: number
     rzTok: number | null; outTok: number | null; inTok: number | null
@@ -281,6 +287,10 @@ interface ScanResult {
   turnEnds: { turn: number; kind: string; s: number }[]
   /** Human message times (see MazeLane.userMsgs). */
   userMsgs: { s: number }[]
+  /** Landed compaction checkpoints (see MazeLane.compaction). */
+  compaction: { starts: number[]; prunes: number; summaries: number; ends: number }
+  /** todo-freshness-guard reminders seen in the window. */
+  todoReminders: number
 }
 
 /**
@@ -344,6 +354,8 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
   const settledTools: MazeTool[] = []
   const turnTokens = new Map<number, { in: number; out: number; rz: number | null }>()
   const userMsgs: { s: number }[] = []
+  const compaction = { starts: [] as number[], prunes: 0, summaries: 0, ends: 0 }
+  let todoReminders = 0
   /** Turn endings read off the nodes themselves — the fallback when the timeline carries no turn/end event. */
   const endByNode = new Map<number, { kind: string; s: number }>()
   let preWindow = 0
@@ -482,6 +494,16 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
       //（指令文件 / 技能目录 / 插件提醒 / 子代理回报）是 'context' 节点，不算。
       if (anchor !== null && n.data.time < anchor) continue
       userMsgs.push({ s: rel(n.data.time) })
+    } else if (isKind(n, 'compaction')) {
+      // 落地的压缩检查点：等于一次 compaction/start…end 完成；summary 有文本就算一次 summary
+      if (anchor !== null && n.data.time < anchor) continue
+      compaction.starts.push(rel(n.data.time))
+      compaction.ends += 1
+      if (n.data.summary !== null) compaction.summaries += 1
+    } else if (isKind(n, 'context')) {
+      // 插件注入的上下文：只数 todo-freshness-guard 的提醒（行为信号「待办陈旧」）
+      const src = n.data.source as { kind?: unknown; plugin?: unknown } | null | undefined
+      if (src !== null && src !== undefined && typeof src === 'object' && src.kind === 'plugin' && src.plugin === 'todo-freshness-guard') todoReminders += 1
     }
   }
 
@@ -543,7 +565,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
     }
   }
 
-  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs }
+  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders }
 }
 
 /**
@@ -607,7 +629,7 @@ export function snapshotToMazeData(
   const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnTokens, turnEnds, userMsgs } = scanRows(snap, rel)
+  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders } = scanRows(snap, rel)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -680,7 +702,7 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
-    turnEnds, userMsgs,
+    turnEnds, userMsgs, compaction, todoReminders,
     stats: {
       steps: rows.length, tools: toolsCount, rz: rzCount,
       rzTok, outTok, inTok, T, main: main.length, detours: detours.length,
