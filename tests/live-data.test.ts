@@ -1,7 +1,7 @@
 /** Verdict settlement and partitioning for the live maze converter. */
 import { describe, expect, it } from 'vitest'
 import { snapshotToMazeData } from '../src/client/live-data.ts'
-import { outcomeEvidence } from '../src/client/verdict.js'
+import { behaviorSignals, contextOccupancy, outcomeEvidence } from '../src/client/verdict.js'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 
 const t0 = 1_787_000_000_000
@@ -320,6 +320,47 @@ describe('snapshotToMazeData', () => {
     expect(oc.task).toMatchObject({ state: 'done', reason: 'completed', turn: 1 })
     expect(oc.human.responded).toBe(true)
     expect(oc.overall).toBe('done')
+  })
+
+  it('converts context use with the model on each assistant node (1.x: requestConfig.model rides the node)', () => {
+    // 一场从 deepseek-chat（表值 128K）切到 v4（1M）：切换前 100K 的请求是 78%，切换后 300K 是 30%
+    const snap = {
+      partial: null, turnEnds: new Map([[1, 99]]), turnTimings: new Map([[1, { startTime: t0, endTime: t0 + 4100 }]]),
+      nodes: [
+        { kind: 'user', seq: 1, time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, requestConfig: { model: 'deepseek-chat' }, usage: { inputTokens: 100_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'a' }] },
+        { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, requestConfig: { model: 'deepseek-v4-flash' }, usage: { inputTokens: 300_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'b' }] },
+      ],
+    } as never as ConversationSnapshot
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.main.map(n => n.ctxWin)).toEqual([128_000, 1_000_000])
+    const occ = contextOccupancy(lane)
+    expect(occ.samples.map(s => Math.round(s.ratio! * 100))).toEqual([78, 30])
+    expect(behaviorSignals(lane).find(s => s.type === 'ctxPeak')!.why.p).toEqual([78.1, 128_000])
+    // 节点没带请求头时 ctxWin 缺席，页面退回泳道模型查表
+    expect(snapshotToMazeData(syntheticSnapshot())!.lanes[0]!.main.every(n => n.ctxWin === undefined)).toBe(true)
+  })
+
+  it('carries compaction checkpoints and plugin reminders for the signals block', () => {
+    const snap = {
+      partial: null, turnEnds: new Map(), turnTimings: new Map(),
+      nodes: [
+        { kind: 'user', seq: 1, time: t0 },
+        { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [{ kind: 'text', text: 'a' }] },
+        { kind: 'compaction', seq: 12, time: t0 + 3000, summary: 'folded 12 items', summaryEventSeq: 5, shadowedItemCount: 12, shadowedTokenCount: 100 },
+        { kind: 'compaction', seq: 13, time: t0 + 4000, summary: null, summaryEventSeq: null, shadowedItemCount: null, shadowedTokenCount: null },
+        { kind: 'context', seq: 14, time: t0 + 5000, content: [], source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
+        { kind: 'context', seq: 15, time: t0 + 5100, content: [], source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
+        { kind: 'context', seq: 16, time: t0 + 5200, content: [], source: { kind: 'plugin', plugin: 'tool-jobs' } },
+        { kind: 'context', seq: 17, time: t0 + 5300, content: [], source: null },
+        { kind: 'context', seq: 18, time: t0 + 5400, content: [], source: 'todo-freshness-guard' },
+      ],
+    } as never as ConversationSnapshot
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.compaction).toEqual({ starts: [3, 4], prunes: 0, summaries: 1, ends: 2 })
+    expect(lane.todoReminders).toBe(2)
+    expect(lane.ctxWindow).toBeUndefined()
+    expect(behaviorSignals(lane).find(s => s.type === 'compaction')!.why.p).toEqual([2, 0])
   })
 
   it('derives error / max-tokens endings from the nodes, completed from the snapshot turnEnds map', () => {

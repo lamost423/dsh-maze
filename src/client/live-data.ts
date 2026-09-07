@@ -6,7 +6,7 @@
  * aggregated detour node each, on the parent's clock.
  */
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import { contextWindowFor, exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 
 /** One tool event in the maze model. */
@@ -65,6 +65,8 @@ export interface MazeNode {
   inTok?: number | null
   /** 该步缓存命中的输入 token（usage.cacheReadTokens）；上下文总量 = inTok + cacheTok。 */
   cacheTok?: number | null
+  /** 该步请求当时的上下文窗口：1.x 快照的 assistant 节点带 requestConfig.model（请求头落在窗口内时），按它查模型表；没有则页面退回泳道模型。 */
+  ctxWin?: number
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
   /** 步级结构化判定依据（最坏工具的依据；展示端按界面语言渲染）。 */
   why?: VerdictWhy
@@ -97,6 +99,12 @@ export interface MazeLane {
   turnEnds?: { turn: number; kind: string; s: number }[]
   /** 真人消息（user / steering 节点）的时刻，结果与证据块判「人工确认」用；只有时刻，不带内容。 */
   userMsgs?: { s: number }[]
+  /** 压缩事件（行为信号块）：start 的时刻与 prune / summary 次数。快照只有落地的压缩节点，prune 不在窗口里，记 0。 */
+  compaction?: { starts: number[]; prunes: number; summaries: number; ends: number }
+  /** todo-freshness-guard 插件提醒次数（行为信号「待办陈旧」）。 */
+  todoReminders?: number
+  /** 上下文窗口真值（request/context）；1.x 快照拿不到，省略，页面按逐请求模型查表。 */
+  ctxWindow?: number
   stats: { steps: number; tools: number; rz: number; rzTok: number | null; outTok: number | null; T: number; main: number; detours: number }
 }
 
@@ -153,6 +161,8 @@ interface ScanResult {
   turnEnds: { turn: number; kind: string; s: number }[]
   /** Human message times (see MazeLane.userMsgs). */
   userMsgs: { s: number }[]
+  compaction: { starts: number[]; prunes: number; summaries: number; ends: number }
+  todoReminders: number
 }
 
 /**
@@ -190,6 +200,8 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
 
   let preWindow = 0
   const userMsgs: { s: number }[] = []
+  const compaction = { starts: [] as number[], prunes: 0, summaries: 0, ends: 0 }
+  let todoReminders = 0
   /** Turn endings read off the nodes: turn-error → error, turn-max-tokens → max-tokens; the rest complete. */
   const endByNode = new Map<number, { kind: string; s: number }>()
   for (const n of nodes) {
@@ -199,6 +211,16 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
       userMsgs.push({ s: rel(n.time) })
     } else if (n.kind === 'steering') {
       userMsgs.push({ s: rel(n.time) })
+    } else if (n.kind === 'compaction') {
+      // 落地的压缩检查点：等于一次 compaction/start…end 完成；summary 有文本就算一次 summary
+      if (firstUser !== undefined && n.time < firstUser.time) continue
+      compaction.starts.push(rel(n.time))
+      compaction.ends += 1
+      if (n.summary !== null) compaction.summaries += 1
+    } else if (n.kind === 'context') {
+      // 插件注入的上下文：只数 todo-freshness-guard 的提醒（行为信号「待办陈旧」），source 鸭子判断
+      const src = n.source as { kind?: unknown; plugin?: unknown } | null | undefined
+      if (src !== null && src !== undefined && typeof src === 'object' && src.kind === 'plugin' && src.plugin === 'todo-freshness-guard') todoReminders += 1
     } else if (n.kind === 'turn-max-tokens') {
       if (firstUser !== undefined && n.time < firstUser.time) continue
       if (endByNode.get(n.turn)?.kind !== 'error') endByNode.set(n.turn, { kind: 'max-tokens', s: rel(n.time) })
@@ -226,6 +248,11 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
         }
       }
       cur = pushStep(s, rel(n.time), tools, rz, rzTxt, n.seq)
+      // 每次请求按当时的模型换算窗口：1.x 快照把请求头的模型挂在 assistant 节点上（请求头落在窗口内时）
+      if (n.requestConfig?.model !== undefined) {
+        const win = contextWindowFor(n.requestConfig.model)
+        if (win !== null) cur.ctxWin = win
+      }
       // usage 在节点契约上是 unknown（源自 assistant/message 事件），运行期窄化后取真实 token
       const u = n.usage as { reasoningTokens?: unknown; outputTokens?: unknown; inputTokens?: unknown; cacheReadTokens?: unknown } | null | undefined
       if (u !== null && typeof u === 'object') {
@@ -349,7 +376,7 @@ function scanRows(snap: ConversationSnapshot, rel: (t: number) => number): ScanR
     }
   }
 
-  return { rows, liveRow, preWindow, turnEnds, userMsgs }
+  return { rows, liveRow, preWindow, turnEnds, userMsgs, compaction, todoReminders }
 }
 
 /**
@@ -410,7 +437,7 @@ export function snapshotToMazeData(
   const anchor = firstUser !== undefined ? firstUser.time : (nodes[0]?.time ?? Date.now())
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnEnds, userMsgs } = scanRows(snap, rel)
+  const { rows, preWindow, turnEnds, userMsgs, compaction, todoReminders } = scanRows(snap, rel)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -478,7 +505,7 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
-    turnEnds, userMsgs,
+    turnEnds, userMsgs, compaction, todoReminders,
     stats: { steps: rows.length, tools: toolsCount, rz: rzCount, rzTok, outTok, T, main: main.length, detours: detours.length },
   }
 
