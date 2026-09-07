@@ -475,7 +475,9 @@ const I18N = {
     trkToolsCap: n => `共 ${n} 次`,
     trkTokCap: (i, o, c) => `输入峰值 ${fmtTok(i)} · 输出峰值 ${fmtTok(o)}${c > 0 ? '（缓存背景峰值 ' + fmtTok(c) + '）' : ''}`,
     trkCtxCapPct: (p, w) => `峰值 ${p}%（窗口 ${fmtTok(w)}）`,
-    trkCtxCapAbs: n => `峰值 ${fmtTok(n)} tok（模型窗口未知，示绝对值）`,
+    trkCtxCapAbs: n => `峰值 ${fmtTok(n)} tok（模型窗口未知或过时，示绝对值）`,
+    trkCtxWinSwitch: ws => `，会话中途切过窗口：${ws.map(fmtTok).join(' → ')}`,
+    trkCtxStale: n => `；${n} 个样本的窗口值不可信（请求超过了它声称的窗口），已略过`,
     ctxDropTip: (a, b, p) => `上下文压缩：${a.toLocaleString()} → ${b.toLocaleString()} tok（−${p}%）`,
     msDur: '总时长', msCalls: (s, t) => `${s} 步 · ${t} 次调用`, msPeak: '峰值上下文',
     msTok: (i, o) => [i ? `输入 ${i}` : '', o ? `输出 ${o}` : ''].filter(Boolean).join(' · '),
@@ -540,7 +542,7 @@ const I18N = {
     sigSev: { high: '高', medium: '中', low: '低', info: '信息' },
     sigName: { mechanicalRetry: '失败后原样重试', repeat: '同轮重复调用', loop: '循环', toolFail: '工具失败', slowCall: '慢调用', concentration: '工具集中度', ctxJump: '上下文骤升', ctxDrop: '上下文骤降', ctxPeak: '上下文峰值', compaction: '压缩发生', todoStale: '待办陈旧', adaptiveRecovery: '换策略恢复' },
     sigCalls: n => `${n} 次调用`,
-    sigHint: '阈值按本机 202 份会话校准（2026-09-06；「中」落在最差的 15%~20% 会话，「高」落在最差的 3%~5%），常量在 verdict.js 的 ANALYSIS_RULES.SIGNALS。各信号独立计数：循环与同轮重复、原样重试与工具失败可能指向同一段调用，各说各的事实。code 模式（run_code 内部派发）会话的同轮重复率天然偏高（中位 12% 对 5%），本版未展开其内部调用。点一条淡化其他节点并定位到该段第一个调用，再点同一条取消。',
+    sigHint: '阈值按本机 202 份会话校准（2026-09-06；「中」落在最差的 15%~20% 会话，「高」落在最差的 3%~5%），常量在 verdict.js 的 ANALYSIS_RULES.SIGNALS。各信号独立计数：循环与同轮重复、原样重试与工具失败可能指向同一段调用，各说各的事实。code 模式（run_code 内部派发）会话的同轮重复率天然偏高（中位 12% 对 5%），本版未展开其内部调用。上下文占用按每次请求当时的模型换算窗口（上传日志读 request/context；实时页签拿不到逐请求模型，按会话模型查表）。点一条淡化其他节点并定位到该段第一个调用，再点同一条取消。',
     subPrefix: '子代理 ', subBranch: '子代理支路', detBranch: '探索支路',
     evtRetry: '请求失败重试', evtTurnError: '请求终局失败',
     mainStep: '主干推进', finalAnswer: '最终回答', rejected: '（被打回）',
@@ -648,7 +650,9 @@ const I18N = {
     trkToolsCap: n => `${n} total`,
     trkTokCap: (i, o, c) => `in peak ${fmtTok(i)} · out peak ${fmtTok(o)}${c > 0 ? ' (cache backdrop peak ' + fmtTok(c) + ')' : ''}`,
     trkCtxCapPct: (p, w) => `peak ${p}% (window ${fmtTok(w)})`,
-    trkCtxCapAbs: n => `peak ${fmtTok(n)} tok (model window unknown, absolute)`,
+    trkCtxCapAbs: n => `peak ${fmtTok(n)} tok (model window unknown or stale, absolute)`,
+    trkCtxWinSwitch: ws => `, window switched mid-session: ${ws.map(fmtTok).join(' → ')}`,
+    trkCtxStale: n => `; ${n} sample${n > 1 ? 's' : ''} skipped (the request exceeded the window its provider declared)`,
     ctxDropTip: (a, b, p) => `Context compaction: ${a.toLocaleString()} → ${b.toLocaleString()} tok (−${p}%)`,
     msDur: 'Total', msCalls: (s, t) => `${s} steps · ${t} calls`, msPeak: 'Peak context',
     msTok: (i, o) => [i ? `in ${i}` : '', o ? `out ${o}` : ''].filter(Boolean).join(' · '),
@@ -713,7 +717,7 @@ const I18N = {
     sigSev: { high: 'high', medium: 'medium', low: 'low', info: 'info' },
     sigName: { mechanicalRetry: 'identical retry after failure', repeat: 'same-turn repeats', loop: 'loop', toolFail: 'tool failures', slowCall: 'slow calls', concentration: 'tool concentration', ctxJump: 'context jump', ctxDrop: 'context drop', ctxPeak: 'context peak', compaction: 'compaction', todoStale: 'stale todo', adaptiveRecovery: 'adaptive recovery' },
     sigCalls: n => `${n} calls`,
-    sigHint: 'Thresholds calibrated on 202 local sessions (2026-09-06; "medium" lands in the worst 15–20% of sessions, "high" in the worst 3–5%), constants in ANALYSIS_RULES.SIGNALS in verdict.js. Signals count independently: a loop and same-turn repeats, or identical retries and tool failures, may point at the same calls — each states its own fact. Code-mode sessions (calls dispatched inside run_code) naturally repeat more (median 12% vs 5%); their inner calls are not expanded in this version. Click a row to dim everything else and locate the first call of that stretch; click it again to clear.',
+    sigHint: 'Thresholds calibrated on 202 local sessions (2026-09-06; "medium" lands in the worst 15–20% of sessions, "high" in the worst 3–5%), constants in ANALYSIS_RULES.SIGNALS in verdict.js. Signals count independently: a loop and same-turn repeats, or identical retries and tool failures, may point at the same calls — each states its own fact. Code-mode sessions (calls dispatched inside run_code) naturally repeat more (median 12% vs 5%); their inner calls are not expanded in this version. Context use is converted with the window of the model in use at each request (uploaded logs read request/context; the live tab cannot see per-request models and uses the session model\'s table value). Click a row to dim everything else and locate the first call of that stretch; click it again to clear.',
     subPrefix: 'Subagent ', subBranch: 'Subagent branch', detBranch: 'Exploration detour',
     evtRetry: 'Request retry', evtTurnError: 'Request failed for good',
     mainStep: 'Main-path step', finalAnswer: 'Final answer', rejected: ' (rejected)',
@@ -956,6 +960,7 @@ function buildLane(text){
   const compaction = { starts: [], prunes: 0, summaries: 0, ends: 0 }
   let todoReminders = 0
   let ctxWindow = null
+  let curWin = null   // 当前生效的上下文窗口（最近一条 request/context）
   let cur = null
   const pending = []
   for (const e of evs){
@@ -975,8 +980,10 @@ function buildLane(text){
     } else if (t === 'compaction/end'){
       compaction.ends += 1
     } else if (t === 'request/context'){
-      // 一场会话可能切模型出现多条；取最后一条（与校准脚本同口径）
-      if (typeof d.contextWindow === 'number' && d.contextWindow > 0) ctxWindow = d.contextWindow
+      // 一场会话可能切模型出现多条：宿主报的真值优先，没有再查模型表；之后每步的 usage 按「当时」的窗口换算
+      //（吴昊 2026-09-07 拍板）。lane.ctxWindow 留最后一条作没有逐步窗口时的退路。
+      const w = typeof d.contextWindow === 'number' && d.contextWindow > 0 ? d.contextWindow : contextWindowFor(d.model)
+      if (w != null){ ctxWindow = w; curWin = w }
     } else if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
       cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null, inTok: null, cacheTok: null }
@@ -994,6 +1001,7 @@ function buildLane(text){
         if (typeof d.usage.outputTokens === 'number') row.outTok = (row.outTok ?? 0) + d.usage.outputTokens
         if (typeof d.usage.inputTokens === 'number') row.inTok = d.usage.inputTokens
         if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = d.usage.cacheReadTokens
+        if (curWin != null) row.ctxWin = curWin
       }
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
@@ -1082,7 +1090,7 @@ function buildData(fileTexts, fileNames){
       }
       const sv = stepVerdict(r.events)
       const v = sv === null ? 'answer' : sv.v
-      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, rzTok: r.rzTok, outTok: r.outTok, inTok: r.inTok, cacheTok: r.cacheTok, v, why: sv === null ? { k: 'noTools' } : sv.why, why2: sv === null ? undefined : sv.why2 }
+      const node = { step: r.step, turn: r.turn, s: r.s, e: r.e, tools: r.events, rz: r.rz, rzTxt: r.rzTxt, rzTxtFull: r.rzTxtFull, rzTok: r.rzTok, outTok: r.outTok, inTok: r.inTok, cacheTok: r.cacheTok, ctxWin: r.ctxWin, v, why: sv === null ? { k: 'noTools' } : sv.why, why2: sv === null ? undefined : sv.why2 }
       if (v === 'ok' || v === 'answer'){
         main.push(node); lastMain = node
       } else {
@@ -2022,21 +2030,26 @@ function drawTracks(gTime, gStatic, lane, lay){
   if (trk.ctx > 0){
     sep(y0)
     const H = trk.ctx - 20, yB = y0 + trk.ctx - 6
-    const samples = own.filter(n => n.inTok != null || n.cacheTok != null).sort((a, b) => a.e - b.e)
-    const val = n => (n.inTok ?? 0) + (n.cacheTok ?? 0)
+    // 每次请求按当时的模型换算窗口（verdict.js 的 contextOccupancy）：窗口可用时纵轴是占用百分比
+    //（一场会话中途切模型时窗口会变，按 token 画阈值线就对不齐）；窗口表过时（有样本超窗）退回绝对 token。
+    const occ = contextOccupancy(lane)
+    const pctMode = occ.valid && occ.samples.length > 0
+    // 百分比模式下，窗口值不可信（超窗）的样本没有占用可画，略过并在标题里说明
+    const samples = occ.samples.filter(sm => !pctMode || sm.ratio != null).map(sm => ({ ...sm, e: sm.n.e }))
+    const val = sm => pctMode ? sm.ratio * 100 : sm.tok
     const peak = Math.max(1, ...samples.map(val))
-    const win = laneWindow(lane.model, peak)
+    const win = pctMode ? 100 : null
     const scaleMax = win != null ? Math.min(win, peak * 1.25) : peak * 1.15
     const yOf = v => yB - Math.min(1, v / scaleMax) * H
     nameText(tr('trkCtx'), y0 + 13)
-    const peakPct = win ? Math.round(peak / win * 1000) / 10 : null
-    capText(win ? tr('trkCtxCapPct')(peakPct, win) : tr('trkCtxCapAbs')(peak), y0 + 13, win != null && peakPct >= 90)
+    const peakPct = pctMode ? Math.round(occ.peakRatio * 1000) / 10 : null
+    capText(pctMode ? tr('trkCtxCapPct')(peakPct, occ.peakWin) + (occ.windows.length > 1 ? tr('trkCtxWinSwitch')(occ.windows) : '') + (occ.skipped > 0 ? tr('trkCtxStale')(occ.skipped) : '') : tr('trkCtxCapAbs')(occ.peakTok), y0 + 13, pctMode && peakPct >= 90)
     // 纵轴参照：中线 + 顶值刻度（自适应刻度下没有标尺，曲线高低要有锚）。
     // 有阈值线落进可视范围时阈值标签就是锚，顶值标签不再画（曾与其在左缘撞字）。
     const thresholdVisible = win != null && win * 0.7 <= scaleMax
     if (!thresholdVisible){
       const topLab = el('text', { x: X0 + 2, y: yOf(scaleMax) + 9, class: 'trk-cap' })
-      topLab.textContent = win ? Math.round(scaleMax / win * 100) + '%' : fmtTok(Math.round(scaleMax))
+      topLab.textContent = pctMode ? Math.round(scaleMax) + '%' : fmtTok(Math.round(scaleMax))
       gStatic.appendChild(topLab)
     }
     gStatic.appendChild(el('line', { x1: X0, y1: yOf(scaleMax / 2), x2: X0 + AXIS_W, y2: yOf(scaleMax / 2), stroke: SVGC.grid, 'stroke-width': 1, 'stroke-dasharray': '2 5' }))
@@ -2053,17 +2066,18 @@ function drawTracks(gTime, gStatic, lane, lay){
       }
     }
     if (samples.length > 0){
-      const pts = samples.map(n => x(n.e).toFixed(1) + ' ' + yOf(val(n)).toFixed(1))
+      const pts = samples.map(sm => x(sm.e).toFixed(1) + ' ' + yOf(val(sm)).toFixed(1))
       const area = el('path', { d: `M ${x(samples[0].e).toFixed(1)} ${yB} L ` + pts.join(' L ') + ` L ${x(samples[samples.length - 1].e).toFixed(1)} ${yB} Z`, fill: SVGC.ctxFill, stroke: 'none' })
       gTime.appendChild(area)
       markEls.push({ el: area, s: samples[0].e, e: samples[0].e })
       const line = el('path', { d: 'M ' + pts.join(' L '), fill: 'none', stroke: SVGC.ctxLine, 'stroke-width': 2 })
       gTime.appendChild(line)
       pathEls.push({ el: line, s: samples[0].e, e: samples[samples.length - 1].e, base: '' })
-      for (const n of samples){
+      for (const sm of samples){
+        const n = sm.n
         if (!xVisible(n.e, n.e)) continue
-        const dot = el('circle', { cx: x(n.e), cy: yOf(val(n)), r: 2.6, fill: SVGC.ctxLine })
-        dot._ctxNode = n; dot._ctxLane = lane; dot._ctxWin = win
+        const dot = el('circle', { cx: x(n.e), cy: yOf(val(sm)), r: 2.6, fill: SVGC.ctxLine })
+        dot._ctxNode = n; dot._ctxLane = lane; dot._ctxWin = pctMode ? sm.win : null
         dot.addEventListener('mouseenter', onCtxHover)
         dot.addEventListener('mouseleave', offTrackHover)
         gTime.appendChild(dot)
@@ -2072,11 +2086,12 @@ function drawTracks(gTime, gStatic, lane, lay){
       // 上下文压缩事件标注：相邻样本降幅达 SPARSE_RULES.CTX_DROP 即视为一次压缩，
       // 锯齿下落点标「⌄−N%」——排查「模型为什么忘了前面的事」的关键时刻；悬停看前后真值。
       for (let i = 1; i < samples.length; i++){
-        const a = val(samples[i - 1]), b = val(samples[i])
+        // 降幅按 token 真值判（切模型只改窗口不改 token，不该冒充压缩）；标注位置按当前纵轴
+        const a = samples[i - 1].tok, b = samples[i].tok
         if (a <= 0 || b >= a * (1 - SPARSE_RULES.CTX_DROP)) continue
         if (!xVisible(samples[i].e, samples[i].e)) continue
         const p = Math.round((1 - b / a) * 100)
-        const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(b) - 7, class: 'trk-cap' })
+        const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(val(samples[i])) - 7, class: 'trk-cap' })
         mk.setAttribute('fill', SVGC.ctxWarn)
         mk.style.fontWeight = '700'
         mk.textContent = '⌄−' + p + '%'
@@ -2545,9 +2560,11 @@ function renderAnalysis(){
     const active = laneActiveTime(lane)
     const share = active > 0 ? Math.min(100, Math.round(sumD / active * 100)) : 0
     const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt)
-    const ctxSamples = own.filter(n => n.inTok != null || n.cacheTok != null)
-    const ctxPeak = ctxSamples.length > 0 ? Math.max(...ctxSamples.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
-    const win = ctxPeak != null ? laneWindow(lane.model, ctxPeak) : null
+    // 上下文占用按每次请求当时的模型换算窗口（contextOccupancy）；窗口表过时退回绝对 token
+    const occ = contextOccupancy(lane)
+    const ctxPeak = occ.samples.length > 0 ? occ.peakTok : null
+    const win = occ.valid && ctxPeak != null ? occ.peakWin : null
+    const ctxPct = win != null ? Math.round(occ.peakRatio * 1000) / 10 : null
     // 请求级失败（llm/retry / turn/end error）不属于工具统计，但一个全程失败的会话
     // 不能在这张卡上亮绿灯——单独计数列在卡内。
     const evtFails = countRequestFailures(lane)
@@ -2571,8 +2588,8 @@ function renderAnalysis(){
       + (ctxPeak == null ? tr('cardCtxNone')
         : win != null
           ? (() => {
-              const p = Math.round(ctxPeak / win * 1000) / 10
-              return tr('cardCtxPct')(ctxPeak, p) + '<br>'
+              const p = ctxPct
+              return tr('cardCtxPct')(occ.peakNode ? (occ.peakNode.inTok ?? 0) + (occ.peakNode.cacheTok ?? 0) : ctxPeak, p) + '<br>'
                 + (p >= 90 ? `<span class="warn">${tr('cardCtxOver')(90)}</span>`
                   : p >= 70 ? `<span class="warn">${tr('cardCtxOver')(70)}</span>`
                   : `<span class="good">${tr('cardCtxUnder')}</span>`)
@@ -3334,10 +3351,10 @@ function renderMetaStrip(){
     const rowSum = (key) => own.some(n => n[key] != null) ? own.reduce((s, n) => s + (n[key] ?? 0), 0) : null
     const inTot = lane.stats.inTok ?? rowSum('inTok')
     const outTot = lane.stats.outTok ?? rowSum('outTok')
-    const ctxS = own.filter(n => n.inTok != null || n.cacheTok != null)
-    const peak = ctxS.length > 0 ? Math.max(...ctxS.map(n => (n.inTok ?? 0) + (n.cacheTok ?? 0))) : null
-    const win = peak != null ? laneWindow(lane.model, peak) : null
-    const pct = win != null ? Math.round(peak / win * 1000) / 10 : null
+    const occ = contextOccupancy(lane)
+    const peak = occ.samples.length > 0 ? occ.peakTok : null
+    const win = occ.valid && peak != null ? occ.peakWin : null
+    const pct = win != null ? Math.round(occ.peakRatio * 1000) / 10 : null
     const tokTxt = tr('msTok')(inTot != null ? fmtTok(inTot) : '', outTot != null ? fmtTok(outTot) : '')
     return `<span class="mlane">`
       + `<span><span class="mdot" style="background:${(LANEC[li] ?? LANEC[0]).main}"></span><b>${laneName(lane)}</b> ${esc(lane.model ?? tr('modelUnknown'))}</span>`

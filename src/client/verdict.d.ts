@@ -215,6 +215,11 @@ export interface SignalLane<N> extends AnalysisLane<N> {
   todoReminders?: number
 }
 
+/** 上下文占用：每次请求按当时的模型换算窗口（节点 ctxWin → 泳道 ctxWindow → 模型表）；有样本超窗即 valid=false。 */
+export declare function contextOccupancy<N extends { sub?: unknown; evt?: unknown; live?: unknown; s: number; e: number; inTok?: number | null; cacheTok?: number | null; ctxWin?: number | null }>(
+  lane: { main: readonly N[]; detours: readonly N[]; model?: string | null; ctxWindow?: number | null },
+): { samples: { n: N; tok: number; win: number | null; ratio: number | null }[]; valid: boolean; peakTok: number; peakRatio: number; peakWin: number | null; peakNode: N | null; windows: number[]; skipped: number }
+
 /** 行为信号清单：阈值见 ANALYSIS_RULES.SIGNALS（按本机 202 份会话校准）。 */
 export declare function behaviorSignals<
   N extends { sub?: unknown; evt?: unknown; live?: unknown; turn?: number; s: number; e: number; v: string; inTok?: number | null; cacheTok?: number | null; tools?: readonly T[] },
