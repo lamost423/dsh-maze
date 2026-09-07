@@ -103,7 +103,7 @@
 | 你的宿主 | 装哪个版本 | 命令 |
 |---|---|---|
 | `0.1.2` 线——DSH Desktop 2.x、npm 的 `@deepseek-ai/dsh@next`（`0.1.2-rc.1`）、或自建 master | dsh-maze `2.x`，`latest` 标签 | `dsh plugin --profile web add dsh-maze` |
-| 老宿主——npm `latest`（`0.1.0-rc.6` ~ `0.1.1-rc.2`） | dsh-maze `1.1.0`，手动钉版本 | `dsh plugin --profile web add dsh-maze@1.1.0` |
+| 老宿主——npm `latest`（`0.1.0-rc.6` ~ `0.1.1-rc.2`） | dsh-maze `1.1.1`，手动钉版本 | `dsh plugin --profile web add dsh-maze@1.1.1` |
 
 宿主 `0.1.2-rc.1` 与拆分出的客户端包已发到 npm（`next` 标签），所以从 v2.0.0 起 `latest` 归 `2.x`；还在老宿主上的人钉住 `1.1.0` 即可。等宿主的 `latest` 也切到 `0.1.2`，这张表就并成一行。
 

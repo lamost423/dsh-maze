@@ -103,7 +103,7 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 | Your host | Version to install | Command |
 |---|---|---|
 | The `0.1.2` line — DSH Desktop 2.x, npm's `@deepseek-ai/dsh@next` (`0.1.2-rc.1`), or self-built master | dsh-maze `2.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
-| Older hosts — npm `latest` (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.0`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.0` |
+| Older hosts — npm `latest` (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.1`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.1` |
 
 Host `0.1.2-rc.1` and its split-out client packages are on npm now (tag `next`), so as of v2.0.0 `latest` belongs to `2.x`; anyone still on an older host just pins `1.1.0`. Once the host's own `latest` moves to `0.1.2`, this table collapses to one row.
 
