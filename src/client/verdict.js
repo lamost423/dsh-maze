@@ -788,32 +788,32 @@ export function behaviorSignals(lane, wall){
     if (hhi >= R.HHI.min && !ANALYSIS_RULES.CODE_TOOLS.includes(top)) push('concentration', 'low', calls.filter(c => c.name === top).map(c => c.ref), { k: 'sigHhi', p: [Math.round(hhi * 1000) / 1000, top, Math.round(topN / total * 100)] })
   }
 
-  // 上下文占用：每步 (inTok + cacheTok) / 窗口；窗口优先日志真值（request/context），其次模型表
-  const win = lane.ctxWindow ?? contextWindowFor(lane.model)
-  const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt && !n.live && (n.inTok != null || n.cacheTok != null)).sort((a, b) => a.s - b.s)
+  // 上下文占用：每次请求按当时的模型换算窗口（contextOccupancy）；窗口表过时（有样本超窗）时不出任何上下文信号
+  const occ = contextOccupancy(lane)
   const compStarts = (lane.compaction?.starts ?? [])
-  if (win != null && own.length > 0){
-    const ratio = n => ((n.inTok ?? 0) + (n.cacheTok ?? 0)) / win
+  if (occ.valid && occ.samples.length > 0){
+    // 窗口值不可信而被略过的样本没有占用，不参与相邻比较（否则会冒出 0% → 55% 的假骤升）
+    const own = occ.samples.filter(sm => sm.ratio != null)
     let peak = 0, peakNode = null
     const ups = [], downs = []
     let compacted = 0
     for (let i = 0; i < own.length; i++){
-      const r = ratio(own[i])
-      if (r > peak){ peak = r; peakNode = own[i] }
+      const r = own[i].ratio
+      if (r > peak){ peak = r; peakNode = own[i].n }
       if (i === 0) continue
-      const d = r - ratio(own[i - 1])
-      if (d >= R.CTX_JUMP) ups.push({ n: own[i], from: ratio(own[i - 1]), to: r })
+      const d = r - own[i - 1].ratio
+      if (d >= R.CTX_JUMP) ups.push({ n: own[i].n, from: own[i - 1].ratio, to: r })
       if (d <= -R.CTX_JUMP){
-        const a = toWall(own[i - 1].s), b = toWall(own[i].e)
+        const a = toWall(own[i - 1].n.s), b = toWall(own[i].n.e)
         const near = compStarts.some(t => t >= a && t <= b)
         if (near) compacted += 1
-        downs.push({ n: own[i], from: ratio(own[i - 1]), to: r, near })
+        downs.push({ n: own[i].n, from: own[i - 1].ratio, to: r, near })
       }
     }
     const nodeRef = n => ({ tl: (n.tools ?? [])[0] ?? null, n })
     if (ups.length > 0) push('ctxJump', 'medium', ups.map(x => nodeRef(x.n)), { k: 'sigCtxUp', p: [ups.length, Math.round(ups[0].from * 100), Math.round(ups[0].to * 100)] })
     if (downs.length > 0) push('ctxDrop', 'info', downs.map(x => nodeRef(x.n)), { k: 'sigCtxDown', p: [downs.length, Math.round(downs[0].from * 100), Math.round(downs[0].to * 100), compacted] })
-    if (peak >= R.CTX_PEAK.low) push('ctxPeak', peak >= R.CTX_PEAK.high ? 'high' : peak >= R.CTX_PEAK.medium ? 'medium' : 'low', [nodeRef(peakNode)], { k: 'sigCtxPeak', p: [Math.round(peak * 1000) / 10, win] })
+    if (peak >= R.CTX_PEAK.low) push('ctxPeak', peak >= R.CTX_PEAK.high ? 'high' : peak >= R.CTX_PEAK.medium ? 'medium' : 'low', [nodeRef(peakNode)], { k: 'sigCtxPeak', p: [Math.round(peak * 1000) / 10, occ.peakWin] })
   }
 
   // 压缩发生 / 待办陈旧 / 换策略恢复
@@ -825,4 +825,39 @@ export function behaviorSignals(lane, wall){
 
   out.sort((a, b) => SIGNAL_SEV[b.severity] - SIGNAL_SEV[a.severity] || b.count - a.count)
   return out
+}
+
+/**
+ * 上下文占用（吴昊 2026-09-07 拍板）：每次请求按**当时的模型**换算窗口——节点自带 ctxWin（上传链路
+ * 解析时取该 assistant/message 之前最近一条 request/context 的 contextWindow，宿主报了真值优先，
+ * 没有再查模型表），缺席时退回泳道级窗口（最后一条 request/context）或会话模型的表值。
+ * 健全性守卫沿用：任何一个样本的 token 超过它的窗口，就视为窗口表过时，valid=false，
+ * 展示端退回绝对 token（绝不显示超过 100% 的占用）；守卫按窗口分别算，见函数内注释。
+ * @returns { samples:[{n,tok,win,ratio}] 按结束时间序, valid, peakTok, peakRatio, peakWin, peakNode, windows:[去重后的窗口] }
+ */
+export function contextOccupancy(lane){
+  const fallback = lane.ctxWindow ?? contextWindowFor(lane.model)
+  const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt && !n.live && (n.inTok != null || n.cacheTok != null)).sort((a, b) => a.e - b.e || a.s - b.s)
+  const tokOf = n => (n.inTok ?? 0) + (n.cacheTok ?? 0)
+  // 守卫按窗口算：某个窗口下有样本超过它，这个窗口值就不可信（big2 里中转站给的 262144 窗口跑了 595K 的请求），
+  // 只把该窗口下的样本作废（ratio = null），别的窗口照常——一条中转站的错报不该让整场退回绝对值。
+  const stale = new Set()
+  for (const n of own){ const win = n.ctxWin ?? fallback; if (win != null && tokOf(n) > win) stale.add(win) }
+  const samples = []
+  let peakTok = 0, peakRatio = 0, peakNode = null, peakWin = null, skipped = 0
+  const windows = []
+  for (const n of own){
+    const tok = tokOf(n)
+    const win = n.ctxWin ?? fallback
+    const ok = win != null && !stale.has(win)
+    if (ok && !windows.includes(win)) windows.push(win)
+    if (!ok) skipped += 1
+    const ratio = ok ? tok / win : null
+    samples.push({ n, tok, win: win ?? null, ratio })
+    if (tok > peakTok) peakTok = tok
+    if (ratio != null && ratio > peakRatio){ peakRatio = ratio; peakNode = n; peakWin = win }
+  }
+  const valid = own.length > 0 && skipped < own.length
+  if (!valid){ peakRatio = 0; peakWin = null; peakNode = own.reduce((b, n) => (b === null || tokOf(n) > tokOf(b)) ? n : b, null) }
+  return { samples, valid, peakTok, peakRatio, peakWin, peakNode, windows, skipped }
 }

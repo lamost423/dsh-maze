@@ -1,6 +1,6 @@
 /** 诊断层第 2 项：行为信号清单——每种信号触发与不触发各一份合成用例，阈值常量固定在校准表上。 */
 import { describe, expect, it } from 'vitest'
-import { ANALYSIS_RULES, behaviorSignals, callSignature } from '../src/client/verdict.js'
+import { ANALYSIS_RULES, behaviorSignals, callSignature, contextOccupancy } from '../src/client/verdict.js'
 
 const R = ANALYSIS_RULES.SIGNALS
 
@@ -155,6 +155,46 @@ describe('behaviorSignals', () => {
     expect(sig(synth([bash('a', { ctx: 900 })], { model: null })).some(s => s.type.startsWith('ctx'))).toBe(false)
     // 骤降没有压缩事件在附近：不标压缩
     expect(byType(synth([bash('a', { ctx: 900 }), bash('b', { ctx: 100 })], { ctxWindow: 1000 }), 'ctxDrop')!.why.p[3]).toBe(0)
+  })
+
+  it('上下文按每次请求当时的模型换算：中途从 262144 切到 1M，切换前的高占用按小窗口算（吴昊 2026-09-07 拍板）', () => {
+    const lane = synth([bash('a', { ctx: 50_000 }), bash('b', { ctx: 200_000 }), bash('c', { ctx: 300_000 }), bash('d', { ctx: 320_000 })], { ctxWindow: 1_000_000 })
+    ;(lane.main[0] as { ctxWin?: number }).ctxWin = 262_144
+    ;(lane.main[1] as { ctxWin?: number }).ctxWin = 262_144
+    ;(lane.main[2] as { ctxWin?: number }).ctxWin = 1_000_000
+    ;(lane.main[3] as { ctxWin?: number }).ctxWin = 1_000_000
+    const occ = contextOccupancy(lane as never)
+    expect(occ.valid).toBe(true)
+    expect(occ.windows).toEqual([262_144, 1_000_000])
+    expect(occ.samples.map(s => Math.round(s.ratio! * 100))).toEqual([19, 76, 30, 32])
+    expect(occ.peakWin).toBe(262_144)
+    const peak = byType(lane, 'ctxPeak')!
+    expect(peak).toMatchObject({ severity: 'medium' })
+    expect(peak.why.p).toEqual([76.3, 262_144])
+    // 200K → 300K token 是上升，但按各自窗口是 76% → 30%：记骤降，不记骤升
+    expect(byType(lane, 'ctxJump')).toMatchObject({ count: 1 })   // 19% → 76%
+    expect(byType(lane, 'ctxDrop')!.why.p.slice(0, 3)).toEqual([1, 76, 30])
+    // 按最后一条窗口（1M）算会把切换前的 76% 看成 20%：这就是要逐请求换算的原因
+    const flat = synth([bash('a', { ctx: 200_000 })], { ctxWindow: 1_000_000 })
+    expect(byType(flat, 'ctxPeak')).toBeUndefined()
+  })
+
+  it('健全性守卫按窗口算：某窗口下有样本超过它，只作废该窗口的样本；全部作废才退回绝对值', () => {
+    const all = synth([bash('a', { ctx: 300_000 })], { model: 'deepseek-chat' })   // 表值 128K，唯一样本超窗
+    const occ = contextOccupancy(all as never)
+    expect(occ.valid).toBe(false)
+    expect(occ.peakTok).toBe(300_000)
+    expect(sig(all).some(s => s.type.startsWith('ctx'))).toBe(false)
+    // big2 的真实情形：中转站声称 262144 却跑了 595K 的请求——只略过那一个样本，其余仍按各自窗口算
+    const mixed = synth([bash('a', { ctx: 595_000 }), bash('b', { ctx: 550_000 }), bash('c', { ctx: 700_000 })], { ctxWindow: 1_000_000 })
+    ;(mixed.main[0] as { ctxWin?: number }).ctxWin = 262_144
+    const o2 = contextOccupancy(mixed as never)
+    expect(o2.valid).toBe(true)
+    expect(o2.skipped).toBe(1)
+    expect(o2.samples[0]!.ratio).toBeNull()
+    expect(o2.windows).toEqual([1_000_000])
+    expect(byType(mixed, 'ctxPeak')!.why.p).toEqual([70, 1_000_000])
+    expect(byType(mixed, 'ctxJump')).toBeUndefined()   // 被略过的样本不参与相邻比较
   })
 
   it('压缩发生：start ≥1 为信息；prune ≥10 另加一句', () => {
