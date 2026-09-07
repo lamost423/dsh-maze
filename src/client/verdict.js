@@ -650,7 +650,7 @@ ANALYSIS_RULES.SIGNALS = {
   READ_SHELL: /^(?:cat|sed|head|tail|rg|grep|ls|find|wc|git (?:log|status|diff|show)) /,
   /** 参数签名截断长度（与校准脚本一致）。 */
   SIG_MAX: 300,
-  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（重跑校准 9% / 3%；换策略恢复 4%）。 */
+  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（按 toolVerdict 口径重跑 13% / 4%；换策略恢复 32%，信息级不设阈值）。 */
   MECHANICAL: { medium: 1, high: 3 },
   /** 同轮重复调用：占本场调用的比例且次数（低 ≥10% 且 ≥5；中 ≥20% 且 ≥10；2026-09-07 重跑校准 30% / 8%，签名与页面同规则后比首轮的 37% / 16% 低）。 */
   REPEAT: { low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } },
@@ -658,14 +658,15 @@ ANALYSIS_RULES.SIGNALS = {
   REPEAT_READ: 5,
   /** 循环：排除轮询类后长度 1~3 的序列连续 3 次，长窗口先扫、已覆盖的下标不再数；占用步数 中 ≥9，高 ≥30（去重后重跑校准 16% / 4%，落在目标区间）。 */
   LOOP: { medium: 9, high: 30 },
-  /** 工具失败：中 = 失败 ≥5 次或失败率 ≥5%；高 = 失败率 ≥10% 且 ≥5 次（校准脚本改用 toolVerdict 判失败后重跑 15% / 2%）。 */
-  FAIL: { medium: { count: 5, rate: 0.05 }, high: { count: 5, rate: 0.10 } },
+  /** 工具失败（判定 = toolVerdict，错误标志 + 输出特征）：中 = 失败率 ≥8% 或 ≥10 次；高 = 失败率 ≥15% 且 ≥10 次
+   *  （2026-09-07 第二轮：校准脚本真正接上 toolVerdict 后旧阈值命中 38% / 5%，按目标区间重定为 17% / 3%）。 */
+  FAIL: { medium: { count: 10, rate: 0.08 }, high: { count: 10, rate: 0.15 } },
   /** 慢调用：单次 ≥120 秒；低 ≥1 次，中 ≥3 次（校准 14% / 3%，2026-09-07 去掉压缩重发的 tool/result 后重算）。相对均值的口径在 72% 会话触发，没有区分度，已弃。 */
   SLOW_SEC: 120,
   SLOW: { low: 1, medium: 3 },
   /** 工具集中度：调用 ≥20 次且赫芬达尔指数 ≥0.85（低，校准 10%）。 */
   HHI: { minCalls: 20, min: 0.85 },
-  /** 上下文骤升 / 骤降：相邻两次请求占用变化 ≥20 个百分点（升为中，降为信息；校准 1% / 3%）。 */
+  /** 上下文骤升 / 骤降：相邻两次请求占用变化 ≥20 个百分点，只在同一窗口内比（升为中，降为信息；按逐请求窗口重跑 1% / 4%）。 */
   CTX_JUMP: 0.20,
   /** 上下文峰值占窗口：低 ≥50%，中 ≥70%，高 ≥90%（校准 11% / 5% / 0%，1M 窗口下几乎不亮）。 */
   CTX_PEAK: { low: 0.5, medium: 0.7, high: 0.9 },
@@ -752,7 +753,7 @@ export function behaviorSignals(lane, wall){
     push('repeat', sev, repeats, { k: 'sigRepeat', p: [repeats.length, Math.round(repRate * 100), readRepeats.length >= R.REPEAT_READ ? readRepeats.length : 0] })
   }
 
-  // 循环：排除轮询类后，长度 1~3 的序列连续 3 次（与校准脚本同扫描：按长度分别扫，不去重叠）
+  // 循环：排除轮询类后，长度 1~3 的序列连续 3 次
   const seq = calls.filter(c => !R.POLL_TOOLS.includes(c.name))
   const sigs = seq.map(c => c.sig)
   // 长窗口先扫：一段被长窗口命中后短窗口不再数（评审 P1-1：9 次相同调用是 1 段 9 步，不是 24 步）
@@ -810,7 +811,8 @@ export function behaviorSignals(lane, wall){
       if (sm.ratio == null){ prev = null; continue }
       const r = sm.ratio
       if (r > peak){ peak = r; peakNode = sm.n }
-      if (prev !== null){
+      // 窗口切换处也断开：300K@1M（30%）切到 128K 模型跑 100K（78%）不是骤升，只是换了尺子（第二轮评审 A）
+      if (prev !== null && prev.win === sm.win){
         const d = r - prev.ratio
         if (d >= R.CTX_JUMP) ups.push({ n: sm.n, from: prev.ratio, to: r })
         if (d <= -R.CTX_JUMP){
