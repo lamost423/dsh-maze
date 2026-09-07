@@ -18,7 +18,11 @@ type DataOf<K extends ChatNode['kind']> = Extract<ChatNode, { kind: K }>['data']
 
 /** One logical conversation event, in the flat form the tests author. */
 export interface FixtureEvent {
-  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'turn-tail' | 'turn-max-tokens' | 'turn-end' | 'partial'
+  kind: 'user' | 'assistant' | 'tool-result' | 'model-retry' | 'turn-error' | 'turn-tail' | 'turn-max-tokens' | 'turn-end' | 'partial' | 'compaction' | 'context'
+  /** compaction only: summary text (null models a summary event outside the window). */
+  summary?: string | null
+  /** context only: the injected message's `source` as the host publishes it (opaque). */
+  source?: unknown
   seq?: number
   time?: number
   /** turn-end only: the turn/end reason kind recorded on the timeline (default 'completed'). */
@@ -117,6 +121,20 @@ export function chatSnapshot(events: readonly FixtureEvent[]): ChatSnapshot {
         loc.end = { type: 'turn/end', seq: e.seq ?? 0, time: e.time ?? 0, data: { turn, reason: { kind: e.reason ?? 'completed' } } }
         loc.status = 'closed'
       }
+      continue
+    }
+    if (e.kind === 'compaction') {
+      push('compaction', {
+        kind: 'compaction', seq: e.seq ?? 0, time: e.time ?? 0,
+        summary: e.summary ?? null, summaryEventSeq: null, shadowedItemCount: null, shadowedTokenCount: null,
+      } as unknown as DataOf<'compaction'>, e.seq ?? 0)
+      continue
+    }
+    if (e.kind === 'context') {
+      push('context', {
+        kind: 'context', seq: e.seq ?? 0, time: e.time ?? 0, content: [], source: e.source,
+        provenance: { role: 'user', producer: 'plugin' }, form: null,
+      } as unknown as DataOf<'context'>, e.seq ?? 0)
       continue
     }
     if (e.kind === 'turn-max-tokens') {

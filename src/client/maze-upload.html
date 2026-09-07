@@ -542,7 +542,8 @@ const I18N = {
     sigSev: { high: '高', medium: '中', low: '低', info: '信息' },
     sigName: { mechanicalRetry: '失败后原样重试', repeat: '同轮重复调用', loop: '循环', toolFail: '工具失败', slowCall: '慢调用', concentration: '工具集中度', ctxJump: '上下文骤升', ctxDrop: '上下文骤降', ctxPeak: '上下文峰值', compaction: '压缩发生', todoStale: '待办陈旧', adaptiveRecovery: '换策略恢复' },
     sigCalls: n => `${n} 次调用`,
-    sigHint: '阈值按本机 202 份会话校准（2026-09-06；「中」落在最差的 15%~20% 会话，「高」落在最差的 3%~5%），常量在 verdict.js 的 ANALYSIS_RULES.SIGNALS。各信号独立计数：循环与同轮重复、原样重试与工具失败可能指向同一段调用，各说各的事实。code 模式（run_code 内部派发）会话的同轮重复率天然偏高（中位 12% 对 5%），本版未展开其内部调用。上下文占用按每次请求当时的模型换算窗口（上传日志读 request/context；实时页签拿不到逐请求模型，按会话模型查表）。点一条淡化其他节点并定位到该段第一个调用，再点同一条取消。',
+    sigHint: '阈值按本机 202 份会话校准（2026-09-06 定，2026-09-07 修正校准脚本后重跑；「中」落在最差的 15%~20% 会话，「高」落在最差的 3%~5%），常量在 verdict.js 的 ANALYSIS_RULES.SIGNALS。各信号独立计数：循环与同轮重复、原样重试与工具失败可能指向同一段调用，各说各的事实；工具失败与换策略恢复沿用迷宫的判定（错误标志 + 输出失败特征），比只看错误标志宽。参数签名截到 300 字，更长的命令只比前 300 字。code 模式本版只统计外层 run_code 调用，内部派发未展开，与校准集的 code 模式数字不可直接对照。上下文占用按每次请求当时的模型换算窗口（上传日志读 request/context 真值；实时页签只缺窗口真值，按逐请求模型查表）。点一条淡化其他节点并定位到该段第一个调用，再点同一条或按 Esc 取消；与「只看失败/重试」等过滤是同时生效的叠加。',
+
     subPrefix: '子代理 ', subBranch: '子代理支路', detBranch: '探索支路',
     evtRetry: '请求失败重试', evtTurnError: '请求终局失败',
     mainStep: '主干推进', finalAnswer: '最终回答', rejected: '（被打回）',
@@ -717,7 +718,8 @@ const I18N = {
     sigSev: { high: 'high', medium: 'medium', low: 'low', info: 'info' },
     sigName: { mechanicalRetry: 'identical retry after failure', repeat: 'same-turn repeats', loop: 'loop', toolFail: 'tool failures', slowCall: 'slow calls', concentration: 'tool concentration', ctxJump: 'context jump', ctxDrop: 'context drop', ctxPeak: 'context peak', compaction: 'compaction', todoStale: 'stale todo', adaptiveRecovery: 'adaptive recovery' },
     sigCalls: n => `${n} calls`,
-    sigHint: 'Thresholds calibrated on 202 local sessions (2026-09-06; "medium" lands in the worst 15–20% of sessions, "high" in the worst 3–5%), constants in ANALYSIS_RULES.SIGNALS in verdict.js. Signals count independently: a loop and same-turn repeats, or identical retries and tool failures, may point at the same calls — each states its own fact. Code-mode sessions (calls dispatched inside run_code) naturally repeat more (median 12% vs 5%); their inner calls are not expanded in this version. Context use is converted with the window of the model in use at each request (uploaded logs read request/context; the live tab cannot see per-request models and uses the session model\'s table value). Click a row to dim everything else and locate the first call of that stretch; click it again to clear.',
+    sigHint: 'Thresholds calibrated on 202 local sessions (set 2026-09-06, re-run 2026-09-07 after fixing the calibration script; "medium" lands in the worst 15–20% of sessions, "high" in the worst 3–5%), constants in ANALYSIS_RULES.SIGNALS in verdict.js. Signals count independently: a loop and same-turn repeats, or identical retries and tool failures, may point at the same calls — each states its own fact; tool failures and adaptive recovery use the maze verdict (error flag plus failure signatures in the output), wider than the error flag alone. Argument signatures are cut at 300 characters, so longer commands compare on their first 300. In this version code-mode sessions count only the outer run_code calls; inner dispatches are not expanded, so their numbers are not directly comparable with the calibration set\'s code-mode figures. Context use is converted with the window of the model in use at each request (uploaded logs read the request/context value; the live tab only lacks the host-reported value and looks the per-request model up in the table). Click a row to dim everything else and locate the first call of that stretch; click it again or press Esc to clear — this stacks with the failures-only and other filters.',
+
     subPrefix: 'Subagent ', subBranch: 'Subagent branch', detBranch: 'Exploration detour',
     evtRetry: 'Request retry', evtTurnError: 'Request failed for good',
     mainStep: 'Main-path step', finalAnswer: 'Final answer', rejected: ' (rejected)',
@@ -961,6 +963,7 @@ function buildLane(text){
   let todoReminders = 0
   let ctxWindow = null
   let curWin = null   // 当前生效的上下文窗口（最近一条 request/context）
+  let firstWin = null // 第一条 request/context 的窗口：更早的样本用它兜底（评审 P2-6）
   let cur = null
   const pending = []
   for (const e of evs){
@@ -983,7 +986,7 @@ function buildLane(text){
       // 一场会话可能切模型出现多条：宿主报的真值优先，没有再查模型表；之后每步的 usage 按「当时」的窗口换算
       //（吴昊 2026-09-07 拍板）。lane.ctxWindow 留最后一条作没有逐步窗口时的退路。
       const w = typeof d.contextWindow === 'number' && d.contextWindow > 0 ? d.contextWindow : contextWindowFor(d.model)
-      if (w != null){ ctxWindow = w; curWin = w }
+      if (w != null){ ctxWindow = w; curWin = w; if (firstWin == null) firstWin = w }
     } else if (t === 'step/start'){
       // step numbers restart every turn; qualify with the turn so identity stays unique
       cur = { step: d.turn != null ? d.turn + '·' + d.step : d.step, turn: d.turn, s: tm, e: tm, events: [], rz: 0, rzTxt: '', rzTok: null, outTok: null, inTok: null, cacheTok: null }
@@ -1045,6 +1048,7 @@ function buildLane(text){
   // 同任务识别的指纹：首条用户消息的文本（空白归一）。
   const firstUserText = first !== undefined ? resultText(first.data ?? {}).replace(/\s+/g, ' ').trim() : ''
   for (const r of rows){
+    if (r.ctxWin == null && firstWin != null && (r.inTok != null || r.cacheTok != null)) r.ctxWin = firstWin
     const rz = r.rzTxt.replace(/\s+/g, ' ').trim()
     r.rzTxt = rz.slice(0, 240)
     r.rzTxtFull = rz.slice(0, 2000)
@@ -2229,7 +2233,7 @@ function nodeMatches(n){
 }
 
 function applyFilter(){
-  const sigNodes = sigSel != null ? (sigRows[sigSel]?.nodes ?? null) : null
+  const sigNodes = sigSelRow()?.nodes ?? null
   const active = fltFail || fltTool !== '' || fltQ !== '' || invSel != null || sigNodes != null
   // 盘点选轮叠加在常规过滤上：选中某轮后只保留该轮的支路，其余（含主干）淡化；行为信号选中同理只保留涉及的节点
   const pass = (n, isDet) => nodeMatches(n) && (invSel == null || (isDet && (n.turn ?? 1) === invSel)) && (sigNodes == null || sigNodes.has(n))
@@ -2334,8 +2338,15 @@ document.getElementById('btnInv').addEventListener('click', () => {
    （原样重试/换参数/换工具/未恢复）来自 verdict.js 的 analyzeFailureChains。 */
 const anaSecEl = document.getElementById('anasec')
 let anaRefs = []   // 失败链行 / Agent 节点 → { node, laneKey }，点击缩放定位用
-let sigRows = []   // 行为信号行 → { laneKey, nodes: Set, first: {tl,n}|null }，点击淡化其他节点并定位
-let sigSel = null  // 选中的信号行下标；非空时 applyFilter 只保留该信号涉及的节点
+let sigRows = []   // 行为信号行 → { laneKey, type, nodes: Set, first: {tl,n}|null }，点击淡化其他节点并定位
+let sigSel = null  // 选中的信号 { laneKey, type }：用键不用下标，实时重渲染信号顺序变了高亮不漂移（评审 P2-5）
+const sigSelRow = () => sigSel === null ? null : (sigRows.find(r => r.laneKey === sigSel.laneKey && r.type === sigSel.type) ?? null)
+/** 取消信号选中（再点同一条 / Esc）：去高亮并撤淡化。 */
+function clearSigSel(){
+  sigSel = null
+  anaSecEl.querySelectorAll('.sig.sel').forEach(el => el.classList.remove('sel'))
+  applyFilter()
+}
 
 /* 已结算调用过滤（settledLaneCalls）、分位数（percentile）、区间合并（mergeIntervalsTotal）、
    工具矩阵（toolMatrix）、请求级失败计数（countRequestFailures）、同任务可比性
@@ -2521,9 +2532,10 @@ function signalsBlockHtml(lane){
   for (const s of sigs){
     const nodes = new Set(s.refs.map(r => r.n))
     const first = s.refs[0] ?? null
-    const idx = sigRows.push({ laneKey: lane.key, nodes, first }) - 1
+    const idx = sigRows.push({ laneKey: lane.key, type: s.type, nodes, first }) - 1
     const clickable = nodes.size > 0
-    h += `<div class="sig${sigSel === idx ? ' sel' : ''}"${clickable ? ` data-sig="${idx}"` : ''}>`
+    const selected = sigSel !== null && sigSel.laneKey === lane.key && sigSel.type === s.type
+    h += `<div class="sig${selected ? ' sel' : ''}"${clickable ? ` data-sig="${idx}"` : ''}>`
       + `<span class="sigsev ${s.severity}">${esc(tr('sigSev')[s.severity])}</span>`
       + `<span class="sname">${esc(tr('sigName')[s.type] ?? s.type)}</span>`
       + `<span class="swhy">${esc(whyText(s.why))}</span>`
@@ -2661,15 +2673,15 @@ anaSecEl.addEventListener('click', ev => {
   const sigRow = ev.target.closest('[data-sig]')
   if (sigRow){
     // 行为信号：再点同一条取消；否则淡化其他节点、缩放到该段第一个调用并打开详情
-    const idx = +sigRow.getAttribute('data-sig')
-    const wasSel = sigSel === idx
-    sigSel = wasSel ? null : idx
+    const r = sigRows[+sigRow.getAttribute('data-sig')]
+    if (!r) return
+    const wasSel = sigSel !== null && sigSel.laneKey === r.laneKey && sigSel.type === r.type
+    sigSel = wasSel ? null : { laneKey: r.laneKey, type: r.type }
     anaSecEl.querySelectorAll('.sig.sel').forEach(el => el.classList.remove('sel'))
     if (!wasSel) sigRow.classList.add('sel')
     applyFilter()
     if (!wasSel){
-      const r = sigRows[idx]
-      if (r && r.first) zoomToNode({ node: r.first.n, laneKey: r.laneKey })
+      if (r.first) zoomToNode({ node: r.first.n, laneKey: r.laneKey })
       svgWrapEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     return
@@ -3120,6 +3132,7 @@ window.addEventListener('keydown', e => {
   if (anchorPick){ stopAnchorPick(); return }
   if (panelEl.classList.contains('show')){ closePanel(); return }
   if (invPanelEl.classList.contains('show')){ closeInv(); return }
+  if (sigSel !== null){ clearSigSel(); return }
   parent.postMessage({ kind: 'trace-esc' }, '*')
 })
 

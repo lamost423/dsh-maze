@@ -16,7 +16,7 @@ import type {
   ChatConversationViewNode, ChatNode, ChatSnapshot, ToolCallBlock, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
-import { exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import { contextWindowFor, exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 
 /** Narrow one ordered Chat node to a registered renderer kind. */
@@ -122,6 +122,8 @@ export interface MazeNode {
   inTok?: number | null
   /** 该步缓存命中的输入 token（usage.cacheReadTokens）；上下文总量 = inTok + cacheTok。 */
   cacheTok?: number | null
+  /** 该步请求当时的上下文窗口（实时链路按逐请求模型查表；上传链路读 request/context 真值）。 */
+  ctxWin?: number
   v: 'ok' | 'answer' | 'error' | 'deadend' | 'retry'
   /** 步级结构化判定依据（最坏工具的依据；展示端按界面语言渲染）。 */
   why?: VerdictWhy
@@ -291,6 +293,8 @@ interface ScanResult {
   compaction: { starts: number[]; prunes: number; summaries: number; ends: number }
   /** todo-freshness-guard reminders seen in the window. */
   todoReminders: number
+  /** Rows keyed by engine (turn, step), so per-request facts can be attached after the scan. */
+  byStep: Map<string, MazeNode>
 }
 
 /**
@@ -565,7 +569,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
     }
   }
 
-  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders }
+  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep }
 }
 
 /**
@@ -629,7 +633,7 @@ export function snapshotToMazeData(
   const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders } = scanRows(snap, rel)
+  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep } = scanRows(snap, rel)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -696,6 +700,14 @@ export function snapshotToMazeData(
   for (const request of requests) {
     const named = request.provenance?.model ?? request.requestConfig?.model
     if (named !== undefined && named !== '') model = named
+    // 每次请求按当时的模型换算窗口（评审 P1-3）：请求带 (turn, step)，把模型表的窗口填到那一步的节点上；
+    // 快照里没有宿主报的窗口真值，这是实时页签与上传链路唯一的差别。压缩请求 step 为 0 / turn 为 null，跳过。
+    const loc = request as { turn?: number | null; step?: number }
+    if (named !== undefined && named !== '' && typeof loc.turn === 'number' && typeof loc.step === 'number' && loc.step > 0) {
+      const win = contextWindowFor(named)
+      const row = byStep.get(`${String(loc.turn)}:${String(loc.step)}`)
+      if (win !== null && row !== undefined) row.ctxWin = win
+    }
   }
   const lane: MazeLane = {
     key: 'l1',

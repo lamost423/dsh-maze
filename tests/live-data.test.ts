@@ -1,7 +1,7 @@
 /** Verdict settlement and partitioning for the live maze converter. */
 import { describe, expect, it } from 'vitest'
 import { snapshotToMazeData } from '../src/client/live-data.ts'
-import { outcomeEvidence } from '../src/client/verdict.js'
+import { behaviorSignals, contextOccupancy, outcomeEvidence } from '../src/client/verdict.js'
 import { chatSnapshot } from './chat-fixture.ts'
 
 const t0 = 1_787_000_000_000
@@ -381,6 +381,52 @@ describe('snapshotToMazeData', () => {
     expect(oc.task).toMatchObject({ state: 'done', reason: 'completed', turn: 1 })
     expect(oc.human.responded).toBe(true)
     expect(oc.overall).toBe('done')
+  })
+
+  it('converts context use with the model of each request: (turn, step) from the Trajectory requests → node ctxWin (review P1-3)', () => {
+    // 一场从 deepseek-chat（表值 128K）切到 v4（1M）：切换前 100K 的请求是 78%，切换后 300K 是 30%
+    const snap = chatSnapshot([
+      { kind: 'user', seq: 1, time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 100_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'a' }] },
+      { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { inputTokens: 300_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'b' }] },
+      { kind: 'turn-end', seq: 13, time: t0 + 4100, reason: 'completed' },
+    ])
+    const requests = [
+      { turn: 1, step: 1, provenance: { provider: 'deepseek', model: 'deepseek-chat' } },
+      { turn: 1, step: 2, requestConfig: { model: 'deepseek-v4-flash' } },
+      { turn: null, step: 0, requestConfig: { model: 'deepseek-v4-flash' } },   // 压缩请求：不占步，跳过
+    ] as never
+    const lane = snapshotToMazeData(snap, [], requests)!.lanes[0]!
+    expect(lane.main.map(n => n.ctxWin)).toEqual([128_000, 1_000_000])
+    expect(lane.model).toBe('deepseek-v4-flash')   // 泳道模型仍取最后一条
+    const occ = contextOccupancy(lane)
+    expect(occ.windows).toEqual([128_000, 1_000_000])
+    expect(occ.samples.map(s => Math.round(s.ratio! * 100))).toEqual([78, 30])
+    expect(behaviorSignals(lane).find(s => s.type === 'ctxPeak')!.why.p).toEqual([78.1, 128_000])
+    // 没有请求信息时退回泳道模型表值（实时页签只缺窗口真值）
+    expect(snapshotToMazeData(snap)!.lanes[0]!.main.map(n => n.ctxWin)).toEqual([undefined, undefined])
+  })
+
+  it('carries compaction checkpoints and plugin reminders for the signals block (review P2-4)', () => {
+    const snap = chatSnapshot([
+      { kind: 'user', seq: 1, time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [{ kind: 'text', text: 'a' }] },
+      { kind: 'compaction', seq: 12, time: t0 + 3000, summary: 'folded 12 items' },
+      { kind: 'compaction', seq: 13, time: t0 + 4000, summary: null },   // summary 事件在窗口外
+      // source 是鸭子判断：只有 kind=plugin 且 plugin=todo-freshness-guard 才算提醒
+      { kind: 'context', seq: 14, time: t0 + 5000, source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
+      { kind: 'context', seq: 15, time: t0 + 5100, source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
+      { kind: 'context', seq: 16, time: t0 + 5200, source: { kind: 'plugin', plugin: 'tool-jobs' } },
+      { kind: 'context', seq: 17, time: t0 + 5300, source: { kind: 'agent-instructions' } },
+      { kind: 'context', seq: 18, time: t0 + 5400, source: null },
+      { kind: 'context', seq: 19, time: t0 + 5500, source: 'todo-freshness-guard' },
+    ])
+    const lane = snapshotToMazeData(snap)!.lanes[0]!
+    expect(lane.compaction).toEqual({ starts: [3, 4], prunes: 0, summaries: 1, ends: 2 })
+    expect(lane.todoReminders).toBe(2)
+    expect(lane.ctxWindow).toBeUndefined()   // 快照里没有宿主报的窗口真值
+    const comp = behaviorSignals({ ...lane, todoReminders: 30 }).find(s => s.type === 'compaction')!
+    expect(comp.why.p).toEqual([2, 0])
   })
 
   it('derives turn endings from the nodes when the timeline holds no turn/end event', () => {
