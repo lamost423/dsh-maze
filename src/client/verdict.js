@@ -650,7 +650,7 @@ ANALYSIS_RULES.SIGNALS = {
   READ_SHELL: /^(?:cat|sed|head|tail|rg|grep|ls|find|wc|git (?:log|status|diff|show)) /,
   /** 参数签名截断长度（与校准脚本一致）。 */
   SIG_MAX: 300,
-  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（按 toolVerdict 口径重跑 13% / 4%；换策略恢复 32%，信息级不设阈值）。 */
+  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（按 toolVerdict 口径重跑 15% / 4%；换策略恢复 32%，信息级不设阈值）。 */
   MECHANICAL: { medium: 1, high: 3 },
   /** 同轮重复调用：占本场调用的比例且次数（低 ≥10% 且 ≥5；中 ≥20% 且 ≥10；2026-09-07 重跑校准 30% / 8%，签名与页面同规则后比首轮的 37% / 16% 低）。 */
   REPEAT: { low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } },
@@ -658,9 +658,10 @@ ANALYSIS_RULES.SIGNALS = {
   REPEAT_READ: 5,
   /** 循环：排除轮询类后长度 1~3 的序列连续 3 次，长窗口先扫、已覆盖的下标不再数；占用步数 中 ≥9，高 ≥30（去重后重跑校准 16% / 4%，落在目标区间）。 */
   LOOP: { medium: 9, high: 30 },
-  /** 工具失败（判定 = toolVerdict，错误标志 + 输出特征）：中 = 失败率 ≥8% 或 ≥10 次；高 = 失败率 ≥15% 且 ≥10 次
-   *  （2026-09-07 第二轮：校准脚本真正接上 toolVerdict 后旧阈值命中 38% / 5%，按目标区间重定为 17% / 3%）。 */
-  FAIL: { medium: { count: 10, rate: 0.08 }, high: { count: 10, rate: 0.15 } },
+  /** 工具失败（判定 = toolVerdict，错误标志 + 输出特征）：中 = 失败率 ≥8%（且本场调用 ≥10 次，与校准集口径一致）或失败 ≥10 次；
+   *  高 = 失败率 ≥15% 且 ≥10 次（2026-09-07 第二轮：校准脚本真正接上 toolVerdict 后旧阈值命中 38% / 5%，按目标区间重定；
+   *  第三轮喂 toolVerdict 的文本先压空白后重跑 19% / 3%，普通模式单看 23% / 3%，code 模式几乎不失败把整体拉低）。 */
+  FAIL: { medium: { count: 10, rate: 0.08, minCalls: 10 }, high: { count: 10, rate: 0.15 } },
   /** 慢调用：单次 ≥120 秒；低 ≥1 次，中 ≥3 次（校准 14% / 3%，2026-09-07 去掉压缩重发的 tool/result 后重算）。相对均值的口径在 72% 会话触发，没有区分度，已弃。 */
   SLOW_SEC: 120,
   SLOW: { low: 1, medium: 3 },
@@ -779,7 +780,7 @@ export function behaviorSignals(lane, wall){
   // 工具失败（沿用现有判定 v = error）
   const fails = calls.filter(c => c.failed)
   const failRate = total > 0 ? fails.length / total : 0
-  if (fails.length >= R.FAIL.medium.count || (total > 0 && failRate >= R.FAIL.medium.rate)){
+  if (fails.length >= R.FAIL.medium.count || (total >= R.FAIL.medium.minCalls && failRate >= R.FAIL.medium.rate)){
     const sev = failRate >= R.FAIL.high.rate && fails.length >= R.FAIL.high.count ? 'high' : 'medium'
     push('toolFail', sev, fails.map(c => c.ref), { k: 'sigFail', p: [fails.length, total, Math.round(failRate * 100)] })
   }

@@ -31,7 +31,7 @@ describe('ANALYSIS_RULES.SIGNALS（阈值固定在 2026-09-06 校准表上）', 
     expect(R.REPEAT).toEqual({ low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } })
     expect(R.REPEAT_READ).toBe(5)
     expect(R.LOOP).toEqual({ medium: 9, high: 30 })
-    expect(R.FAIL).toEqual({ medium: { count: 10, rate: 0.08 }, high: { count: 10, rate: 0.15 } })
+    expect(R.FAIL).toEqual({ medium: { count: 10, rate: 0.08, minCalls: 10 }, high: { count: 10, rate: 0.15 } })
     expect(R.SLOW_SEC).toBe(120)
     expect(R.SLOW).toEqual({ low: 1, medium: 3 })
     expect(R.HHI).toEqual({ minCalls: 20, min: 0.85 })
@@ -134,6 +134,9 @@ describe('behaviorSignals', () => {
     expect(byType(synth([...ok(20), ...bad(5)]), 'toolFail')).toMatchObject({ severity: 'medium' })               // 20% 但只 5 次：中不到高
     expect(byType(synth([...ok(95), ...bad(5)]), 'toolFail')).toBeUndefined()                                     // 5%、5 次：旧阈值会亮，现在不亮
     expect(byType(synth([...ok(99), bash('bad', { err: true })]), 'toolFail')).toBeUndefined()                    // 1%
+    // 按率触发要本场调用 ≥10 次（与校准集口径一致）：2 次调用失败 1 次（50%）不亮，10 次调用失败 1 次（10%）才亮
+    expect(byType(synth([bash('bad', { err: true }), bash('ok')]), 'toolFail')).toBeUndefined()
+    expect(byType(synth([...ok(9), bash('bad', { err: true })]), 'toolFail')).toMatchObject({ severity: 'medium' })
   })
 
   it('慢调用：单次 ≥120 秒；≥1 次低，≥3 次中；点名最长的那次', () => {
@@ -260,8 +263,9 @@ describe('behaviorSignals', () => {
     lane.detours.push({ step: 91, turn: 1, s: 3, e: 3, v: 'error', evt: 'retry', tools: [] })
     lane.main.push({ step: 92, turn: 1, s: 4, e: 5, v: 'ok', live: true, tools: [{ name: 'bash', args: 'x', s: 4, e: null, dur: 0, v: 'ok', err: false }] })
     const out = sig(lane)
-    expect(out.map(s => s.type)).toEqual(['mechanicalRetry', 'toolFail'])
-    expect(out[1]!.count).toBe(1)
+    // 子代理节点里的 6 次失败不进统计；本场只有 2 次直接调用，失败率门槛要 ≥10 次调用，所以只剩原样重试
+    expect(out.map(s => s.type)).toEqual(['mechanicalRetry'])
+    expect(out[0]!.count).toBe(1)
     const order = sig(synth([bash('a', { ctx: 600 }), bash('b', { err: true })], { ctxWindow: 1000, todoReminders: 10 })).map(s => s.severity)
     expect([...order].sort((a, b) => ({ high: 3, medium: 2, low: 1, info: 0 })[b]! - ({ high: 3, medium: 2, low: 1, info: 0 })[a]!)).toEqual(order)
   })
