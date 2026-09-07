@@ -632,3 +632,197 @@ export function outcomeEvidence(lane, wall){
     overall, failedKinds, missing, anyValidation, codeCalls,
   }
 }
+
+/* ==================== 诊断层第 2 项（2026-09-07）：行为信号清单 ==================== */
+
+/**
+ * 阈值全部按 2026-09-06 本机 202 份会话（149 场有效）校准，脚本
+ * trace-compare-verdict-calibration/behavior-signals-calib.mjs；定阈值的原则：「中」落在最差的
+ * 15%~20% 会话，「高」落在最差的 3%~5%。改这里必须重跑校准脚本，把命中占比记进 CHANGELOG。
+ */
+ANALYSIS_RULES.SIGNALS = {
+  /** 轮询 / 记账类工具：不参与重复与循环计数（它们本来就要反复调）。 */
+  POLL_TOOLS: ['job_output', 'todo_write', 'list_agents', 'send_message', 'wait', 'sleep'],
+  /** 读取类工具（重复读取子标签用）。 */
+  READ_TOOLS: ['read', 'grep', 'glob', 'ls', 'list_files', 'search'],
+  /** shell 里的读取类命令（作用于命令文本开头）。 */
+  READ_SHELL: /^(?:cat|sed|head|tail|rg|grep|ls|find|wc|git (?:log|status|diff|show)) /,
+  /** 参数签名截断长度（与校准脚本一致）。 */
+  SIG_MAX: 300,
+  /** 失败后原样重试：上一次失败、这一次同工具同参数。中 ≥1，高 ≥3（校准命中 9% / 3%）。 */
+  MECHANICAL: { medium: 1, high: 3 },
+  /** 同轮重复调用：占本场调用的比例且次数（低 ≥10% 且 ≥5；中 ≥20% 且 ≥10；校准 37% / 16%）。 */
+  REPEAT: { low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } },
+  /** 重复读取子标签：同轮重复里读取类 ≥5（校准 32%，只作子标签）。 */
+  REPEAT_READ: 5,
+  /** 循环：排除轮询类后长度 1~3 的序列连续 3 次；占用步数 中 ≥9，高 ≥30（校准 19% / 6%）。 */
+  LOOP: { medium: 9, high: 30 },
+  /** 工具失败：中 = 失败 ≥5 次或失败率 ≥5%；高 = 失败率 ≥10% 且 ≥5 次（校准 13% / 3%）。 */
+  FAIL: { medium: { count: 5, rate: 0.05 }, high: { count: 5, rate: 0.10 } },
+  /** 慢调用：单次 ≥120 秒；低 ≥1 次，中 ≥3 次（校准 15% / 7%）。相对均值的口径在 72% 会话触发，没有区分度，已弃。 */
+  SLOW_SEC: 120,
+  SLOW: { low: 1, medium: 3 },
+  /** 工具集中度：调用 ≥20 次且赫芬达尔指数 ≥0.85（低，校准 10%）。 */
+  HHI: { minCalls: 20, min: 0.85 },
+  /** 上下文骤升 / 骤降：相邻两次请求占用变化 ≥20 个百分点（升为中，降为信息；校准 1% / 3%）。 */
+  CTX_JUMP: 0.20,
+  /** 上下文峰值占窗口：低 ≥50%，中 ≥70%，高 ≥90%（校准 11% / 5% / 0%，1M 窗口下几乎不亮）。 */
+  CTX_PEAK: { low: 0.5, medium: 0.7, high: 0.9 },
+  /** 压缩发生：compaction/start ≥1 为信息；prune ≥10 另加一句（校准 5%）。 */
+  PRUNE_NOTE: 10,
+  /** 待办陈旧：todo-freshness-guard 提醒次数 低 ≥10，中 ≥30（校准 11% / 3%）。 */
+  TODO: { low: 10, medium: 30 },
+}
+
+/** 参数签名（与校准脚本同规则）：bash 取整条命令压空白，读写类取文件路径，其余取参数 JSON；截到 SIG_MAX。 */
+export function callSignature(name, args){
+  const a = parseArgs(args)
+  let body
+  if (typeof a === 'string') body = a
+  else if (typeof a.command === 'string') body = a.command
+  else if (Array.isArray(a.command)) body = a.command.map(String).join(' ')
+  else if (typeof a.file_path === 'string') body = a.file_path
+  else if (typeof a.path === 'string') body = a.path
+  else body = JSON.stringify(a)
+  return name + '|' + String(body).replace(/\s+/g, ' ').trim().slice(0, ANALYSIS_RULES.SIGNALS.SIG_MAX)
+}
+
+/** 调用目标（换策略恢复用）：文件路径，或 shell 命令的第一个词。 */
+function callTarget(name, args){
+  const a = parseArgs(args)
+  if (typeof a !== 'string'){
+    if (typeof a.file_path === 'string') return a.file_path
+    if (typeof a.path === 'string') return a.path
+    if (typeof a.command === 'string' && ANALYSIS_RULES.SHELL_TOOLS.includes(name)) return (a.command.trim().match(/^([\w./-]+)/) ?? ['', ''])[1]
+    return ''
+  }
+  if (ANALYSIS_RULES.SHELL_TOOLS.includes(name)) return (a.trim().match(/^([\w./-]+)/) ?? ['', ''])[1]
+  if (['read', 'write', 'edit'].includes(name)) return a.trim()
+  return ''
+}
+
+/** 严重度序，块内排序用。 */
+export const SIGNAL_SEV = { high: 3, medium: 2, low: 1, info: 0 }
+
+/**
+ * 行为信号清单：对已结算调用与轮次/上下文原料的确定性聚合，每条 { type, severity, count, callIds,
+ * refs（涉及的 {tl,n}，首个即点击定位目标）, why {k,p} }。各信号独立计数、口径与校准脚本逐条对应
+ * （见 ANALYSIS_RULES.SIGNALS）；循环与同轮重复、原样重试与工具失败可能指向同一段调用——各自说各自
+ * 的事实，展示端在方法说明里写明，不在这里互相扣减（扣减会让计数对不上校准）。
+ * @param lane { main, detours, model?, ctxWindow?, compaction?: {starts:[s], prunes, summaries}, todoReminders? }
+ * @param wall 节点坐标 → 墙钟秒（页面折叠过时间轴时传 wallClock）
+ */
+export function behaviorSignals(lane, wall){
+  const R = ANALYSIS_RULES.SIGNALS
+  const toWall = typeof wall === 'function' ? wall : (t => t)
+  const calls = settledLaneCalls(lane).map(c => ({
+    ref: c, name: c.tl.name, sig: callSignature(c.tl.name, c.tl.args), tgt: callTarget(c.tl.name, c.tl.args),
+    turn: c.n.turn ?? 1, failed: c.tl.v === 'error', dur: c.tl.dur ?? 0, id: c.tl.callId ?? null,
+  }))
+  const out = []
+  const push = (type, severity, refs, why) => out.push({
+    type, severity, count: refs.length, callIds: refs.map(r => r.tl?.callId ?? null).filter(x => x !== null),
+    refs, why,
+  })
+  const isRead = c => R.READ_TOOLS.includes(c.name)
+    || (ANALYSIS_RULES.SHELL_TOOLS.includes(c.name) && R.READ_SHELL.test(c.sig.slice(c.name.length + 1)))
+
+  // 失败后原样重试 / 换策略恢复 / 同轮重复（含读取子标签）——一趟扫描，与校准脚本同序
+  const mech = [], adaptive = [], repeats = [], readRepeats = []
+  const lastIdx = new Map()
+  for (let i = 0; i < calls.length; i++){
+    const c = calls[i], p = calls[i - 1]
+    if (p && p.failed && p.sig === c.sig){ mech.push(c.ref); lastIdx.set(c.sig, i); continue }
+    if (p && p.failed && p.name === c.name && p.tgt !== '' && p.tgt === c.tgt && p.sig !== c.sig && !c.failed) adaptive.push(c.ref)
+    if (R.POLL_TOOLS.includes(c.name)){ lastIdx.set(c.sig, i); continue }
+    if (lastIdx.has(c.sig) && calls[lastIdx.get(c.sig)].turn === c.turn){
+      repeats.push(c.ref)
+      if (isRead(c)) readRepeats.push(c.ref)
+    }
+    lastIdx.set(c.sig, i)
+  }
+  if (mech.length >= R.MECHANICAL.medium) push('mechanicalRetry', mech.length >= R.MECHANICAL.high ? 'high' : 'medium', mech, { k: 'sigMechanical', p: [mech.length] })
+  const total = calls.length
+  const repRate = total > 0 ? repeats.length / total : 0
+  if (repeats.length >= R.REPEAT.low.min && repRate >= R.REPEAT.low.rate){
+    const sev = repeats.length >= R.REPEAT.medium.min && repRate >= R.REPEAT.medium.rate ? 'medium' : 'low'
+    push('repeat', sev, repeats, { k: 'sigRepeat', p: [repeats.length, Math.round(repRate * 100), readRepeats.length >= R.REPEAT_READ ? readRepeats.length : 0] })
+  }
+
+  // 循环：排除轮询类后，长度 1~3 的序列连续 3 次（与校准脚本同扫描：按长度分别扫，不去重叠）
+  const seq = calls.filter(c => !R.POLL_TOOLS.includes(c.name))
+  const sigs = seq.map(c => c.sig)
+  let loops = 0, loopSteps = 0
+  const loopRefs = []
+  for (let w = 1; w <= 3; w++){
+    for (let at = 0; at + w * 3 <= sigs.length; at++){
+      const pat = sigs.slice(at, at + w).join('||')
+      if ([1, 2].every(k => sigs.slice(at + k * w, at + (k + 1) * w).join('||') === pat)){
+        loops += 1; loopSteps += w * 3
+        for (let j = at; j < at + w * 3; j++) loopRefs.push(seq[j].ref)
+        at += w * 3 - 1
+      }
+    }
+  }
+  if (loopSteps >= R.LOOP.medium) push('loop', loopSteps >= R.LOOP.high ? 'high' : 'medium', loopRefs, { k: 'sigLoop', p: [loops, loopSteps] })
+
+  // 工具失败（沿用现有判定 v = error）
+  const fails = calls.filter(c => c.failed)
+  const failRate = total > 0 ? fails.length / total : 0
+  if (fails.length >= R.FAIL.medium.count || (total > 0 && failRate >= R.FAIL.medium.rate)){
+    const sev = failRate >= R.FAIL.high.rate && fails.length >= R.FAIL.high.count ? 'high' : 'medium'
+    push('toolFail', sev, fails.map(c => c.ref), { k: 'sigFail', p: [fails.length, total, Math.round(failRate * 100)] })
+  }
+
+  // 慢调用：绝对 120 秒
+  const slow = calls.filter(c => c.dur >= R.SLOW_SEC).sort((a, b) => b.dur - a.dur)
+  if (slow.length >= R.SLOW.low) push('slowCall', slow.length >= R.SLOW.medium ? 'medium' : 'low', slow.map(c => c.ref), { k: 'sigSlow', p: [slow.length, Math.round(slow[0].dur), slow[0].name] })
+
+  // 工具集中度：赫芬达尔指数
+  if (total >= R.HHI.minCalls){
+    const cnt = new Map()
+    for (const c of calls) cnt.set(c.name, (cnt.get(c.name) ?? 0) + 1)
+    let hhi = 0, top = null, topN = 0
+    for (const [name, n] of cnt){ hhi += (n / total) ** 2; if (n > topN){ topN = n; top = name } }
+    // code 模式外层全是 run_code，集中度必然 100%、说明不了任何事——真实工具在脚本里，本版未展开，跳过
+    if (hhi >= R.HHI.min && !ANALYSIS_RULES.CODE_TOOLS.includes(top)) push('concentration', 'low', calls.filter(c => c.name === top).map(c => c.ref), { k: 'sigHhi', p: [Math.round(hhi * 1000) / 1000, top, Math.round(topN / total * 100)] })
+  }
+
+  // 上下文占用：每步 (inTok + cacheTok) / 窗口；窗口优先日志真值（request/context），其次模型表
+  const win = lane.ctxWindow ?? contextWindowFor(lane.model)
+  const own = [...lane.main, ...lane.detours].filter(n => !n.sub && !n.evt && !n.live && (n.inTok != null || n.cacheTok != null)).sort((a, b) => a.s - b.s)
+  const compStarts = (lane.compaction?.starts ?? [])
+  if (win != null && own.length > 0){
+    const ratio = n => ((n.inTok ?? 0) + (n.cacheTok ?? 0)) / win
+    let peak = 0, peakNode = null
+    const ups = [], downs = []
+    let compacted = 0
+    for (let i = 0; i < own.length; i++){
+      const r = ratio(own[i])
+      if (r > peak){ peak = r; peakNode = own[i] }
+      if (i === 0) continue
+      const d = r - ratio(own[i - 1])
+      if (d >= R.CTX_JUMP) ups.push({ n: own[i], from: ratio(own[i - 1]), to: r })
+      if (d <= -R.CTX_JUMP){
+        const a = toWall(own[i - 1].s), b = toWall(own[i].e)
+        const near = compStarts.some(t => t >= a && t <= b)
+        if (near) compacted += 1
+        downs.push({ n: own[i], from: ratio(own[i - 1]), to: r, near })
+      }
+    }
+    const nodeRef = n => ({ tl: (n.tools ?? [])[0] ?? null, n })
+    if (ups.length > 0) push('ctxJump', 'medium', ups.map(x => nodeRef(x.n)), { k: 'sigCtxUp', p: [ups.length, Math.round(ups[0].from * 100), Math.round(ups[0].to * 100)] })
+    if (downs.length > 0) push('ctxDrop', 'info', downs.map(x => nodeRef(x.n)), { k: 'sigCtxDown', p: [downs.length, Math.round(downs[0].from * 100), Math.round(downs[0].to * 100), compacted] })
+    if (peak >= R.CTX_PEAK.low) push('ctxPeak', peak >= R.CTX_PEAK.high ? 'high' : peak >= R.CTX_PEAK.medium ? 'medium' : 'low', [nodeRef(peakNode)], { k: 'sigCtxPeak', p: [Math.round(peak * 1000) / 10, win] })
+  }
+
+  // 压缩发生 / 待办陈旧 / 换策略恢复
+  const comp = lane.compaction
+  if (comp && comp.starts.length >= 1) push('compaction', 'info', [], { k: 'sigCompaction', p: [comp.starts.length, (comp.prunes ?? 0) >= R.PRUNE_NOTE ? comp.prunes : 0] })
+  const todo = lane.todoReminders ?? 0
+  if (todo >= R.TODO.low) push('todoStale', todo >= R.TODO.medium ? 'medium' : 'low', [], { k: 'sigTodo', p: [todo] })
+  if (adaptive.length > 0) push('adaptiveRecovery', 'info', adaptive, { k: 'sigAdaptive', p: [adaptive.length] })
+
+  out.sort((a, b) => SIGNAL_SEV[b.severity] - SIGNAL_SEV[a.severity] || b.count - a.count)
+  return out
+}

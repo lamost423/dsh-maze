@@ -83,6 +83,24 @@ export declare const ANALYSIS_RULES: {
   ARTIFACT_TOOLS: string[]
   TURN_END_INCOMPLETE: string[]
   VALIDATION: { test: RegExp[]; build: RegExp[]; lint: RegExp[] }
+  SIGNALS: {
+    POLL_TOOLS: string[]
+    READ_TOOLS: string[]
+    READ_SHELL: RegExp
+    SIG_MAX: number
+    MECHANICAL: { medium: number; high: number }
+    REPEAT: { low: { rate: number; min: number }; medium: { rate: number; min: number } }
+    REPEAT_READ: number
+    LOOP: { medium: number; high: number }
+    FAIL: { medium: { count: number; rate: number }; high: { count: number; rate: number } }
+    SLOW_SEC: number
+    SLOW: { low: number; medium: number }
+    HHI: { minCalls: number; min: number }
+    CTX_JUMP: number
+    CTX_PEAK: { low: number; medium: number; high: number }
+    PRUNE_NOTE: number
+    TODO: { low: number; medium: number }
+  }
   VALIDATION_SPLIT: RegExp
   HEREDOC: RegExp
   QUOTED: RegExp
@@ -165,6 +183,43 @@ export interface OutcomeEvidence<N, T> {
   /** code 模式外层调用次数（>0 时脚本内部派发的真实命令未被识别）。 */
   codeCalls: number
 }
+
+/* ---- 行为信号清单（诊断层第 2 项） ---- */
+
+/** 参数签名（与校准脚本同规则）。 */
+export declare function callSignature(name: string, args: unknown): string
+
+/** 严重度序。 */
+export declare const SIGNAL_SEV: Record<'high' | 'medium' | 'low' | 'info', number>
+
+export type SignalType = 'mechanicalRetry' | 'repeat' | 'loop' | 'toolFail' | 'slowCall' | 'concentration'
+  | 'ctxJump' | 'ctxDrop' | 'ctxPeak' | 'compaction' | 'todoStale' | 'adaptiveRecovery'
+
+/** 一条行为信号。 */
+export interface BehaviorSignal<N, T> {
+  type: SignalType
+  severity: 'high' | 'medium' | 'low' | 'info'
+  /** 涉及调用数（refs.length）。 */
+  count: number
+  callIds: string[]
+  /** 涉及的调用（首个即点击定位目标）；上下文类信号 tl 可为 null。 */
+  refs: { tl: T | null; n: N }[]
+  why: { k: string; p: (string | number)[] }
+}
+
+/** behaviorSignals 输入的泳道形状。 */
+export interface SignalLane<N> extends AnalysisLane<N> {
+  model?: string | null
+  ctxWindow?: number | null
+  compaction?: { starts: number[]; prunes?: number; summaries?: number; ends?: number }
+  todoReminders?: number
+}
+
+/** 行为信号清单：阈值见 ANALYSIS_RULES.SIGNALS（按本机 202 份会话校准）。 */
+export declare function behaviorSignals<
+  N extends { sub?: unknown; evt?: unknown; live?: unknown; turn?: number; s: number; e: number; v: string; inTok?: number | null; cacheTok?: number | null; tools?: readonly T[] },
+  T extends { name: string; args?: unknown; s?: number | null; e?: number | null; v: string; dur?: number | null; callId?: string },
+>(lane: SignalLane<N>, wall?: (t: number) => number): BehaviorSignal<N, T>[]
 
 /**
  * 结果与证据：对已判定泳道数据的确定性聚合（口径见实现注释）。
