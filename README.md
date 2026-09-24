@@ -5,8 +5,8 @@
 中文 | [English](README.en.md)
 
 [![npm](https://img.shields.io/npm/v/dsh-maze?color=cb3837&logo=npm)](https://www.npmjs.com/package/dsh-maze)
-[![dsh.so 安全扫描：低风险](https://www.dsh.so/badge/dsh-trace-compare.svg)](https://www.dsh.so/zh/artifact/dsh-trace-compare)
-[![dsh.so 沙盒安装实测：通过](https://www.dsh.so/badge/install/dsh-trace-compare.svg)](https://www.dsh.so/zh/artifact/dsh-trace-compare)
+[![dsh.so 安全扫描：低风险](https://www.dsh.so/badge/dsh-maze.svg)](https://www.dsh.so/zh/artifact/dsh-maze)
+[![dsh.so 沙盒安装实测：通过](https://www.dsh.so/badge/install/dsh-maze.svg)](https://www.dsh.so/zh/artifact/dsh-maze)
 [![Mentioned in Awesome DSH Plugins](https://awesome.re/mentioned-badge.svg)](https://github.com/bruc3van/awesome-dsh-plugin)
 [![Listed in awesome-dsh-plugin index](https://img.shields.io/badge/listed-awesome--dsh--plugin%20index-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 [![dshbase](https://dshbase.com/badges/dsh-maze.svg)](https://dshbase.com/plugins/dsh-maze/)
@@ -17,8 +17,9 @@
 [![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-maze?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-maze?ref=badge)
 [![Capability card on dsh-xray](https://img.shields.io/badge/capability%20card-dsh--xray-2d6a8f)](https://github.com/unStone/dsh-xray)
 [![featured on dsh-suite](https://img.shields.io/badge/featured%20on-dsh--suite-4d6bfe)](https://whyihaveyou.github.io/dsh-suite/)
+[![DSH Plugin Radar 运行实测：可用](https://img.shields.io/badge/DSH%20Plugin%20Radar-%E5%8F%AF%E7%94%A8-2d6a8f)](https://github.com/AdamPlatin123/dsh-plugin-radar)
 
-<sub>还被收录于：[fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness)（独立介绍页）· [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins)</sub>
+<sub>还被收录于：[fendouai/awesome-deepseek-harness](https://github.com/fendouai/awesome-deepseek-harness)（独立介绍页）· [Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins](https://github.com/Zhiyuan-Fan/Awesome-DeepSeek-Harness-Plugins) · [ZeroPointRepo/awesome-dsh-plugins](https://github.com/ZeroPointRepo/awesome-dsh-plugins) · [cccakeee/awesome-dsh-plugins](https://github.com/cccakeee/awesome-dsh-plugins) · [diegosouzapw/awesome-omni-dsh-plugins](https://github.com/diegosouzapw/awesome-omni-dsh-plugins) · [anbeime/skill](https://github.com/anbeime/skill) · [dsh-app 内置插件市场](https://github.com/JochenYang/dsh-app)</sub>
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的**执行迷宫**：把 Agent 真实的干活过程完整画出来、并分析给你看。
 
