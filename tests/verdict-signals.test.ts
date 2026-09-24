@@ -28,7 +28,7 @@ const rep = (n: number, ...c: Call[]): Call[] => Array.from({ length: n }, () =>
 describe('ANALYSIS_RULES.SIGNALS（阈值固定在 2026-09-06 校准表上）', () => {
   it('matches the calibration table', () => {
     expect(R.MECHANICAL).toEqual({ medium: 1, high: 3 })
-    expect(R.REPEAT).toEqual({ low: { rate: 0.10, min: 5 }, medium: { rate: 0.20, min: 10 } })
+    expect(R.REPEAT).toEqual({ low: { rate: 0.10, min: 5 }, medium: { rate: 0.15, min: 8 } })
     expect(R.REPEAT_READ).toBe(5)
     expect(R.LOOP).toEqual({ medium: 9, high: 30 })
     expect(R.FAIL).toEqual({ medium: { count: 10, rate: 0.08, minCalls: 10 }, high: { count: 10, rate: 0.15 } })
@@ -81,7 +81,7 @@ describe('behaviorSignals', () => {
     expect(byType(synth([['read', '/a.ts', { err: true }], ['read', '/b.ts']]), 'adaptiveRecovery')).toBeUndefined()
   })
 
-  it('同轮重复调用：排除轮询类；占比 ≥10% 且 ≥5 次为低，≥20% 且 ≥10 次为中；跨轮不算；重复读取作子标签', () => {
+  it('同轮重复调用：排除轮询类；占比 ≥10% 且 ≥5 次为低，≥15% 且 ≥8 次为中；跨轮不算；重复读取作子标签', () => {
     // 50 次调用：同一文件同轮读 6 次 = 首次 + 5 次重复（10%）→ 低；5 次都是读取 → 子标签
     const distinct = Array.from({ length: 44 }, (_, i) => bash('cmd' + i))
     const low = synth([...distinct, ...rep(6, ['read', '/x.ts'])])
@@ -94,6 +94,11 @@ describe('behaviorSignals', () => {
     expect(byType(synth([...distinct, ...rep(6, ['job_output', '{"job_id":"j1"}'])]), 'repeat')).toBeUndefined()
     // 21 次调用里同一命令出现 11 次 = 10 次重复（48%）→ 中
     expect(byType(synth([...Array.from({ length: 10 }, (_, i) => bash('c' + i)), ...rep(11, bash('same'))]), 'repeat')).toMatchObject({ severity: 'medium', count: 10 })
+    // 「中」的边界（2026-09-24 放宽到 ≥15% 且 ≥8）：53 次里 8 次重复（15.1%）→ 中；54 次里 8 次（14.8%）→ 低；
+    // 11 次调用里 7 次重复（64%）占比够但次数不到 8 → 低
+    expect(byType(synth([...distinct, ...rep(9, bash('same'))]), 'repeat')).toMatchObject({ severity: 'medium', count: 8 })
+    expect(byType(synth([...distinct, bash('cmd44'), ...rep(9, bash('same'))]), 'repeat')).toMatchObject({ severity: 'low', count: 8 })
+    expect(byType(synth([...Array.from({ length: 3 }, (_, i) => bash('c' + i)), ...rep(8, bash('same'))]), 'repeat')).toMatchObject({ severity: 'low', count: 7 })
     // 4 次重复（占 8%）：不到低的门槛
     expect(byType(synth([...distinct, ...rep(4, bash('same'))]), 'repeat')).toBeUndefined()
   })
