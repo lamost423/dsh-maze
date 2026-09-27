@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createTraceCompareViewStore } from './store.ts'
+import { currentSessionOf } from './current-session.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { postThemeTo, themedMazeHtml, watchHostTheme } from './theme-sync.ts'
@@ -21,8 +22,9 @@ export function TraceCompareSurface({ useStore, actions, useSessions, locale, t 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   // Any Session navigation while the surface is open — sidebar selection or a
   // new Session — switches the conversation beneath this opaque surface, so it
-  // closes to reveal it (mirrors the execution board).
-  const currentSession = useSessions(state => state.current)
+  // closes to reveal it (mirrors the execution board). Host 0.1.7 moved the
+  // selection off the Session list; currentSessionOf reads either shape.
+  const currentSession = useSessions(currentSessionOf)
   const lastSession = useRef(currentSession)
   useEffect(() => {
     const changed = lastSession.current !== currentSession

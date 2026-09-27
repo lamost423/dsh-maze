@@ -1,8 +1,14 @@
 import clsx from 'clsx'
-import { IconBranchOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createTraceCompareViewStore } from './store.ts'
 import css from './TraceCompareTrigger.module.css'
+
+type BranchIconComponent = (props: { size?: number | undefined }) => JSX.Element | null
+/** Host 0.1.7 renamed the 16px icon set (IconBranchOutline16 → IconBranchOutlineRegular); read either at runtime. */
+const iconTable = primitives as unknown as Record<string, BranchIconComponent | undefined>
+const BranchIcon: BranchIconComponent = iconTable.IconBranchOutline16 ?? iconTable.IconBranchOutlineRegular ?? (() => null)
 
 /** Sidebar entry that toggles the root-scoped Trace Compare surface. */
 export function TraceCompareTrigger({ wide, useStore, actions, t }: TraceCompareTriggerProps) {
@@ -17,7 +23,7 @@ export function TraceCompareTrigger({ wide, useStore, actions, t }: TraceCompare
         aria-pressed={open}
         onClick={() => { actions.toggle() }}
       >
-        <IconBranchOutline16 size={wide ? 16 : 18} />
+        <BranchIcon size={wide ? 16 : 18} />
         {wide && <span className={css.label}>{t('trigger')}</span>}
       </button>
     </Tooltip>

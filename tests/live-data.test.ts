@@ -97,6 +97,30 @@ describe('snapshotToMazeData', () => {
     expect(data!.lanes[0]!.model).toBe('deepseek-v4-0821')
   })
 
+  it('reads the served model from providerMetadata (host 0.1.6+ renamed provenance)', () => {
+    const requests = [
+      { requestConfig: { model: 'deepseek-v4' }, providerMetadata: { provider: 'deepseek', model: 'deepseek-v4-0921' } },
+    ] as never
+    expect(snapshotToMazeData(syntheticSnapshot(), [], requests)!.lanes[0]!.model).toBe('deepseek-v4-0921')
+    // 两个字段都在时以新字段为准
+    const both = [
+      { requestConfig: { model: 'a' }, provenance: { model: 'old-name' }, providerMetadata: { model: 'new-name' } },
+    ] as never
+    expect(snapshotToMazeData(syntheticSnapshot(), [], both)!.lanes[0]!.model).toBe('new-name')
+  })
+
+  it('host 0.1.7 preparing phase: a running call with no argsRaw yet gets empty args, not undefined', () => {
+    const snap = syntheticSnapshot()
+    // 0.1.7 把运行中的调用拆成 preparing / start 两段，preparing 段还没有 argsRaw
+    for (const node of (snap as unknown as { nodes: { values(): { data: { root?: { callId?: string; argsRaw?: string } } }[] } }).nodes.values()) {
+      if (node.data.root?.callId === 'd') delete node.data.root.argsRaw
+    }
+    const tools = snapshotToMazeData(snap)!.lanes[0]!.main.flatMap(n => n.tools)
+    const pending = tools.find(t => t.callId === 'd')!
+    expect(pending.e).toBeNull()
+    expect(pending.args).toBe('')
+  })
+
   it('reports no model when the Trajectory target carries no request identity', () => {
     expect(snapshotToMazeData(syntheticSnapshot())!.lanes[0]!.model).toBeNull()
   })

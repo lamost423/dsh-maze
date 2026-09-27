@@ -407,7 +407,8 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
         k: 't',
         name: settled ? (root.call?.name ?? '?') : root.name,
         s, e: null,
-        args: settled ? (root.call?.argsRaw ?? '') : root.argsRaw,
+        // 0.1.7 adds a 'preparing' running phase that has no argsRaw yet.
+        args: settled ? (root.call?.argsRaw ?? '') : ((root as { argsRaw?: string }).argsRaw ?? ''),
         res: '', err: false, dur: 0, v: 'ok',
         callId: root.callId,
       }
@@ -672,7 +673,9 @@ export function snapshotToMazeData(
   // was asked for, so provenance wins when both are present.
   let model: string | null = null
   for (const request of requests) {
-    const named = request.provenance?.model ?? request.requestConfig?.model
+    // 0.1.6+ renamed provenance → providerMetadata (same {provider, model} shape).
+    const served = request as { providerMetadata?: { model?: string }; provenance?: { model?: string } }
+    const named = served.providerMetadata?.model ?? served.provenance?.model ?? request.requestConfig?.model
     if (named !== undefined && named !== '') model = named
   }
   const lane: MazeLane = {

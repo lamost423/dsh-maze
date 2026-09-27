@@ -14,6 +14,12 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChildSessionMaze } from './live-data.ts'
 
+/** Subagent catalog calls that exist on host ≤0.1.6 only. */
+interface LegacyCatalog {
+  setSubagentCatalogOpen?: (parentSessionId: SessionId, open: boolean) => void
+  refreshSubagents?: (parentSessionId: SessionId) => Promise<void>
+}
+
 interface TrackedChild {
   face: SessionFace
   /** Session lifecycle subscription (openState). */
@@ -45,8 +51,11 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     this.#offList = sessions.list.subscribe(() => { this.#sync() })
     // Keep this parent's child catalog live so the roster learns about children
     // as they are spawned. This is read-only: it never selects a session.
-    sessions.setSubagentCatalogOpen(sessionId, true)
-    sessions.refreshSubagents(sessionId).then(() => { this.#sync() }).catch(() => {
+    // Host ≤0.1.6 API; 0.1.7 removed both (catalog moved to parent projections,
+    // children must be retain()ed before binding() resolves). Feature-detect.
+    const legacy = sessions as unknown as LegacyCatalog
+    legacy.setSubagentCatalogOpen?.(sessionId, true)
+    Promise.resolve(legacy.refreshSubagents?.(sessionId)).then(() => { this.#sync() }).catch(() => {
       // A parent with no children (or a host that refuses the catalog)
       // contributes an empty roster; the list subscription still retries.
     })
@@ -65,7 +74,7 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
     if (this.#disposed) return
     this.#disposed = true
     this.#offList()
-    this.sessions.setSubagentCatalogOpen(this.sessionId, false)
+    ;(this.sessions as unknown as LegacyCatalog).setSubagentCatalogOpen?.(this.sessionId, false)
     for (const child of this.#children.values()) this.#release(child)
     this.#children.clear()
     this.#listeners.clear()
