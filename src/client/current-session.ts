@@ -1,8 +1,8 @@
 /**
  * Which Session the host's main view is showing, read off the Session list.
  *
- * Host ≤0.1.6 publishes it as `list.current`. 0.1.7 dropped that field — the
- * selection moved into ui-workspace — and the public trace left on the list is
+ * Host ≤0.1.6-alpha.1 publishes it as `list.current`. 0.1.6-alpha.2 dropped that
+ * field — the selection moved into ui-workspace — and the public trace left on the list is
  * each row's retain counts: the main view retains its Session under the
  * `mainView` source. ui-session derives the selected Session from that same
  * count, so this follows the host's own rule rather than a private detail.

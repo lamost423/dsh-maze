@@ -55,7 +55,7 @@ Two entries: the **Live Maze** tab inside every session (grows with the running 
 - **Duration capsules**: every step renders as a rounded bar spanning its start→end, verdict-colored — a 3-minute bash and a 0.2 s read are no longer the same dot; wide bars carry the duration inline.
 - **Parallel tool-call rows** (since v0.3.2): when a step fires ≥2 tool calls, each call renders as a thin waterfall bar under the capsule at its real start→end, colored by its own verdict — see at a glance which of the parallel calls dragged or failed; hover a bar for that call's command/result/rationale. Lane height adapts to the maximum concurrency; detour nodes keep their "+N" label (fixed lane slots; the panel lists everything).
 - Dashed arcs: exploration detours — steps whose tools failed (red ✗), searched and found nothing (gray ·), or blind-retried (gray ↻), with the return arc back to the branch point.
-- **Subagent branches** (since v0.4.0, live tab): dsh subagent child sessions spawned by the model render as aggregated detour nodes branching off the main path — anchored at the spawning step on the parent's clock, with the child's judged tool calls as sub-bars; running children grow live and read "still running". Hover cards and the detail panel carry the subagent identity and spawn/rejoin copy; clicking jumps back to the spawning row. Only real task subagents qualify (`origin: 'subagent'`) — manual branch-offs and side chats stay out. Requires the host's background history-open capability; absent on the official rc line the feature hides silently.
+- **Subagent branches** (since v0.4.0, live tab): dsh subagent child sessions spawned by the model render as aggregated detour nodes branching off the main path — anchored at the spawning step on the parent's clock, with the child's judged tool calls as sub-bars; running children grow live and read "still running". Hover cards and the detail panel carry the subagent identity and spawn/rejoin copy; clicking jumps back to the spawning row. Only real task subagents qualify (`origin: 'subagent'`) — manual branch-offs and side chats stay out. Requires the host's background history-open capability; absent on the official rc line the feature hides silently. From `0.1.6-alpha.2` the host requires retaining a child Session before reading it, so this release draws no branches on those hosts (nothing errors); the next release catches up with the new API.
 - Hover any node or arc for a quick preview; **click** to pin a detail panel on the right — full command and result text (copy buttons; results keep their first 5000 chars), timings, verdict, reasoning summary. Close with Esc or ×.
 - **Zoom navigation**: wheel zooms horizontally around the cursor, drag pans, double-click (or the fit button) resets; axis ticks re-densify with the zoom window down to 1 s.
 - **Jump to conversation** (live tab only): the panel's locate button switches the host back to the Chat view and scroll-highlights the step's tool row. Rows older than the chat's loaded window degrade to the view switch alone.
@@ -104,15 +104,15 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 
 | Your host | Version to install | Command |
 |---|---|---|
-| The `0.1.2` line — DSH Desktop 2.x, npm's `@deepseek-ai/dsh@next` (`0.1.2-rc.1`), or self-built master | dsh-maze `2.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
-| Older hosts — npm `latest` (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.1`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.1` |
+| `0.1.2` and later — npm's `@deepseek-ai/dsh` (its `latest` is `0.1.7-rc.2` now), desktop apps on a `0.1.2`+ kernel, or self-built master | dsh-maze `2.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
+| Older hosts (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.2`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.2` |
 
-Host `0.1.2-rc.1` and its split-out client packages are on npm now (tag `next`), so as of v2.0.0 `latest` belongs to `2.x`; anyone still on an older host just pins `1.1.0`. Once the host's own `latest` moves to `0.1.2`, this table collapses to one row.
+**Host `0.1.7` needs dsh-maze `2.3.0` or later**: `0.1.7` renamed an icon and changed the subagent catalog API, so earlier `2.x` builds show no sidebar entry and a blank Live Maze tab there. On hosts from `0.1.6-alpha.2`, `2.2.0` does not crash but no longer closes the upload panel on a Session switch, so upgrading is recommended there too. With pnpm 11's default settings, an unpinned install resolves to the previous version for 24 hours after a plugin release; pin the exact version meanwhile, e.g. `dsh plugin --profile web add dsh-maze@2.3.0`.
 
 Compatibility: `2.0.0` builds against the npm `0.1.2-rc.1` package set, with typecheck and all 49 tests green; live acceptance was done as `2.0.0-alpha.2` × upstream master `0.1.2-alpha.1` — installed from npm, driven through a real session, with every on-screen number reconciled against the host's own accounting. `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance).
 
 ```sh
-npm install --global @deepseek-ai/dsh@next
+npm install --global @deepseek-ai/dsh
 dsh plugin --profile web add dsh-maze
 dsh web
 ```

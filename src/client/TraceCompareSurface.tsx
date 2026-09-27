@@ -22,7 +22,7 @@ export function TraceCompareSurface({ useStore, actions, useSessions, locale, t 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   // Any Session navigation while the surface is open — sidebar selection or a
   // new Session — switches the conversation beneath this opaque surface, so it
-  // closes to reveal it (mirrors the execution board). Host 0.1.7 moved the
+  // closes to reveal it (mirrors the execution board). Host 0.1.6-alpha.2 moved the
   // selection off the Session list; currentSessionOf reads either shape.
   const currentSession = useSessions(currentSessionOf)
   const lastSession = useRef(currentSession)

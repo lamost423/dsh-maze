@@ -160,24 +160,26 @@ describe('SubagentMazeSource', () => {
     expect(h.isCatalogOpen()).toBe(false)
   })
 
-  it('host 0.1.7 has no legacy catalog calls: constructs, follows the list and disposes without throwing', async () => {
-    // 0.1.7 删掉了 setSubagentCatalogOpen / refreshSubagents（子代理目录改从父会话投影读）。
+  it('host 0.1.7: no legacy catalog calls and unretained children do not bind — empty roster, no throw', async () => {
+    // 0.1.7-alpha.1 删掉了 setSubagentCatalogOpen / refreshSubagents（子代理目录改从父会话投影读），
     // 旧写法无条件调用，构造时抛 TypeError，把整个实时迷宫页签带崩。
-    // 注：真 0.1.7 的 binding() 要先 retain 才有值，花名册在那里暂时为空；这个替身的 binding 直接给值，
-    // 用来确认去掉旧调用后，其余跟随逻辑照常工作。
+    // 0.1.6-alpha.2 起 binding() 只给已被 retain 的会话：没有别的视图持有这个子会话时拿不到，花名册为空。
     const rows: FakeRow[] = [
       { id: sid('c1'), parentId: sid('p'), origin: 'subagent', running: true, displayTitle: '任务甲' },
     ]
     const h = harness(rows)
     h.addFace(sid('c1'))
-    const bare = Object.fromEntries(Object.entries(h.sessions as object)
-      .filter(([key]) => key !== 'setSubagentCatalogOpen' && key !== 'refreshSubagents')) as unknown as ISessions
+    const host017 = {
+      ...Object.fromEntries(Object.entries(h.sessions as object)
+        .filter(([key]) => key !== 'setSubagentCatalogOpen' && key !== 'refreshSubagents')),
+      binding: () => undefined,
+    } as unknown as ISessions
     let source: SubagentMazeSource | undefined
-    expect(() => { source = new SubagentMazeSource(bare, h.conversations, sid('p')) }).not.toThrow()
+    expect(() => { source = new SubagentMazeSource(host017, h.conversations, sid('p')) }).not.toThrow()
     h.chatOf(sid('c1')).push([{ kind: 'user', time: 1 }, { kind: 'assistant', seq: 2, time: 2, blocks: [{ kind: 'text', text: 'x' }] }])
+    h.setRows([...rows])   // 列表通知照常到达
     await flush()
-    expect(source!.getSnapshot().map(c => c.id)).toEqual(['c1'])
-    expect(h.isCatalogOpen()).toBe(false)   // 旧目录接口一次都没被碰
+    expect(source!.getSnapshot()).toEqual([])
     expect(() => { source!.dispose() }).not.toThrow()
   })
 

@@ -97,7 +97,7 @@ describe('snapshotToMazeData', () => {
     expect(data!.lanes[0]!.model).toBe('deepseek-v4-0821')
   })
 
-  it('reads the served model from providerMetadata (host 0.1.6+ renamed provenance)', () => {
+  it('reads the model from providerMetadata (host 0.1.6-alpha.1 renamed provenance)', () => {
     const requests = [
       { requestConfig: { model: 'deepseek-v4' }, providerMetadata: { provider: 'deepseek', model: 'deepseek-v4-0921' } },
     ] as never
@@ -429,6 +429,24 @@ describe('snapshotToMazeData', () => {
     expect(behaviorSignals(lane).find(s => s.type === 'ctxPeak')!.why.p).toEqual([78.1, 128_000])
     // 没有请求信息时退回泳道模型表值（实时页签只缺窗口真值）
     expect(snapshotToMazeData(snap)!.lanes[0]!.main.map(n => n.ctxWin)).toEqual([undefined, undefined])
+  })
+
+  it('long session on host 0.1.6-alpha.1+: request headers scrolled out, providerMetadata alone still names the model and the window', () => {
+    // 请求配置只在该请求的 request/header 还在已加载窗口里时才有；providerMetadata 挂在每条已完成的回复上。
+    // 不读新字段的话，长会话在新宿主上泳道模型名和逐请求窗口都取不到。
+    const snap = chatSnapshot([
+      { kind: 'user', seq: 1, time: t0 },
+      { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, usage: { inputTokens: 100_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'a' }] },
+      { kind: 'assistant', seq: 12, time: t0 + 4000, timing: { stepStartTime: t0 + 3000 }, usage: { inputTokens: 300_000, cacheReadTokens: 0, outputTokens: 10 }, blocks: [{ kind: 'text', text: 'b' }] },
+      { kind: 'turn-end', seq: 13, time: t0 + 4100, reason: 'completed' },
+    ])
+    const requests = [
+      { turn: 1, step: 1, providerMetadata: { provider: 'deepseek', model: 'deepseek-chat' } },
+      { turn: 1, step: 2, providerMetadata: { provider: 'deepseek', model: 'deepseek-v4-flash' } },
+    ] as never
+    const lane = snapshotToMazeData(snap, [], requests)!.lanes[0]!
+    expect(lane.model).toBe('deepseek-v4-flash')
+    expect(lane.main.map(n => n.ctxWin)).toEqual([128_000, 1_000_000])
   })
 
   it('carries compaction checkpoints and plugin reminders for the signals block (review P2-4)', () => {

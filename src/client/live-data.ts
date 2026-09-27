@@ -423,7 +423,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
         k: 't',
         name: settled ? (root.call?.name ?? '?') : root.name,
         s, e: null,
-        // 0.1.7 adds a 'preparing' running phase that has no argsRaw yet.
+        // 0.1.7-rc.1 adds a 'preparing' running phase that has no argsRaw yet.
         args: settled ? (root.call?.argsRaw ?? '') : ((root as { argsRaw?: string }).argsRaw ?? ''),
         res: '', err: false, dur: 0, v: 'ok',
         callId: root.callId,
@@ -695,11 +695,13 @@ export function snapshotToMazeData(
   // target's assistant nodes never carry requestConfig. Before host 0.1.2
   // there was no browser-side source at all, which is why the caller still
   // falls back to a fork-only host projection when this comes back null.
-  // `provenance` is what the provider actually served; requestConfig is what
-  // was asked for, so provenance wins when both are present.
+  // Both name the same resolved model id, but requestConfig only exists while
+  // that request's request/header is inside the loaded window, whereas the
+  // per-request provenance rides every completed assistant message — so it is
+  // read first and survives a long session scrolling its headers out.
   let model: string | null = null
   for (const request of requests) {
-    // 0.1.6+ renamed provenance → providerMetadata (same {provider, model} shape).
+    // 0.1.6-alpha.1 renamed provenance → providerMetadata (same {provider, model} shape).
     const served = request as { providerMetadata?: { model?: string }; provenance?: { model?: string } }
     const named = served.providerMetadata?.model ?? served.provenance?.model ?? request.requestConfig?.model
     if (named !== undefined && named !== '') model = named
