@@ -423,7 +423,8 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
         k: 't',
         name: settled ? (root.call?.name ?? '?') : root.name,
         s, e: null,
-        args: settled ? (root.call?.argsRaw ?? '') : root.argsRaw,
+        // 0.1.7 adds a 'preparing' running phase that has no argsRaw yet.
+        args: settled ? (root.call?.argsRaw ?? '') : ((root as { argsRaw?: string }).argsRaw ?? ''),
         res: '', err: false, dur: 0, v: 'ok',
         callId: root.callId,
       }
@@ -698,7 +699,9 @@ export function snapshotToMazeData(
   // was asked for, so provenance wins when both are present.
   let model: string | null = null
   for (const request of requests) {
-    const named = request.provenance?.model ?? request.requestConfig?.model
+    // 0.1.6+ renamed provenance → providerMetadata (same {provider, model} shape).
+    const served = request as { providerMetadata?: { model?: string }; provenance?: { model?: string } }
+    const named = served.providerMetadata?.model ?? served.provenance?.model ?? request.requestConfig?.model
     if (named !== undefined && named !== '') model = named
     // 每次请求按当时的模型换算窗口（评审 P1-3）：请求带 (turn, step)，把模型表的窗口填到那一步的节点上；
     // 快照里没有宿主报的窗口真值，这是实时页签与上传链路唯一的差别。压缩请求 step 为 0 / turn 为 null，跳过。
