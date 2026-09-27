@@ -1,6 +1,6 @@
 /** 诊断层第 2 项：行为信号清单——每种信号触发与不触发各一份合成用例，阈值常量固定在校准表上。 */
 import { describe, expect, it } from 'vitest'
-import { ANALYSIS_RULES, behaviorSignals, callSignature, contextOccupancy } from '../src/client/verdict.js'
+import { ANALYSIS_RULES, behaviorSignals, callSignature, contextOccupancy, isTodoReminderSource } from '../src/client/verdict.js'
 
 const R = ANALYSIS_RULES.SIGNALS
 
@@ -273,5 +273,24 @@ describe('behaviorSignals', () => {
     expect(out[0]!.count).toBe(1)
     const order = sig(synth([bash('a', { ctx: 600 }), bash('b', { err: true })], { ctxWindow: 1000, todoReminders: 10 })).map(s => s.severity)
     expect([...order].sort((a, b) => ({ high: 3, medium: 2, low: 1, info: 0 })[b]! - ({ high: 3, medium: 2, low: 1, info: 0 })[a]!)).toEqual(order)
+  })
+})
+
+describe('isTodoReminderSource（待办陈旧数的是哪种来源）', () => {
+  it('recognizes the reminder across log formats: v0–v3 plugin wrapper, v4 migrated kind, own producer kind', () => {
+    expect(isTodoReminderSource({ kind: 'plugin', plugin: 'todo-freshness-guard', form: 'notice' })).toBe(true)
+    // 宿主 0.1.7（日志 v4）拒收 kind 'plugin'，迁移把旧来源改写成 plugin:<名字>
+    expect(isTodoReminderSource({ kind: 'plugin:todo-freshness-guard', form: 'notice' })).toBe(true)
+    expect(isTodoReminderSource({ kind: 'todo-freshness-guard' })).toBe(true)
+  })
+
+  it('ignores every other source', () => {
+    expect(isTodoReminderSource({ kind: 'plugin', plugin: 'tool-jobs' })).toBe(false)
+    expect(isTodoReminderSource({ kind: 'plugin:tool-jobs' })).toBe(false)
+    expect(isTodoReminderSource({ kind: 'repeat-tool-reminder' })).toBe(false)
+    expect(isTodoReminderSource({ kind: 'user' })).toBe(false)
+    expect(isTodoReminderSource('todo-freshness-guard')).toBe(false)
+    expect(isTodoReminderSource(null)).toBe(false)
+    expect(isTodoReminderSource(undefined)).toBe(false)
   })
 })

@@ -16,7 +16,7 @@ import type {
   ChatConversationViewNode, ChatNode, ChatSnapshot, ToolCallBlock, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TrajectorySnapshot } from '@deepseek-ai/dsh-client-ui-trajectory/client'
-import { contextWindowFor, exitCodeOf, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
+import { contextWindowFor, exitCodeOf, isTodoReminderSource, markRetryClusters, stepVerdict, toolVerdict } from './verdict.js'
 import type { VerdictWhy } from './verdict.js'
 
 /** Narrow one ordered Chat node to a registered renderer kind. */
@@ -507,8 +507,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
       if (n.data.summary !== null) compaction.summaries += 1
     } else if (isKind(n, 'context')) {
       // 插件注入的上下文：只数 todo-freshness-guard 的提醒（行为信号「待办陈旧」）
-      const src = n.data.source as { kind?: unknown; plugin?: unknown } | null | undefined
-      if (src !== null && src !== undefined && typeof src === 'object' && src.kind === 'plugin' && src.plugin === 'todo-freshness-guard') todoReminders += 1
+      if (isTodoReminderSource(n.data.source)) todoReminders += 1
     }
   }
 

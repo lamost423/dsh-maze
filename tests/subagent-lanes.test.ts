@@ -183,6 +183,33 @@ describe('SubagentMazeSource', () => {
     expect(() => { source!.dispose() }).not.toThrow()
   })
 
+  it('follows the binding generation: a child released by the host leaves the roster, a re-retained one is re-tracked', async () => {
+    // 0.1.6-alpha.2 起子会话只在有视图持有时可绑定（例如从右侧栏打开子代理）；侧栏关掉后旧的 face / chat
+    // 停在最后一帧，再打开拿到的是新一代。花名册要跟着换代，不能画一条冻结的支路。
+    const rows: FakeRow[] = [
+      { id: sid('c1'), parentId: sid('p'), origin: 'subagent', running: true, displayTitle: '任务甲' },
+    ]
+    const h = harness(rows)
+    const first = h.addFace(sid('c1'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
+    h.chatOf(sid('c1')).push([{ kind: 'user', time: 1 }, { kind: 'assistant', seq: 2, time: 2, blocks: [{ kind: 'text', text: 'x' }] }])
+    await flush()
+    expect(source.getSnapshot().map(c => c.id)).toEqual(['c1'])
+    expect(first.listeners.size).toBe(1)
+    // 宿主释放了这个子会话：binding 不再给值
+    h.faces.delete(sid('c1'))
+    h.setRows([...rows])
+    expect(source.getSnapshot()).toEqual([])
+    expect(first.listeners.size).toBe(0)
+    // 再次被持有：新一代 face，花名册重新跟上
+    const second = h.addFace(sid('c1'))
+    h.setRows([...rows])
+    expect(source.getSnapshot().map(c => c.id)).toEqual(['c1'])
+    expect(second.listeners.size).toBe(1)
+    expect(first.listeners.size).toBe(0)
+    source.dispose()
+  })
+
   it('gates on conversation content, not on openState', async () => {
     const rows: FakeRow[] = [
       { id: sid('c1'), parentId: sid('p'), origin: 'subagent', running: true, displayTitle: '任务甲' },

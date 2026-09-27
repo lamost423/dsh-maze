@@ -103,7 +103,12 @@ export class SubagentMazeSource implements ObservableSnapshot<readonly ChildSess
       }
     }
     for (const [id, child] of this.#children) {
-      if (!wanted.has(id)) {
+      // Also drop a child whose binding changed under it. From host
+      // 0.1.6-alpha.2 a child binds only while some view retains it (e.g. the
+      // subagent sidebar); once released, the old face and chat target freeze
+      // on their last frame, and a later retain hands out a new generation.
+      // Older hosts cache the binding, so this never churns there.
+      if (!wanted.has(id) || this.sessions.binding(id)?.session !== child.face) {
         this.#release(child)
         this.#children.delete(id)
       }

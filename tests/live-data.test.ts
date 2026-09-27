@@ -455,9 +455,11 @@ describe('snapshotToMazeData', () => {
       { kind: 'assistant', seq: 11, time: t0 + 2000, timing: { stepStartTime: t0 + 1000 }, blocks: [{ kind: 'text', text: 'a' }] },
       { kind: 'compaction', seq: 12, time: t0 + 3000, summary: 'folded 12 items' },
       { kind: 'compaction', seq: 13, time: t0 + 4000, summary: null },   // summary 事件在窗口外
-      // source 是鸭子判断：只有 kind=plugin 且 plugin=todo-freshness-guard 才算提醒
+      // source 是鸭子判断：只认 todo-freshness-guard 的提醒（verdict.js 的 isTodoReminderSource）
       { kind: 'context', seq: 14, time: t0 + 5000, source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
       { kind: 'context', seq: 15, time: t0 + 5100, source: { kind: 'plugin', plugin: 'todo-freshness-guard' } },
+      // 宿主 0.1.7（日志 v4）起旧来源被改写成 plugin:<名字>
+      { kind: 'context', seq: 20, time: t0 + 5150, source: { kind: 'plugin:todo-freshness-guard', form: 'notice' } },
       { kind: 'context', seq: 16, time: t0 + 5200, source: { kind: 'plugin', plugin: 'tool-jobs' } },
       { kind: 'context', seq: 17, time: t0 + 5300, source: { kind: 'agent-instructions' } },
       { kind: 'context', seq: 18, time: t0 + 5400, source: null },
@@ -465,7 +467,7 @@ describe('snapshotToMazeData', () => {
     ])
     const lane = snapshotToMazeData(snap)!.lanes[0]!
     expect(lane.compaction).toEqual({ starts: [3, 4], prunes: 0, summaries: 1, ends: 2 })
-    expect(lane.todoReminders).toBe(2)
+    expect(lane.todoReminders).toBe(3)
     expect(lane.ctxWindow).toBeUndefined()   // 快照里没有宿主报的窗口真值
     const comp = behaviorSignals({ ...lane, todoReminders: 30 }).find(s => s.type === 'compaction')!
     expect(comp.why.p).toEqual([2, 0])

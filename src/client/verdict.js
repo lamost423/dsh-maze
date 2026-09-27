@@ -313,6 +313,7 @@ export function taskComparability(firstUsers){
  */
 export const CONTEXT_WINDOWS = [
   [/deepseek-v4/i, 1_000_000],   // V4 系列（pro/flash）官方 1M：https://huggingface.co/blog/deepseekv4
+  [/deepseek-flash/i, 1_000_000], // 宿主 0.1.5 起的默认模型 deepseek-flash（DeepSeek-V41-Flash），宿主模型目录写 1M
   [/deepseek/i, 128_000],        // V3 线与 deepseek-chat/reasoner
   [/kimi|moonshot/i, 256_000],
   [/qwen/i, 128_000],
@@ -323,6 +324,24 @@ export const CONTEXT_WINDOWS = [
   [/claude/i, 200_000],
   [/gemini/i, 1_000_000],
 ]
+
+/** todo-freshness-guard 插件名（行为信号「待办陈旧」数它的提醒）。 */
+const TODO_GUARD = 'todo-freshness-guard'
+
+/**
+ * 这条注入上下文是不是 todo-freshness-guard 的提醒。日志格式 v0–v3（宿主 ≤0.1.6）写
+ * `{kind:'plugin', plugin:'todo-freshness-guard'}`；v4（宿主 0.1.7 起）拒收 kind 'plugin'，迁移把旧来源
+ * 改写成 `{kind:'plugin:todo-freshness-guard'}`，插件改用自有 kind 时也可能直接写 'todo-freshness-guard'——三种都认。
+ * 实时链路（Chat 的 context 节点）与上传链路（user/message 事件）共用这一个判定。
+ * @param {unknown} source 消息的 source 字段
+ * @returns {boolean}
+ */
+export function isTodoReminderSource(source){
+  if (source === null || typeof source !== 'object') return false
+  const kind = /** @type {{ kind?: unknown }} */ (source).kind
+  if (kind === 'plugin') return /** @type {{ plugin?: unknown }} */ (source).plugin === TODO_GUARD
+  return kind === 'plugin:' + TODO_GUARD || kind === TODO_GUARD
+}
 
 /**
  * 按模型名解析上下文窗口。

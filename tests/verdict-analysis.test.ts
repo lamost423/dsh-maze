@@ -64,6 +64,8 @@ describe('contextWindowFor', () => {
     expect(contextWindowFor('deepseek-v4-flash')).toBe(1_000_000)
     expect(contextWindowFor('deepseek-v4-pro')).toBe(1_000_000)
     expect(contextWindowFor('deepseek-chat')).toBe(128_000)
+    // 宿主 0.1.5 起的默认模型：目录里写 1M，不能落进「其他 deepseek = 128K」（实机冒烟查出按 128K 算、占用放大约 8 倍）
+    expect(contextWindowFor('deepseek-flash')).toBe(1_000_000)
     expect(contextWindowFor('kimi-k2-instruct')).toBe(256_000)
     expect(contextWindowFor('claude-sonnet-5')).toBe(200_000)
     expect(contextWindowFor('gpt-5.6-terra')).toBe(400_000)

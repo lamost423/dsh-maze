@@ -973,7 +973,7 @@ function buildLane(text){
     if (t === 'user/message'){
       const sk = d.source?.kind
       if (sk === undefined || sk === 'user') userMsgs.push({ s: Math.round(tm * 10) / 10 })
-      else if (sk === 'plugin' && d.source?.plugin === 'todo-freshness-guard') todoReminders += 1
+      else if (isTodoReminderSource(d.source)) todoReminders += 1
     } else if (t === 'compaction/start'){
       compaction.starts.push(Math.round(tm * 10) / 10)
     } else if (t === 'compaction/prune'){

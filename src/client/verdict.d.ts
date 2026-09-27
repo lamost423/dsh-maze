@@ -305,3 +305,5 @@ export declare const CONTEXT_WINDOWS: [RegExp, number][]
  * @returns 窗口 token 数；未知模型返回 null
  */
 export declare function contextWindowFor(model: string | null | undefined): number | null
+/** Whether an injected context message is a todo-freshness-guard reminder (log formats v0–v3 and v4). */
+export declare function isTodoReminderSource(source: unknown): boolean
