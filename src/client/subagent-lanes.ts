@@ -317,8 +317,12 @@ function openStateOf(binding: unknown): string | undefined {
 export class RetainedSubagentRoster implements SubagentRoster {
   #held = new Map<string, HeldChild>()
   #settled = new Map<string, SettledChild>()
-  /** Children the host refused (retain threw, open failed, no mode): not retried until the catalog changes. */
-  #failed = new Set<string>()
+  /**
+   * Children the host refused (retain threw, open failed, no mode) → whether the child was running
+   * at the time. Not retried until the catalog changes — or, for a refusal seen while the child was
+   * not running (possibly transient: descriptor not there yet), until it starts running.
+   */
+  #failed = new Map<string, boolean>()
   #catalog: CatalogEntryLike[] = []
   #catalogKey = ''
   #snapshot: readonly ChildSessionMaze[] = []
@@ -404,8 +408,12 @@ export class RetainedSubagentRoster implements SubagentRoster {
     let expanded = 0
     for (const entry of this.#catalog) {
       const id = entry.id
-      if (this.#failed.has(id)) continue
       const running = this.#isRunning(id)
+      const failedWhileRunning = this.#failed.get(id)
+      if (failedWhileRunning !== undefined) {
+        if (running && !failedWhileRunning) this.#failed.delete(id)   // it started running since: worth one more try
+        else continue
+      }
       // A settled child already read is served from the cache; a held one stays until it settles.
       if (!running && !this.#held.has(id) && (this.#settled.has(id) || this.#cache.has(id))) {
         if (!this.#settled.has(id)) this.#settled.set(id, this.#cache.get(id) as SettledChild)
@@ -424,8 +432,9 @@ export class RetainedSubagentRoster implements SubagentRoster {
     for (const entry of this.#catalog) {
       if (wanted.has(entry.id) && !this.#held.has(entry.id)) this.#hold(entry)
     }
-    // A child can stop running on the list without a new conversation cut: re-check held children here.
-    for (const id of [...this.#held.keys()]) if (!this.#isRunning(id)) this.#settleIfDone(id)
+    // A child can stop running on the list without a new conversation cut: re-check every held child
+    // here (#settleIfDone also resets the grace clock of a child that started running again).
+    for (const id of [...this.#held.keys()]) this.#settleIfDone(id)
     this.#publish()
   }
 
@@ -433,7 +442,7 @@ export class RetainedSubagentRoster implements SubagentRoster {
     const api = this.sessions as unknown as RetainCapable
     if (typeof api.retain !== 'function') return
     // Never guess the mode: hosts before 0.1.7 reject an address whose mode does not match the child.
-    if (typeof entry.mode !== 'string') { this.#failed.add(entry.id); return }
+    if (typeof entry.mode !== 'string') { this.#failed.set(entry.id, this.#isRunning(entry.id)); return }
     const child: HeldChild = { ref: null, chat: null, offChat: null, released: false, stoppedAt: null, graceTimer: null }
     // Claim the slot BEFORE calling the host: retain() notifies the session list synchronously,
     // and the nested #sync must already see this child as held or it would hold it again.
@@ -448,7 +457,7 @@ export class RetainedSubagentRoster implements SubagentRoster {
     } catch (error) {
       console.error('[dsh-maze] could not hold child session', entry.id, error)
       this.#held.delete(entry.id)
-      this.#failed.add(entry.id)
+      this.#failed.set(entry.id, this.#isRunning(entry.id))
       return
     }
     if (child.released || this.#disposed) {
@@ -467,7 +476,11 @@ export class RetainedSubagentRoster implements SubagentRoster {
       try {
         const chat = this.conversations.binding(ref.binding as never).target('chat')
         child.chat = chat
-        child.offChat = chat.subscribe(() => { this.#onChildChange(entry.id) })
+        const off = chat.subscribe(() => { this.#onChildChange(entry.id) })
+        child.offChat = off
+        // The host's Chat target calls a new subscriber synchronously on first activation; when that
+        // callback already settled and released this child, the unsubscribe handed back must run now.
+        if (child.released) { off(); child.offChat = null }
       } catch (error) {
         console.error('[dsh-maze] could not follow child conversation', entry.id, error)
         this.#drop(entry.id, child)
@@ -475,13 +488,15 @@ export class RetainedSubagentRoster implements SubagentRoster {
       }
       this.#onChildChange(entry.id)
     }).catch(() => {
-      // `ready` rejects once the reference is released (host contract) — nothing left to do for a released child.
+      // `ready` rejects once the reference is released (host contract: nothing left to do) — or when the
+      // open threw a programming error; then the child must not sit on a slot with no conversation.
+      if (!child.released && !this.#disposed) this.#drop(entry.id, child)
     })
   }
 
   /** Give up on a child the host refused: release it, remember the refusal, publish. */
   #drop(id: string, child: HeldChild): void {
-    this.#failed.add(id)
+    this.#failed.set(id, this.#isRunning(id))
     this.#held.delete(id)
     this.#release(child)
     this.#publish()

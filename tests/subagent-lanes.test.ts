@@ -286,7 +286,8 @@ interface RetainRec { id: string; parent: string; mode: string; source: string; 
  * publishRetention → list.set 是同步的）；binding 在释放后读取抛错；ready 在首次打开结束时 resolve，
  * 释放早于它时 reject；openFails 里的子会话 openState 为 'error'（ready 照样 resolve）。
  */
-function retainHarness(rows: RetainRow[], opts: { retainThrows?: boolean; openFails?: string[] } = {}) {
+function retainHarness(rows: RetainRow[], opts: { retainThrows?: boolean; retainThrowsOnce?: string[]; openFails?: string[]; openThrows?: string[] } = {}) {
+  const thrownOnce = new Set<string>()
   const listListeners = new Set<() => void>()
   const notify = () => { for (const l of [...listListeners]) l() }
   const byId = () => Object.fromEntries(rows.map(r => [r.id, r]))
@@ -311,13 +312,18 @@ function retainHarness(rows: RetainRow[], opts: { retainThrows?: boolean; openFa
   const retain = vi.fn((target: { parentSessionId: string; childSessionId: string; mode: string }, options: { source: string }) => {
     if (opts.retainThrows === true) throw new Error('sessions.retain: unknown session')
     const id = target.childSessionId
+    if (opts.retainThrowsOnce?.includes(id) === true && !thrownOnce.has(id)) { thrownOnce.add(id); throw new Error('sessions.retain: unknown session') }
     const token = { session: { getSnapshot: () => ({ openState: opts.openFails?.includes(id) === true ? 'error' : 'open' }) } }
     bindings.set(token, id)
     const rec: RetainRec = { id, parent: target.parentSessionId, mode: target.mode, source: options.source, released: false }
     retained.push(rec)
     let settle: { res: (v: unknown) => void; rej: (e: unknown) => void } | null = null
     const ready = new Promise<unknown>((res, rej) => { settle = { res, rej } })
-    queueMicrotask(() => { if (rec.released) settle!.rej(new Error('reference released')); else settle!.res(token) })
+    queueMicrotask(() => {
+      if (rec.released) settle!.rej(new Error('reference released'))
+      else if (opts.openThrows?.includes(id) === true) settle!.rej(new Error('open threw'))   // 非远程异常：doOpen 抛出，ready reject，引用未释放
+      else settle!.res(token)
+    })
     const ref = {
       ready,
       get binding(): object { if (rec.released) throw new Error('reference released'); return token },
@@ -340,7 +346,8 @@ function retainHarness(rows: RetainRow[], opts: { retainThrows?: boolean; openFa
       return {
         target: () => ({
           getSnapshot: () => chatOf(id).snapshot,
-          subscribe: (l: () => void) => { chatOf(id).listeners.add(l); return () => chatOf(id).listeners.delete(l) },
+          // 宿主的 Chat 目标：先加监听器、再激活，首次激活会同步通知刚加进去的监听器
+          subscribe: (l: () => void) => { chatOf(id).listeners.add(l); l(); return () => chatOf(id).listeners.delete(l) },
         }),
       }
     },
@@ -555,6 +562,67 @@ describe('RetainedSubagentRoster', () => {
     h.setRows([{ id: 'c1', running: true }])
     expect(seen).toHaveBeenCalledTimes(1)
     expect(roster.getSnapshot()).toBe(before)
+    roster.dispose()
+  })
+
+  it("a child settled by the host's synchronous first subscriber callback still gets its listener removed (re-review P3-A)", async () => {
+    const h = retainHarness([{ id: 'c1', running: false }])
+    h.chatOf('c1').push(content(1))
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), { ...fast, cache: new Map() })
+    roster.setCatalog([{ id: 'c1', mode: 'one-shot', label: 'done' }])
+    await flush()
+    expect(h.held()).toEqual([])
+    expect(roster.getSnapshot().map(c => c.id)).toEqual(['c1'])
+    expect(h.chatOf('c1').listeners.size).toBe(0)   // 结算发生在 subscribe 返回之前，退订函数仍被调用
+    roster.dispose()
+  })
+
+  it('ready rejecting with an open error frees the slot instead of holding an empty child forever (re-review P3-C)', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const h = retainHarness([{ id: 'c1', running: true }], { openThrows: ['c1'] })
+      const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), { ...fast, cache: new Map() })
+      roster.setCatalog([{ id: 'c1', mode: 'one-shot' }])
+      await flush()
+      expect(h.held()).toEqual([])
+      expect(roster.getSnapshot()).toEqual([])
+      h.notify(); h.notify()
+      expect(h.retain).toHaveBeenCalledTimes(1)
+      roster.dispose()
+    } finally { errors.mockRestore() }
+  })
+
+  it('a refusal seen while the child was not running is retried once it starts running (re-review P3-D)', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const h = retainHarness([{ id: 'c1', running: false }], { retainThrowsOnce: ['c1'] })
+      const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), { ...fast, cache: new Map() })
+      roster.setCatalog([{ id: 'c1', mode: 'one-shot' }])
+      expect(h.retain).toHaveBeenCalledTimes(1)      // 第一次被拒
+      h.notify()
+      expect(h.retain).toHaveBeenCalledTimes(1)      // 列表通知不重试
+      h.setRows([{ id: 'c1', running: true }])       // 翻回运行：再试一次
+      expect(h.retain).toHaveBeenCalledTimes(2)
+      await flush()
+      expect(h.held()).toEqual(['c1'])
+      roster.dispose()
+    } finally { errors.mockRestore() }
+  })
+
+  it('stop → run → stop within the grace period restarts the grace clock (re-review P3-B)', async () => {
+    const h = retainHarness([{ id: 'c1', running: true }])
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), { cache: new Map(), publishDelayMs: 0, settleGraceMs: 200 })
+    roster.setCatalog([{ id: 'c1', mode: 'continuable', label: 't' }])
+    await flush()
+    h.chatOf('c1').push(openContent(1))
+    h.setRows([{ id: 'c1', running: false }])       // t0：宽限开始
+    await wait(60)
+    h.setRows([{ id: 'c1', running: true }])        // 又跑起来：宽限作废
+    h.setRows([{ id: 'c1', running: false }])       // t0+60：重新计时
+    await wait(170)                                  // t0+230：旧算法已按 t0 结算，新算法还在等
+    expect(h.held()).toEqual(['c1'])
+    await wait(80)                                   // t0+310：超过 t0+60+200
+    expect(h.held()).toEqual([])
     roster.dispose()
   })
 
