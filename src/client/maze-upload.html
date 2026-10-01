@@ -480,7 +480,7 @@ const I18N = {
     trkCtxStale: n => `；${n} 个样本的窗口值不可信（请求超过了它声称的窗口），已略过`,
     ctxDropTip: (a, b, p) => `上下文压缩：${a.toLocaleString()} → ${b.toLocaleString()} tok（−${p}%）`,
     msDur: '总时长', msCalls: (s, t) => `${s} 步 · ${t} 次调用`, msSubCalls: n => ` · 子代理另有 ${n} 次`, msPeak: '峰值上下文',
-    subHidden: n => ` · 另有 ${n} 个子代理未展开（同时最多展开 8 个）`,
+    subHidden: n => ` · 另有 ${n} 个子代理未展开`,
     msTok: (i, o) => [i ? `输入 ${i}` : '', o ? `输出 ${o}` : ''].filter(Boolean).join(' · '),
     clusterTip: n => `此处 ${n} 条支路，点击放大`,
     tokCache: '缓存输入', tokIn: '未缓存输入', tokRz: '推理', tokOutVis: '可见输出', tokTotal: '合计',
@@ -657,7 +657,7 @@ const I18N = {
     trkCtxStale: n => `; ${n} sample${n > 1 ? 's' : ''} skipped (the request exceeded the window its provider declared)`,
     ctxDropTip: (a, b, p) => `Context compaction: ${a.toLocaleString()} → ${b.toLocaleString()} tok (−${p}%)`,
     msDur: 'Total', msCalls: (s, t) => `${s} steps · ${t} calls`, msSubCalls: n => ` · ${n} more in subagents`, msPeak: 'Peak context',
-    subHidden: n => ` · ${n} more subagent${n > 1 ? 's' : ''} not expanded (at most 8 at once)`,
+    subHidden: n => ` · ${n} more subagent${n > 1 ? 's' : ''} not expanded`,
     msTok: (i, o) => [i ? `in ${i}` : '', o ? `out ${o}` : ''].filter(Boolean).join(' · '),
     clusterTip: n => `${n} detours here — click to zoom in`,
     tokCache: 'cached input', tokIn: 'uncached input', tokRz: 'reasoning', tokOutVis: 'visible output', tokTotal: 'total',
@@ -3511,8 +3511,10 @@ function extendLive(payload, rawLive){
     }
   })
   if (!grew) return
+  // 余量用完：扩大时间轴（再留一段余量），仍走同一条只重画迷宫的路径
   if (maxE + 2 > TMAX){ DATA.Tmax = Math.max(DATA.Tmax, maxE); TMAX = DATA.Tmax + liveHeadroom(DATA) }
   if (!playing) t = TMAX
+  renderMetaStrip()   // 头部的总时长跟着走（只是一小段 innerHTML）
   queueBuild()
 }
 
@@ -3530,7 +3532,7 @@ function mazeSignature(data){
       'k' + (l.compaction?.starts.length ?? 0), 'o' + (l.todoReminders ?? 0))
     for (const arr of [l.main, l.detours]){
       for (const n of arr){
-        if (n.live){ parts.push('L' + n.tools.length); continue }
+        if (n.live){ parts.push('L' + n.tools.length + '.' + n.tools.filter(tl => tl.e != null).length); continue }
         // rzTok/inTok 在 assistant/message 终结时一次性到位（流式期间恒空），进签名不会引发重画风暴；
         // inTok 单独进签名：非推理模型 rzTok 恒空，token 轨道要等 usage 到位后重画一次
         parts.push(n.step + ':' + n.v + ':' + n.tools.length + ':' + n.tools.filter(tl => tl.e != null).length + ':' + (n.rzTok != null ? 1 : 0) + (n.inTok != null ? 1 : 0))

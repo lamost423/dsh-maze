@@ -234,10 +234,11 @@ interface RetainCapable {
     target: { parentSessionId: string; childSessionId: string; mode: string },
     options: { source: string },
   ) => RetainedRef
-  retainInfo?: (id: string) => unknown
 }
 interface RetainedRef {
+  /** Resolves once the host's first open attempt settled (also on failure); rejects once the reference is released. */
   readonly ready: Promise<unknown>
+  /** The session binding; the host throws when it is read after release. */
   readonly binding: unknown
   release(): void
 }
@@ -246,7 +247,10 @@ interface RetainedRef {
 export const MAZE_RETAIN_SOURCE = 'maze'
 /** Children followed live at once; the rest are counted, not drawn (吴昊 2026-10-01 拍板：8 个). */
 export const MAX_LIVE_CHILDREN = 8
-/** Retained-roster hosts only publish positive retain counts; a running child is tracked until it settles. */
+/** After the list reports a child stopped running, how long to wait for its last events (turn/end) before settling anyway. */
+export const SETTLE_GRACE_MS = 3000
+/** Child conversation cuts arrive per streamed chunk; publishes from that path are coalesced to one per this many ms. */
+export const CHILD_PUBLISH_DELAY_MS = 250
 
 /** True when the host can hold a child session for us (0.1.6-alpha.2+). */
 export function hostCanRetain(sessions: unknown): boolean {
@@ -254,45 +258,90 @@ export function hostCanRetain(sessions: unknown): boolean {
 }
 
 /** A settled child read once and released; replayed from here when the tab comes back. */
-interface SettledChild {
+export interface SettledChild {
   label: string
   conversation: ChatSnapshot
 }
 
 /** A child the roster currently holds (running, or a settled one still being read). */
 interface HeldChild {
-  ref: RetainedRef
+  /** null while retain() is in flight: the slot is claimed before the call (see #hold). */
+  ref: RetainedRef | null
   chat: ObservableSnapshot<ChatSnapshot | undefined> | null
   offChat: (() => void) | null
-  /** Set once the host finished its first open attempt. */
-  ready: boolean
   released: boolean
+  /** When the list first reported the child not running while its last turn was still open. */
+  stoppedAt: number | null
+  /** Pending re-check at the end of the settle grace period. */
+  graceTimer: ReturnType<typeof setTimeout> | null
+}
+
+/** Construction knobs; production uses the defaults, tests shorten the timers and pass their own cache. */
+export interface RetainedRosterOptions {
+  cache?: Map<string, SettledChild>
+  settleGraceMs?: number
+  publishDelayMs?: number
+}
+
+/** Module-level cache of settled children: survives tab switches, keyed by child session id. */
+const settledCache = new Map<string, SettledChild>()
+
+/** Whether the conversation's latest turn has a recorded end (its turn/end reached the window). */
+function lastTurnClosed(snap: ChatSnapshot): boolean {
+  const order = snap.timeline.turnOrder
+  const lastTurn = order[order.length - 1]
+  if (lastTurn === undefined) return false
+  const last = snap.timeline.turns.get(lastTurn)
+  return last !== undefined && last.end !== undefined
+}
+
+/** Host contract: `binding.session.getSnapshot().openState`; 'error' means the open attempt failed (ready resolves anyway). */
+function openStateOf(binding: unknown): string | undefined {
+  const session = (binding as { session?: { getSnapshot?: () => { openState?: unknown } } } | null)?.session
+  const state = session?.getSnapshot?.()?.openState
+  return typeof state === 'string' ? state : undefined
 }
 
 /**
  * Roster that holds children itself (`sessions.retain`, source `maze`).
  * Rules (吴昊 2026-10-01 拍板): a running child is held until it settles; a
- * settled child is read once, released, and cached; at most
- * MAX_LIVE_CHILDREN children are expanded at once, the rest are counted as
- * hidden; everything is released on dispose (tab switch / session switch).
+ * settled child is read once, released, and cached; at most MAX_LIVE_CHILDREN
+ * children are expanded at once, the rest are counted as hidden; everything
+ * is released on dispose (tab switch / session switch).
+ *
+ * Re-entrancy: the host publishes the new retention count to `sessions.list`
+ * synchronously inside retain() and release(), and that list is what this
+ * roster subscribes to — so every hold claims its slot before calling the
+ * host, and #sync defers nested calls instead of running them.
  */
 export class RetainedSubagentRoster implements SubagentRoster {
   #held = new Map<string, HeldChild>()
   #settled = new Map<string, SettledChild>()
+  /** Children the host refused (retain threw, open failed, no mode): not retried until the catalog changes. */
+  #failed = new Set<string>()
   #catalog: CatalogEntryLike[] = []
+  #catalogKey = ''
   #snapshot: readonly ChildSessionMaze[] = []
   #listeners = new Set<() => void>()
   #offList: () => void
   #disposed = false
+  #syncing = false
+  #syncPending = false
+  #publishTimer: ReturnType<typeof setTimeout> | null = null
+  readonly #cache: Map<string, SettledChild>
+  readonly #settleGraceMs: number
+  readonly #publishDelayMs: number
 
   constructor(
     private readonly sessions: ISessions,
     private readonly conversations: UiConversation,
     private readonly sessionId: SessionId,
-    /** Settled-child cache shared across roster instances (module-level in production). */
-    private readonly cache: Map<string, SettledChild> = settledCache,
+    options: RetainedRosterOptions = {},
   ) {
-    // Running flags live on the session list; re-evaluate holds on every change.
+    this.#cache = options.cache ?? settledCache
+    this.#settleGraceMs = options.settleGraceMs ?? SETTLE_GRACE_MS
+    this.#publishDelayMs = options.publishDelayMs ?? CHILD_PUBLISH_DELAY_MS
+    // Running flags and retention counts live on the session list; re-evaluate holds on every change.
     this.#offList = sessions.list.subscribe(() => { this.#sync() })
   }
 
@@ -304,7 +353,11 @@ export class RetainedSubagentRoster implements SubagentRoster {
   }
 
   setCatalog(entries: readonly CatalogEntryLike[] | undefined): void {
-    this.#catalog = [...(entries ?? [])]
+    const list = [...(entries ?? [])]
+    const key = list.map(e => e.id).join('\n')
+    // A changed catalog is the one moment a refused hold is worth retrying.
+    if (key !== this.#catalogKey) { this.#catalogKey = key; this.#failed.clear() }
+    this.#catalog = list
     this.#sync()
   }
 
@@ -312,8 +365,10 @@ export class RetainedSubagentRoster implements SubagentRoster {
     if (this.#disposed) return
     this.#disposed = true
     this.#offList()
-    for (const child of this.#held.values()) this.#release(child)
+    if (this.#publishTimer !== null) { clearTimeout(this.#publishTimer); this.#publishTimer = null }
+    const held = [...this.#held.values()]
     this.#held.clear()
+    for (const child of held) this.#release(child)
     this.#listeners.clear()
     this.#snapshot = []
   }
@@ -321,10 +376,12 @@ export class RetainedSubagentRoster implements SubagentRoster {
   #release(child: HeldChild): void {
     if (child.released) return
     child.released = true
+    if (child.graceTimer !== null) { clearTimeout(child.graceTimer); child.graceTimer = null }
     child.offChat?.()
     child.offChat = null
     child.chat = null
-    try { child.ref.release() } catch (error) { console.error('[dsh-maze] releasing a child session threw:', error) }
+    // release() publishes the retention count to the list synchronously → re-enters #sync (deferred by its guard).
+    try { child.ref?.release() } catch (error) { console.error('[dsh-maze] releasing a child session threw:', error) }
   }
 
   #isRunning(id: string): boolean {
@@ -332,35 +389,42 @@ export class RetainedSubagentRoster implements SubagentRoster {
     return row?.running === true
   }
 
-  /** Decide which catalog children to hold, hold/release accordingly, then publish. */
+  /** Re-entrancy guard around #syncOnce: nested notifications (from retain/release) run once afterwards. */
   #sync(): void {
     if (this.#disposed) return
+    if (this.#syncing) { this.#syncPending = true; return }
+    this.#syncing = true
+    try { this.#syncOnce() } finally { this.#syncing = false }
+    if (this.#syncPending) { this.#syncPending = false; this.#sync() }
+  }
+
+  /** Decide which catalog children to hold, hold/release accordingly, settle what finished, then publish. */
+  #syncOnce(): void {
     const wanted = new Set<string>()
     let expanded = 0
     for (const entry of this.#catalog) {
       const id = entry.id
+      if (this.#failed.has(id)) continue
       const running = this.#isRunning(id)
-      // A settled child we already read needs no hold; one that is running again gets re-read.
-      if (!running && (this.#settled.has(id) || this.cache.has(id))) {
-        if (!this.#settled.has(id)) this.#settled.set(id, this.cache.get(id) as SettledChild)
+      // A settled child already read is served from the cache; a held one stays until it settles.
+      if (!running && !this.#held.has(id) && (this.#settled.has(id) || this.#cache.has(id))) {
+        if (!this.#settled.has(id)) this.#settled.set(id, this.#cache.get(id) as SettledChild)
         continue
       }
       if (expanded >= MAX_LIVE_CHILDREN) continue
       expanded += 1
       wanted.add(id)
     }
-    for (const [id, child] of this.#held) {
+    for (const [id, child] of [...this.#held]) {
       if (!wanted.has(id)) {
-        this.#release(child)
         this.#held.delete(id)
+        this.#release(child)
       }
     }
     for (const entry of this.#catalog) {
       if (wanted.has(entry.id) && !this.#held.has(entry.id)) this.#hold(entry)
     }
-    // A child can settle with no further conversation cut (the running flag flips on the
-    // list first): re-check held children here so "read once, then release" does not
-    // wait for a chat event that may never come.
+    // A child can stop running on the list without a new conversation cut: re-check held children here.
     for (const id of [...this.#held.keys()]) if (!this.#isRunning(id)) this.#settleIfDone(id)
     this.#publish()
   }
@@ -368,54 +432,108 @@ export class RetainedSubagentRoster implements SubagentRoster {
   #hold(entry: CatalogEntryLike): void {
     const api = this.sessions as unknown as RetainCapable
     if (typeof api.retain !== 'function') return
+    // Never guess the mode: hosts before 0.1.7 reject an address whose mode does not match the child.
+    if (typeof entry.mode !== 'string') { this.#failed.add(entry.id); return }
+    const child: HeldChild = { ref: null, chat: null, offChat: null, released: false, stoppedAt: null, graceTimer: null }
+    // Claim the slot BEFORE calling the host: retain() notifies the session list synchronously,
+    // and the nested #sync must already see this child as held or it would hold it again.
+    this.#held.set(entry.id, child)
     let ref: RetainedRef
     try {
       // The full subagent address is required: the host refuses to follow a child by bare id.
       ref = api.retain(
-        { parentSessionId: this.sessionId, childSessionId: entry.id, mode: entry.mode ?? 'unknown' },
+        { parentSessionId: this.sessionId, childSessionId: entry.id, mode: entry.mode },
         { source: MAZE_RETAIN_SOURCE },
       )
     } catch (error) {
       console.error('[dsh-maze] could not hold child session', entry.id, error)
+      this.#held.delete(entry.id)
+      this.#failed.add(entry.id)
       return
     }
-    const child: HeldChild = { ref, chat: null, offChat: null, ready: false, released: false }
-    this.#held.set(entry.id, child)
+    if (child.released || this.#disposed) {
+      // Dropped during the host's synchronous notification: give the reference straight back.
+      try { ref.release() } catch (error) { console.error('[dsh-maze] releasing a child session threw:', error) }
+      return
+    }
+    child.ref = ref
     ref.ready.then(() => {
       if (child.released || this.#disposed) return
-      child.ready = true
-      // `ready` also resolves on a failed open; the Chat target then simply stays empty.
+      if (openStateOf(ref.binding) === 'error') {
+        // The host could not open this child (`ready` resolves anyway): free the slot, do not retry until the catalog changes.
+        this.#drop(entry.id, child)
+        return
+      }
       try {
         const chat = this.conversations.binding(ref.binding as never).target('chat')
         child.chat = chat
         child.offChat = chat.subscribe(() => { this.#onChildChange(entry.id) })
       } catch (error) {
         console.error('[dsh-maze] could not follow child conversation', entry.id, error)
+        this.#drop(entry.id, child)
+        return
       }
       this.#onChildChange(entry.id)
-    }).catch(() => { /* retain() surfaces open failures on the snapshot, never here */ })
+    }).catch(() => {
+      // `ready` rejects once the reference is released (host contract) — nothing left to do for a released child.
+    })
   }
 
-  /** A held child that is no longer running and has content: cache it and release the hold. */
-  #settleIfDone(id: string): void {
+  /** Give up on a child the host refused: release it, remember the refusal, publish. */
+  #drop(id: string, child: HeldChild): void {
+    this.#failed.add(id)
+    this.#held.delete(id)
+    this.#release(child)
+    this.#publish()
+  }
+
+  /**
+   * A held child that is no longer running: cache it and release the hold — but only once its
+   * conversation shows the last turn closed. The list's running flag flips synchronously on the
+   * host while the follow stream delivers the last events later; settling on the flip alone would
+   * cache a truncated conversation for good. A grace period bounds the wait.
+   */
+  #settleIfDone(id: string, now: number = Date.now()): void {
     const child = this.#held.get(id)
-    if (child === undefined || child.released || this.#isRunning(id)) return
+    if (child === undefined || child.released) return
+    if (this.#isRunning(id)) {
+      child.stoppedAt = null
+      if (child.graceTimer !== null) { clearTimeout(child.graceTimer); child.graceTimer = null }
+      return
+    }
     const conversation = child.chat?.getSnapshot()
-    if (conversation === undefined || conversation.order.length === 0) return
+    if (conversation === undefined || conversation.order.length === 0) return   // nothing to cache yet: keep holding
+    if (!lastTurnClosed(conversation)) {
+      if (child.stoppedAt === null) child.stoppedAt = now
+      const waited = now - child.stoppedAt
+      if (waited < this.#settleGraceMs) {
+        if (child.graceTimer === null) {
+          child.graceTimer = setTimeout(() => { child.graceTimer = null; this.#onChildChange(id) }, this.#settleGraceMs - waited)
+        }
+        return
+      }
+    }
     const entry = this.#catalog.find(e => e.id === id)
     const row = this.sessions.list.getSnapshot().byId[id as SessionId] as { displayTitle?: string } | undefined
     const settled = { label: childLabel(id, entry, row), conversation }
     this.#settled.set(id, settled)
-    this.cache.set(id, settled)
-    this.#release(child)
+    this.#cache.set(id, settled)
     this.#held.delete(id)
+    this.#release(child)
   }
 
-  /** A held child's conversation changed (or its hold just became ready). */
+  /** A held child's conversation changed (or its hold just became ready, or its grace period ended). */
   #onChildChange(id: string): void {
     if (this.#disposed) return
     this.#settleIfDone(id)
-    this.#publish()
+    this.#schedulePublish()
+  }
+
+  /** Streaming children change their conversation per chunk: coalesce those publishes. */
+  #schedulePublish(): void {
+    if (this.#publishDelayMs <= 0) { this.#publish(); return }
+    if (this.#publishTimer !== null) return
+    this.#publishTimer = setTimeout(() => { this.#publishTimer = null; this.#publish() }, this.#publishDelayMs)
   }
 
   #publish(): void {
@@ -425,23 +543,26 @@ export class RetainedSubagentRoster implements SubagentRoster {
     let expanded = 0
     for (const entry of this.#catalog) {
       const id = entry.id
+      if (this.#failed.has(id)) continue
       const running = this.#isRunning(id)
       const row = byId[id as SessionId] as { displayTitle?: string } | undefined
       const label = childLabel(id, entry, row)
       const held = this.#held.get(id)
+      const cached = this.#settled.get(id)
       if (held !== undefined) {
         expanded += 1
-        const conversation = held.chat?.getSnapshot()
-        if (conversation === undefined || conversation.order.length === 0) continue
-        next.push({ id, label, running, conversation })
+        const live = held.chat?.getSnapshot()
+        // A continuable child running again: keep showing the cached branch while the new hold loads.
+        const shown = live !== undefined && live.order.length > 0 ? live : cached?.conversation
+        if (shown === undefined) continue
+        next.push({ id, label, running, conversation: shown })
         continue
       }
-      const settled = this.#settled.get(id)
-      if (settled !== undefined && !running) {
-        next.push({ id, label: settled.label, running: false, conversation: settled.conversation })
+      if (cached !== undefined && !running) {
+        next.push({ id, label: cached.label, running: false, conversation: cached.conversation })
         continue
       }
-      // Beyond the cap (or not yet held): known but not expanded.
+      // Beyond the cap: known but not expanded.
       if (expanded >= MAX_LIVE_CHILDREN) next.push({ id, label, running, conversation: null })
     }
     if (sameRoster(this.#snapshot, next)) return
@@ -451,9 +572,6 @@ export class RetainedSubagentRoster implements SubagentRoster {
     }
   }
 }
-
-/** Module-level cache of settled children: survives tab switches, keyed by child session id. */
-const settledCache = new Map<string, SettledChild>()
 
 /** Pick the roster implementation the host supports. */
 export function createSubagentRoster(sessions: ISessions, conversations: UiConversation, sessionId: SessionId): SubagentRoster {
