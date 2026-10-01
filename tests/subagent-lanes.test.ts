@@ -401,6 +401,35 @@ describe('RetainedSubagentRoster', () => {
     expect(h.held()).toEqual([])
   })
 
+  it('a child that settles on the session list (running → false) is released on that list change, even with no new chat event', async () => {
+    const h = retainHarness([{ id: 'c1', running: true }])
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())
+    roster.setCatalog([{ id: 'c1', mode: 'one-shot', label: 't' }])
+    await flush()
+    h.chatOf('c1').push(content(1))
+    expect(h.held()).toEqual(['c1'])
+    h.setRows([{ id: 'c1', running: false }])   // 宿主先翻运行标记，对话没有新切面
+    expect(h.held()).toEqual([])
+    expect(roster.getSnapshot().map(c => ({ id: c.id, running: c.running }))).toEqual([{ id: 'c1', running: false }])
+    roster.dispose()
+  })
+
+  it('does not re-publish an unchanged roster (host 0.2.0 notifies the list on any projection change)', async () => {
+    const h = retainHarness([{ id: 'c1', running: true }])
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())
+    roster.setCatalog([{ id: 'c1', mode: 'one-shot', label: 't' }])
+    await flush()
+    h.chatOf('c1').push(content(1))
+    const seen = vi.fn()
+    roster.subscribe(seen)
+    const before = roster.getSnapshot()
+    h.setRows([{ id: 'c1', running: true }])    // 列表通知，但花名册内容没变
+    h.setRows([{ id: 'c1', running: true }])
+    expect(seen).not.toHaveBeenCalled()
+    expect(roster.getSnapshot()).toBe(before)   // 同一个数组引用
+    roster.dispose()
+  })
+
   it('a child that leaves the catalog is released; retain() throwing never breaks the roster', async () => {
     const h = retainHarness([{ id: 'c1', running: true }])
     const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())

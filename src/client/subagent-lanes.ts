@@ -40,6 +40,20 @@ export interface SubagentRoster extends ObservableSnapshot<readonly ChildSession
   dispose(): void
 }
 
+/**
+ * Shallow equality of roster snapshots. An unchanged roster must not re-publish:
+ * host 0.2.0 notifies the session list on ANY session's projection change, and a
+ * fresh array there would make the maze recompute on every notification.
+ */
+function sameRoster(a: readonly ChildSessionMaze[], b: readonly ChildSessionMaze[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] as ChildSessionMaze, y = b[i] as ChildSessionMaze
+    if (x.id !== y.id || x.label !== y.label || x.running !== y.running || x.conversation !== y.conversation) return false
+  }
+  return true
+}
+
 /** Catalog name first: on 0.1.5 an untitled child's displayTitle falls back to the workspace folder name. */
 function childLabel(id: string, entry: CatalogEntryLike | undefined, row: { displayTitle?: string } | undefined): string {
   return entry?.label ?? row?.displayTitle ?? id
@@ -204,6 +218,7 @@ export class SubagentMazeSource implements SubagentRoster {
         conversation,
       })
     }
+    if (sameRoster(this.#snapshot, next)) return
     this.#snapshot = next
     for (const listener of [...this.#listeners]) {
       try { listener() } catch (error) { console.error('[ui-trace-compare] subagent roster subscriber threw:', error) }
@@ -343,6 +358,10 @@ export class RetainedSubagentRoster implements SubagentRoster {
     for (const entry of this.#catalog) {
       if (wanted.has(entry.id) && !this.#held.has(entry.id)) this.#hold(entry)
     }
+    // A child can settle with no further conversation cut (the running flag flips on the
+    // list first): re-check held children here so "read once, then release" does not
+    // wait for a chat event that may never come.
+    for (const id of [...this.#held.keys()]) if (!this.#isRunning(id)) this.#settleIfDone(id)
     this.#publish()
   }
 
@@ -377,23 +396,25 @@ export class RetainedSubagentRoster implements SubagentRoster {
     }).catch(() => { /* retain() surfaces open failures on the snapshot, never here */ })
   }
 
-  /** A held child's conversation changed: cache + release it once it has settled, then publish. */
+  /** A held child that is no longer running and has content: cache it and release the hold. */
+  #settleIfDone(id: string): void {
+    const child = this.#held.get(id)
+    if (child === undefined || child.released || this.#isRunning(id)) return
+    const conversation = child.chat?.getSnapshot()
+    if (conversation === undefined || conversation.order.length === 0) return
+    const entry = this.#catalog.find(e => e.id === id)
+    const row = this.sessions.list.getSnapshot().byId[id as SessionId] as { displayTitle?: string } | undefined
+    const settled = { label: childLabel(id, entry, row), conversation }
+    this.#settled.set(id, settled)
+    this.cache.set(id, settled)
+    this.#release(child)
+    this.#held.delete(id)
+  }
+
+  /** A held child's conversation changed (or its hold just became ready). */
   #onChildChange(id: string): void {
     if (this.#disposed) return
-    const child = this.#held.get(id)
-    if (child === undefined || child.released) return
-    if (!this.#isRunning(id)) {
-      const conversation = child.chat?.getSnapshot()
-      if (conversation !== undefined && conversation.order.length > 0) {
-        const entry = this.#catalog.find(e => e.id === id)
-        const row = this.sessions.list.getSnapshot().byId[id as SessionId] as { displayTitle?: string } | undefined
-        const settled = { label: childLabel(id, entry, row), conversation }
-        this.#settled.set(id, settled)
-        this.cache.set(id, settled)
-        this.#release(child)
-        this.#held.delete(id)
-      }
-    }
+    this.#settleIfDone(id)
     this.#publish()
   }
 
@@ -423,6 +444,7 @@ export class RetainedSubagentRoster implements SubagentRoster {
       // Beyond the cap (or not yet held): known but not expanded.
       if (expanded >= MAX_LIVE_CHILDREN) next.push({ id, label, running, conversation: null })
     }
+    if (sameRoster(this.#snapshot, next)) return
     this.#snapshot = next
     for (const listener of [...this.#listeners]) {
       try { listener() } catch (error) { console.error('[dsh-maze] subagent roster subscriber threw:', error) }
