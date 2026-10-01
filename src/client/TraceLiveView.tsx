@@ -11,7 +11,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { snapshotToMazeData, type ChildSessionMaze, type MazeData } from './live-data.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
-import { SubagentMazeSource } from './subagent-lanes.ts'
+import { createSubagentRoster, type CatalogEntryLike, type SubagentRoster } from './subagent-lanes.ts'
 import { postThemeTo, themedMazeHtml, watchHostTheme } from './theme-sync.ts'
 import css from './TraceLiveView.module.css'
 
@@ -88,13 +88,41 @@ export function TraceLiveView({ useChat, useTrajectory, sessionId, sessions, con
   // Built in an effect, not in render: the roster subscribes to the session list
   // and follows child sessions as soon as it exists, and React may discard a
   // render (concurrent rendering) — a roster built there would never be disposed.
-  const [source, setSource] = useState<SubagentMazeSource | null>(null)
+  const [source, setSource] = useState<SubagentRoster | null>(null)
   useEffect(() => {
-    const roster = new SubagentMazeSource(sessions, conversations, sessionId)
+    const roster = createSubagentRoster(sessions, conversations, sessionId)
     setSource(roster)
     return () => { roster.dispose() }
   }, [sessions, conversations, sessionId])
   const children = useSyncExternalStore(source?.subscribe ?? noRosterSubscribe, source?.getSnapshot ?? noChildren)
+  // 父会话的子代理目录（宿主 0.1.5 起的投影；0.1.2 没有，读到 undefined）：持有式花名册靠它定成员，
+  // 被动式花名册只拿它当名字来源。投影值按宿主的折叠切面稳定，可直接当依赖。
+  const catalogRaw: unknown = (useProjection as (key: string) => unknown)('subagentCatalog')
+  const catalog = useMemo<readonly CatalogEntryLike[] | undefined>(() => {
+    if (!Array.isArray(catalogRaw)) return undefined
+    const out: CatalogEntryLike[] = []
+    for (const item of catalogRaw as unknown[]) {
+      if (item === null || typeof item !== 'object') continue
+      const e = item as { id?: unknown; createdAt?: unknown; mode?: unknown; label?: unknown }
+      if (typeof e.id !== 'string') continue
+      out.push({
+        id: e.id,
+        ...(typeof e.createdAt === 'number' ? { createdAt: e.createdAt } : {}),
+        ...(typeof e.mode === 'string' ? { mode: e.mode } : {}),
+        ...(typeof e.label === 'string' ? { label: e.label } : {}),
+      })
+    }
+    return out
+  }, [catalogRaw])
+  useEffect(() => { source?.setCatalog(catalog) }, [source, catalog])
+  // 宿主上下文指示器读的同一份投影（token-meter 的 contextPressure，0.1.0-rc.8 起字段不变）：
+  // 当前模型的窗口真值优先于模型表。没装 token-meter 时读到 undefined，退回查表。
+  const pressureRaw: unknown = (useProjection as (key: string) => unknown)('contextPressure')
+  const hostWindow = ((v: unknown): number | undefined => {
+    if (v === null || typeof v !== 'object') return undefined
+    const w = (v as { contextWindow?: unknown }).contextWindow
+    return typeof w === 'number' && Number.isFinite(w) && w > 0 ? w : undefined
+  })(pressureRaw)
   // 宿主 fork 注册的 modelIdentity 投影：host 侧折叠全量日志，覆盖面比浏览器侧的
   // 事件窗口宽（窗口滚出去的早期请求头它还留着）。0.1.2 起 Trajectory target 已经
   // 原生带模型身份，所以这条降级成兜底；stock dsh 没有这个键，读到 undefined 自然降级
@@ -105,13 +133,24 @@ export function TraceLiveView({ useChat, useTrajectory, sessionId, sessions, con
     const m = (v as { model?: unknown }).model
     return typeof m === 'string' && m !== '' ? m : null
   })(identityRaw)
+  // 一秒时钟（吴昊 2026-10-01 拍板）：只在父会话或某个子代理运行中时走，页签不可见时不走；
+  // 运行中的步骤与子代理支路以它为「现在」向右生长，不用等新快照。
+  const [now, setNow] = useState(() => Date.now())
   const data = useMemo<MazeData | null>(() => {
-    const d = snapshotToMazeData(snapshot, children, requests)
+    const d = snapshotToMazeData(snapshot, children, requests, { now, ...(hostWindow === undefined ? {} : { hostWindow }) })
     const lane = d?.lanes[0]
     // Trajectory 的请求级身份更精确，优先；窗口外的早期请求靠 fork 投影兜。
     if (lane !== undefined && lane.model === null && hostModel !== null) lane.model = hostModel
     return d
-  }, [snapshot, children, requests, hostModel])
+  }, [snapshot, children, requests, hostModel, now, hostWindow])
+  const anyLive = data !== null && data.lanes.some(l => l.main.some(n => n.live) || l.detours.some(n => n.live))
+  useEffect(() => {
+    if (!anyLive) return
+    setNow(Date.now())   // 刚开始运行时立刻对齐，别让第一帧钉在旧的「现在」
+    const tick = (): void => { if (typeof document === 'undefined' || !document.hidden) setNow(Date.now()) }
+    const id = setInterval(tick, 1000)
+    return () => { clearInterval(id) }
+  }, [anyLive])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const dataRef = useRef<MazeData | null>(null)
   dataRef.current = data

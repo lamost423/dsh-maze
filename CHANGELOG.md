@@ -2,6 +2,20 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## 未发布
+
+**子代理支路在新宿主上改由插件自己持有（`0.1.6-alpha.2` 起）；运行中的步骤与支路每秒生长；上下文窗口优先用宿主真值；并修掉 2.3.0 冒烟与评审查出的几处小问题。**
+
+- **子代理支路（吴昊 2026-10-01 拍板）**：宿主 `0.1.6-alpha.2` 起子会话只在被持有时可读，2.3.0 只能跟着右侧栏画。本版在有 `sessions.retain` 的宿主上由插件用自己的来源名 `maze` 持有子会话——成员来自父会话的子代理目录投影 `subagentCatalog`，不再看右侧栏；迷宫打开之前就结束的子代理也画完整支路。规则：运行中的子代理一直持有到结束；已结束的读一次就释放，结果按子会话缓存，页签切回不重拉；同时最多展开 8 个，超出的在泳道信息行注明「另有 N 个子代理未展开」；页签切走或切会话时全部释放。持有不会切换当前会话（宿主判定当前会话只看它自己的 `mainView` 计数）。没有 `retain` 的老宿主（`0.1.5` / `0.1.2`）保持 2.3.0 的被动跟随：只画宿主已打开过的子会话。孙代理不画。
+- **支路名字**：改用子代理目录里的名字（派出时的任务简述，宿主下拉菜单显示的那个），不再用会话标题——`0.1.5` 上没有标题的子会话原来会显示成工作区目录名。
+- **运行中实时生长**：实时页签加一秒时钟，只在父会话或某个子代理运行中、且页签可见时走；运行中的子代理支路终点取「现在」（宿主自己的子代理菜单也这么算），不再停在上一个持久事件（2.3.0 实测卡在 0.7 秒、结束才一下跳到全长）。页面侧：结构没变、只是时钟走了一秒时，不整页重画——按原始时间的增量延长运行中的节点，只重画迷宫 SVG（与缩放同一条路径），图例、头部指标条、分析区都不动；时间轴预留余量（30 秒或 8% 取大），余量用完才整图重画。
+- **上下文窗口**：实时页签改读宿主 token-meter 的 `contextPressure.contextWindow`（宿主上下文指示器同一来源，`0.1.0-rc.8` 起字段不变）作为泳道窗口和当前模型请求的窗口；宿主不留逐请求历史，中途换掉的旧模型仍按模型表；没装 token-meter 时退回查表。
+- **头部指标条**：「N 次调用」只算父会话自己的，子代理支路里的调用另注「子代理另有 M 次」，与工具轨道的总数对得上（2.3.0 冒烟：头部写 1 次、轨道写共 2 次）。
+- **小修（2.3.0 冒烟与评审查出，均为旧问题）**：结果与证据——同一轮里失败步与回答落在同一个 0.1 秒刻度时按步序裁决，不再误判「没有最终回答」；上传页第一次上传就解析失败不再多抛一条控制台报错；选中行为信号时顺带打开的详情面板按一次 Esc 同时关面板、撤选中；侧边栏入口改用宿主侧边栏同一套颜色变量，深色主题下对比度从 2.2:1 恢复到与宿主条目一致；实时迷宫的子代理花名册改在 effect 里创建、卸载时释放，被丢弃的渲染不再留下不释放的实例。
+- **构建基座与测试**：devDependencies 换到 npm 的 `0.2.0-rc.2` 包组（宿主 `latest`），产物依赖不变；类型检查另在 `0.1.2-rc.1`、`0.1.5-rc.3` 两套包上跑过，均为零错误。新增 11 个单元测试（持有式花名册的持有/释放/缓存/上限/异常与目录命名、未展开计数、时钟生长、宿主窗口、同刻度裁决），136 → 147，全部通过。
+
+_EN: Subagent branches on new hosts are now held by the plugin itself (from `0.1.6-alpha.2`): with `sessions.retain` present the maze holds each child under its own reference source `maze` — membership comes from the parent's `subagentCatalog` projection instead of the right sidebar, children that finished before the maze opened are drawn in full, running children stay held until they settle, settled ones are read once, released and cached, at most 8 are expanded at once (the rest are noted on the lane), everything is released when the tab or Session changes, and holding never changes the selected Session. Hosts without `retain` (`0.1.5` / `0.1.2`) keep 2.3.0's passive behaviour. Branch names now use the catalog label (the task description given at spawn time). A one-second clock runs only while the parent or a child is running and the tab is visible: a running branch ends at "now" instead of its last durable event, and on the page a tick that changes nothing structural only extends the running nodes and rebuilds the maze SVG (the zoom path) — legend, header strip and analysis stay put, with axis headroom (30 s or 8%) before a full redraw. The live tab reads the host's `contextPressure.contextWindow` (the same source as the host's context indicator) as the lane window and the window of the current model's requests; models switched away from keep the table. The header strip counts the parent's own calls and notes calls made inside subagents separately, matching the tool track. Small fixes found by the 2.3.0 smoke and review: tie-break by step order when a failed step and the answer share a 0.1 s tick; no stray console error when the first upload fails to parse; one Esc clears a signal-opened detail panel together with the selection; the sidebar entry uses the host sidebar's own color tokens (dark-theme contrast back to the host's level); the subagent roster is built in an effect and disposed on unmount. Build base moves to the npm `0.2.0-rc.2` set. 11 new unit tests, 136 → 147, all green._
+
 ## v2.3.0 — 2026-09-28
 
 **适配宿主 0.1.6 / 0.1.7（npm 上宿主的 `latest` 现已到 `0.2.0-rc.2`，本版同样适用）：新宿主上侧边栏入口与实时迷宫恢复，切换会话时自动关闭上传面板也恢复。**

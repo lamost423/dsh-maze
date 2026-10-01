@@ -160,8 +160,10 @@ export interface MazeLane {
   compaction?: { starts: number[]; prunes: number; summaries: number; ends: number }
   /** todo-freshness-guard 插件提醒次数（行为信号「待办陈旧」）。 */
   todoReminders?: number
-  /** 上下文窗口真值（request/context）；实时快照拿不到时省略，页面退回模型表。 */
+  /** 上下文窗口真值：上传链路读 request/context，实时链路读宿主 contextPressure 投影；都没有时省略，页面退回模型表。 */
   ctxWindow?: number
+  /** 已知但没有展开的子代理个数（超出同时跟踪上限）；页面在泳道上注明「另有 N 个子代理未展开」。 */
+  subHidden?: number
   stats: {
     steps: number; tools: number; rz: number
     rzTok: number | null; outTok: number | null; inTok: number | null
@@ -183,8 +185,20 @@ export interface ChildSessionMaze {
   label: string
   /** Child still running: the node stays live and reads as in-flight. */
   running: boolean
-  /** The child's own Chat target snapshot; times share the parent's clock. */
-  conversation: ChatSnapshot
+  /**
+   * The child's own Chat target snapshot; times share the parent's clock.
+   * null = a known child the roster did not expand (beyond the concurrent
+   * tracking cap): counted into the lane's `subHidden`, never drawn.
+   */
+  conversation: ChatSnapshot | null
+}
+
+/** Optional live-tab inputs to snapshotToMazeData. */
+export interface LiveMazeOptions {
+  /** Epoch ms used as "now" for running steps and branches (the view's one-second clock). */
+  now?: number
+  /** The host's contextPressure.contextWindow for the current model, when reported. */
+  hostWindow?: number
 }
 
 /** Child detour steps start here so they never collide with parent step ids. */
@@ -304,7 +318,7 @@ interface ScanResult {
  * session can share its parent's axis.
  * @returns rows in step order with settled verdicts.
  */
-function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
+function scanRows(snap: ChatSnapshot, rel: (t: number) => number, nowMs: number = Date.now()): ScanResult {
   const nodes = orderedNodes(snap)
   // Turn starts are engine-resolved now; the old probe counted user nodes,
   // which broke whenever the event window opened mid-turn.
@@ -378,7 +392,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
       // "now", not a measured span — it is a liveness indicator, and its real
       // start would redraw the bar on every tick.
       const running = d.status === 'running'
-      const now = rel(Date.now())
+      const now = rel(nowMs)
       const s = running ? now : rel(d.finalNode?.timing?.stepStartTime ?? d.time)
       const cur = rowFor(loc, s, n.anchorSeq)
       cur.e = Math.max(cur.e, running ? now + 0.1 : rel(d.time))
@@ -580,12 +594,15 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number): ScanResult {
  * @param index - roster position, offset into the reserved child step range.
  * @returns the detour node, or null while the child has no usable rows.
  */
-function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number) => number): MazeNode | null {
-  const { rows, liveRow } = scanRows(child.conversation, rel)
+function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number) => number, nowMs: number): MazeNode | null {
+  if (child.conversation === null) return null
+  const { rows, liveRow } = scanRows(child.conversation, rel, nowMs)
   if (rows.length === 0) return null
   const tools = rows.flatMap(r => r.tools)
   const s = Math.min(...rows.map(r => r.s))
-  const e = Math.max(...rows.map(r => r.e))
+  // 运行中的子代理终点取「现在」：长工具执行期间没有持久事件，只看已到的行，支路会停在上一个事件
+  //（2.3.0 实测卡在 0.7 秒、结束才一下跳到全长）。宿主自己的子代理菜单也是运行中用现在。
+  const e = Math.max(...rows.map(r => r.e), child.running ? rel(nowMs) : 0)
   const rz = rows.reduce((n, r) => n + r.rz, 0)
   const rzTxt = rows.map(r => r.rzTxt).filter(t => t !== '').join(' ')
   const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
@@ -622,18 +639,23 @@ function childDetourNode(child: ChildSessionMaze, index: number, rel: (t: number
  * @param children - dsh subagent child sessions to fold in as detour nodes.
  * @param requests - the Trajectory target's assembled requests, the only
  * browser-side carrier of provider/model identity; omit and no model is reported.
+ * @param opts - `now` (epoch ms; the view's one-second clock, so running branches
+ * grow without a new snapshot) and `hostWindow` (the host's contextPressure
+ * window for the current model — the same value as the host's own indicator).
  */
 export function snapshotToMazeData(
   snap: ChatSnapshot,
   children: readonly ChildSessionMaze[] = [],
   requests: TrajectorySnapshot['requests'] = [],
+  opts: LiveMazeOptions = {},
 ): MazeData | null {
+  const nowMs = opts.now ?? Date.now()
   const nodes = orderedNodes(snap)
   const firstNode = nodes.length === 0 ? null : nodeTime(nodes[0] as ChatConversationViewNode)
   const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep } = scanRows(snap, rel)
+  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep } = scanRows(snap, rel, nowMs)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -652,13 +674,15 @@ export function snapshotToMazeData(
   // parent spawned it — the main step containing the child's start, with the
   // spawning subagent tool call's row seq as the chat-jump anchor.
   let childEnd = 0
+  let subHidden = 0
   children.forEach((child, i) => {
+    if (child.conversation === null) { subHidden += 1; return }
     // Mirror the parent's pre-window discipline: a settled child whose whole
     // activity predates the visible window would clamp to the axis origin and
     // pile up at the left edge; a running child stays regardless.
     const lastT = lastActivityTime(child.conversation)
     if (!child.running && (lastT === null || lastT < anchor)) return
-    const node = childDetourNode(child, i, rel)
+    const node = childDetourNode(child, i, rel, nowMs)
     if (node === null) return
     let attach = 0
     let turn: number | undefined
@@ -699,19 +723,26 @@ export function snapshotToMazeData(
   // per-request provenance rides every completed assistant message — so it is
   // read first and survives a long session scrolling its headers out.
   let model: string | null = null
+  const perRequest: { named: string; row: MazeNode }[] = []
   for (const request of requests) {
     // 0.1.6-alpha.1 renamed provenance → providerMetadata (same {provider, model} shape).
     const served = request as { providerMetadata?: { model?: string }; provenance?: { model?: string } }
     const named = served.providerMetadata?.model ?? served.provenance?.model ?? request.requestConfig?.model
     if (named !== undefined && named !== '') model = named
-    // 每次请求按当时的模型换算窗口（评审 P1-3）：请求带 (turn, step)，把模型表的窗口填到那一步的节点上；
-    // 快照里没有宿主报的窗口真值，这是实时页签与上传链路唯一的差别。压缩请求 step 为 0 / turn 为 null，跳过。
+    // 每次请求按当时的模型换算窗口（评审 P1-3）：请求带 (turn, step)，把窗口填到那一步的节点上。
+    // 压缩请求 step 为 0 / turn 为 null，跳过。
     const loc = request as { turn?: number | null; step?: number }
     if (named !== undefined && named !== '' && typeof loc.turn === 'number' && typeof loc.step === 'number' && loc.step > 0) {
-      const win = contextWindowFor(named)
       const row = byStep.get(`${String(loc.turn)}:${String(loc.step)}`)
-      if (win !== null && row !== undefined) row.ctxWin = win
+      if (row !== undefined) perRequest.push({ named, row })
     }
+  }
+  // 窗口取值（吴昊 2026-10-01 拍板）：宿主 contextPressure 投影报的是**当前模型**的窗口，与宿主自己的
+  // 指示器同一来源，当前模型的请求用它；宿主不留逐请求历史，换过的旧模型仍按模型表推。没报时全按表。
+  const hostWindow = typeof opts.hostWindow === 'number' && Number.isFinite(opts.hostWindow) && opts.hostWindow > 0 ? opts.hostWindow : null
+  for (const { named, row } of perRequest) {
+    const win = hostWindow !== null && named === model ? hostWindow : contextWindowFor(named)
+    if (win !== null) row.ctxWin = win
   }
   const lane: MazeLane = {
     key: 'l1',
@@ -719,6 +750,8 @@ export function snapshotToMazeData(
     preWindow,
     main, detours,
     turnEnds, userMsgs, compaction, todoReminders,
+    ...(hostWindow === null ? {} : { ctxWindow: hostWindow }),
+    ...(subHidden > 0 ? { subHidden } : {}),
     stats: {
       steps: rows.length, tools: toolsCount, rz: rzCount,
       rzTok, outTok, inTok, T, main: main.length, detours: detours.length,

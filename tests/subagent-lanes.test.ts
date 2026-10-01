@@ -3,7 +3,9 @@ import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { chatSnapshot } from './chat-fixture.ts'
-import { SubagentMazeSource } from '../src/client/subagent-lanes.ts'
+import {
+  MAX_LIVE_CHILDREN, MAZE_RETAIN_SOURCE, RetainedSubagentRoster, SubagentMazeSource, createSubagentRoster, hostCanRetain,
+} from '../src/client/subagent-lanes.ts'
 
 const sid = (s: string): SessionId => s as SessionId
 
@@ -270,6 +272,164 @@ describe('SubagentMazeSource', () => {
     h.chatOf(sid('late')).push([{ kind: 'user', time: 1 }, { kind: 'assistant', seq: 2, time: 2, blocks: [{ kind: 'text', text: 'x' }] }])
     await flush()
     expect(source.getSnapshot().map(c => c.id)).toEqual(['late'])
+    source.dispose()
+  })
+})
+
+/* ======================= RetainedSubagentRoster（宿主 0.1.6-alpha.2+：插件自己持有子会话） ======================= */
+
+interface RetainRow { id: string; running: boolean; displayTitle?: string }
+interface RetainRec { id: string; parent: string; mode: string; source: string; released: boolean }
+
+/** 替身：带 retain 的会话服务 + 按持有凭据解析的对话服务。retain 记录地址与来源，release 翻标记。 */
+function retainHarness(rows: RetainRow[], opts: { retainThrows?: boolean } = {}) {
+  const listListeners = new Set<() => void>()
+  const byId = () => Object.fromEntries(rows.map(r => [r.id, r]))
+  const retained: RetainRec[] = []
+  const bindings = new Map<object, string>()
+  const chats = new Map<string, { listeners: Set<() => void>; snapshot: ReturnType<typeof chatSnapshot>; push(events: unknown[]): void }>()
+  const chatOf = (id: string) => {
+    const found = chats.get(id)
+    if (found !== undefined) return found
+    const listeners = new Set<() => void>()
+    const entry = {
+      listeners,
+      snapshot: chatSnapshot([]),
+      push(events: unknown[]) {
+        entry.snapshot = chatSnapshot(events as never)
+        for (const l of [...listeners]) l()
+      },
+    }
+    chats.set(id, entry)
+    return entry
+  }
+  const retain = vi.fn((target: { parentSessionId: string; childSessionId: string; mode: string }, options: { source: string }) => {
+    if (opts.retainThrows === true) throw new Error('sessions.retain: unknown session')
+    const token = { child: target.childSessionId }
+    bindings.set(token, target.childSessionId)
+    const rec: RetainRec = { id: target.childSessionId, parent: target.parentSessionId, mode: target.mode, source: options.source, released: false }
+    retained.push(rec)
+    return { ready: Promise.resolve(token), binding: token, release: () => { rec.released = true } }
+  })
+  const sessions = {
+    list: {
+      getSnapshot: () => ({ byId: byId() }),
+      subscribe: (l: () => void) => { listListeners.add(l); return () => listListeners.delete(l) },
+    },
+    retain,
+  } as unknown as ISessions
+  const conversations = {
+    binding: (token: object) => {
+      const id = bindings.get(token)
+      if (id === undefined) throw new Error('unknown binding')
+      return {
+        target: () => ({
+          getSnapshot: () => chatOf(id).snapshot,
+          subscribe: (l: () => void) => { chatOf(id).listeners.add(l); return () => chatOf(id).listeners.delete(l) },
+        }),
+      }
+    },
+  } as unknown as UiConversation
+  return {
+    sessions, conversations, chatOf, retained, retain,
+    held: () => retained.filter(r => !r.released).map(r => r.id),
+    setRows: (next: RetainRow[]) => { rows.length = 0; rows.push(...next); for (const l of [...listListeners]) l() },
+  }
+}
+
+const content = (t: number): unknown[] => [{ kind: 'user', time: t }, { kind: 'assistant', seq: 2, time: t + 1, blocks: [{ kind: 'text', text: 'x' }] }]
+
+describe('createSubagentRoster / hostCanRetain', () => {
+  it('picks the retained roster only when the host exposes sessions.retain', () => {
+    const legacy = harness([])
+    expect(hostCanRetain(legacy.sessions)).toBe(false)
+    expect(createSubagentRoster(legacy.sessions, legacy.conversations, sid('p'))).toBeInstanceOf(SubagentMazeSource)
+    const modern = retainHarness([])
+    expect(hostCanRetain(modern.sessions)).toBe(true)
+    expect(createSubagentRoster(modern.sessions, modern.conversations, sid('p'))).toBeInstanceOf(RetainedSubagentRoster)
+    expect(hostCanRetain(null)).toBe(false)
+  })
+})
+
+describe('RetainedSubagentRoster', () => {
+  it('holds a running catalog child under the maze source with the full subagent address, names it from the catalog', async () => {
+    const h = retainHarness([{ id: 'c1', running: true, displayTitle: 'StartUp_AIBrain' }])
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())
+    roster.setCatalog([{ id: 'c1', mode: 'one-shot', label: 'slow child task' }])
+    await flush()
+    expect(h.retained[0]).toMatchObject({ id: 'c1', parent: 'p', mode: 'one-shot', source: MAZE_RETAIN_SOURCE })
+    expect(roster.getSnapshot()).toEqual([])   // 事件窗口还没内容：不画空支路
+    h.chatOf('c1').push(content(1))
+    expect(roster.getSnapshot().map(c => ({ id: c.id, label: c.label, running: c.running }))).toEqual([{ id: 'c1', label: 'slow child task', running: true }])
+    expect(h.held()).toEqual(['c1'])           // 运行中：一直持有
+    roster.dispose()
+    expect(h.held()).toEqual([])
+  })
+
+  it('reads a settled child once, releases it and caches it; a fresh roster replays the cache without retaining again', async () => {
+    const cache = new Map()
+    const h = retainHarness([{ id: 'c1', running: false }])
+    h.chatOf('c1').push(content(1))            // 迷宫打开前就结束了的子代理：持有后首帧带全部内容
+    const first = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), cache)
+    first.setCatalog([{ id: 'c1', mode: 'one-shot', label: 'done task' }])
+    await flush()
+    expect(first.getSnapshot().map(c => ({ id: c.id, running: c.running, label: c.label }))).toEqual([{ id: 'c1', running: false, label: 'done task' }])
+    expect(h.held()).toEqual([])               // 读完即释放
+    expect(cache.has('c1')).toBe(true)
+    first.dispose()
+    const second = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), cache)
+    second.setCatalog([{ id: 'c1', mode: 'one-shot', label: 'done task' }])
+    expect(second.getSnapshot().map(c => c.id)).toEqual(['c1'])
+    expect(h.retain).toHaveBeenCalledTimes(1)  // 缓存命中，不再持有
+    second.dispose()
+  })
+
+  it('expands at most MAX_LIVE_CHILDREN children at once; the rest are known but not expanded (conversation: null)', async () => {
+    const n = MAX_LIVE_CHILDREN + 1
+    const rows: RetainRow[] = Array.from({ length: n }, (_, i) => ({ id: 'c' + String(i + 1), running: true }))
+    const h = retainHarness(rows)
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())
+    roster.setCatalog(rows.map(r => ({ id: r.id, mode: 'one-shot' })))
+    await flush()
+    expect(h.held()).toHaveLength(MAX_LIVE_CHILDREN)
+    for (let i = 1; i <= MAX_LIVE_CHILDREN; i++) h.chatOf('c' + String(i)).push(content(i))
+    const snap = roster.getSnapshot()
+    expect(snap).toHaveLength(n)
+    expect(snap.filter(c => c.conversation !== null)).toHaveLength(MAX_LIVE_CHILDREN)
+    expect(snap.find(c => c.id === 'c' + String(n))).toMatchObject({ conversation: null, running: true })
+    roster.dispose()
+    expect(h.held()).toEqual([])
+  })
+
+  it('a child that leaves the catalog is released; retain() throwing never breaks the roster', async () => {
+    const h = retainHarness([{ id: 'c1', running: true }])
+    const roster = new RetainedSubagentRoster(h.sessions, h.conversations, sid('p'), new Map())
+    roster.setCatalog([{ id: 'c1', mode: 'one-shot' }])
+    await flush()
+    expect(h.held()).toEqual(['c1'])
+    roster.setCatalog([])
+    expect(h.held()).toEqual([])
+    expect(roster.getSnapshot()).toEqual([])
+    roster.dispose()
+    const bad = retainHarness([{ id: 'c1', running: true }], { retainThrows: true })
+    const r2 = new RetainedSubagentRoster(bad.sessions, bad.conversations, sid('p'), new Map())
+    expect(() => { r2.setCatalog([{ id: 'c1', mode: 'one-shot' }]) }).not.toThrow()
+    expect(r2.getSnapshot()).toEqual([])
+    r2.dispose()
+  })
+
+  it('legacy (passive) roster takes the child name from the catalog when the host projects one', async () => {
+    const rows: FakeRow[] = [
+      { id: sid('c1'), parentId: sid('p'), origin: 'subagent', running: true, displayTitle: 'StartUp_AIBrain' },
+    ]
+    const h = harness(rows)
+    h.addFace(sid('c1'))
+    const source = new SubagentMazeSource(h.sessions, h.conversations, sid('p'))
+    h.chatOf(sid('c1')).push(content(1) as never)
+    await flush()
+    expect(source.getSnapshot()[0]!.label).toBe('StartUp_AIBrain')   // 0.1.5 上没标题的子会话退回工作区目录名
+    source.setCatalog([{ id: 'c1', label: '任务甲' }])
+    expect(source.getSnapshot()[0]!.label).toBe('任务甲')
     source.dispose()
   })
 })

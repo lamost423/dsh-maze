@@ -130,3 +130,52 @@ describe('snapshotToMazeData with subagent children', () => {
     expect(data!.lanes[0]!.main.length).toBeGreaterThan(0)
   })
 })
+
+describe('2.4: unexpanded children, the one-second clock, the host context window', () => {
+  it('a child the roster did not expand (conversation: null) is counted as subHidden, never drawn', () => {
+    const data = snapshotToMazeData(parentSnap(), [child({ conversation: null }, []), child({ id: 'child-2', conversation: null }, [])])!
+    const lane = data.lanes[0]!
+    expect(lane.subHidden).toBe(2)
+    expect(lane.detours.filter(d => d.sub)).toHaveLength(0)
+    // 没有未展开的子代理时字段不出现（页面按有无判断）
+    expect('subHidden' in snapshotToMazeData(parentSnap(), [child({}, childNodes())])!.lanes[0]!).toBe(false)
+  })
+
+  it("a running child's branch ends at `now`, so it keeps growing between snapshots", () => {
+    const children = [child({ running: true }, childNodes())]   // 持久事件到 +30s
+    const later = snapshotToMazeData(parentSnap(), children, [], { now: T0 + 90_000 })!
+    const sub = later.lanes[0]!.detours.find(d => d.sub)!
+    expect(sub.live).toBe(true)
+    expect(sub.e).toBe(90)                       // 不是 30：运行中以「现在」为终点
+    expect(later.Tmax).toBeGreaterThanOrEqual(90)
+    // 已结束的子代理不受时钟影响
+    const settled = snapshotToMazeData(parentSnap(), [child({}, childNodes())], [], { now: T0 + 90_000 })!
+    expect(settled.lanes[0]!.detours.find(d => d.sub)!.e).toBe(30)
+  })
+
+  it("the parent's in-flight step is pinned at `now` from the options, not at Date.now()", () => {
+    const parent = snap([
+      user(T0),
+      assistant(T0 + 10_000, 5, [toolCall('bash', 'a')]),
+      toolResult('a', T0 + 12_000, 'ok'),
+    ], { time: T0 + 13_000, seq: 7, blocks: [] })
+    const data = snapshotToMazeData(parent, [], [], { now: T0 + 50_000 })!
+    const live = data.lanes[0]!.main.find(n => n.live)!
+    expect(live.e).toBeCloseTo(50.1, 5)
+  })
+
+  it('the host-reported window becomes the lane window and applies to requests of the current model; older models keep the table', () => {
+    const requests = [
+      { turn: 1, step: 1, providerMetadata: { provider: 'deepseek', model: 'deepseek-chat' } },   // 换掉的旧模型：表值 128K
+      { turn: 1, step: 2, providerMetadata: { provider: 'relay', model: 'house-model-x' } },      // 当前模型：表里没有，用宿主真值
+    ] as never
+    const withHost = snapshotToMazeData(parentSnap(), [], requests, { hostWindow: 262_144 })!.lanes[0]!
+    expect(withHost.ctxWindow).toBe(262_144)
+    expect(withHost.main.map(n => n.ctxWin)).toEqual([128_000, 262_144])
+    const noHost = snapshotToMazeData(parentSnap(), [], requests)!.lanes[0]!
+    expect('ctxWindow' in noHost).toBe(false)
+    expect(noHost.main.map(n => n.ctxWin)).toEqual([128_000, undefined])
+    // 非法的宿主值当没报
+    expect('ctxWindow' in snapshotToMazeData(parentSnap(), [], requests, { hostWindow: 0 })!.lanes[0]!).toBe(false)
+  })
+})

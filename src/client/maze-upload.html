@@ -479,7 +479,8 @@ const I18N = {
     trkCtxWinSwitch: ws => `，会话中途切过窗口：${ws.map(fmtTok).join(' → ')}`,
     trkCtxStale: n => `；${n} 个样本的窗口值不可信（请求超过了它声称的窗口），已略过`,
     ctxDropTip: (a, b, p) => `上下文压缩：${a.toLocaleString()} → ${b.toLocaleString()} tok（−${p}%）`,
-    msDur: '总时长', msCalls: (s, t) => `${s} 步 · ${t} 次调用`, msPeak: '峰值上下文',
+    msDur: '总时长', msCalls: (s, t) => `${s} 步 · ${t} 次调用`, msSubCalls: n => ` · 子代理另有 ${n} 次`, msPeak: '峰值上下文',
+    subHidden: n => ` · 另有 ${n} 个子代理未展开（同时最多展开 8 个）`,
     msTok: (i, o) => [i ? `输入 ${i}` : '', o ? `输出 ${o}` : ''].filter(Boolean).join(' · '),
     clusterTip: n => `此处 ${n} 条支路，点击放大`,
     tokCache: '缓存输入', tokIn: '未缓存输入', tokRz: '推理', tokOutVis: '可见输出', tokTotal: '合计',
@@ -655,7 +656,8 @@ const I18N = {
     trkCtxWinSwitch: ws => `, window switched mid-session: ${ws.map(fmtTok).join(' → ')}`,
     trkCtxStale: n => `; ${n} sample${n > 1 ? 's' : ''} skipped (the request exceeded the window its provider declared)`,
     ctxDropTip: (a, b, p) => `Context compaction: ${a.toLocaleString()} → ${b.toLocaleString()} tok (−${p}%)`,
-    msDur: 'Total', msCalls: (s, t) => `${s} steps · ${t} calls`, msPeak: 'Peak context',
+    msDur: 'Total', msCalls: (s, t) => `${s} steps · ${t} calls`, msSubCalls: n => ` · ${n} more in subagents`, msPeak: 'Peak context',
+    subHidden: n => ` · ${n} more subagent${n > 1 ? 's' : ''} not expanded (at most 8 at once)`,
     msTok: (i, o) => [i ? `in ${i}` : '', o ? `out ${o}` : ''].filter(Boolean).join(' · '),
     clusterTip: n => `${n} detours here — click to zoom in`,
     tokCache: 'cached input', tokIn: 'uncached input', tokRz: 'reasoning', tokOutVis: 'visible output', tokTotal: 'total',
@@ -1183,6 +1185,28 @@ const SPARSE_RULES = {
  * compressed span, and attaches data.timeMap { segments, gaps, seam } for the
  * axis and for wall-clock display. Durations and stats stay wall-clock.
  */
+/** 折叠映射：原始秒 → 折叠坐标。compressTimeline 建图时用，实时轻量延长（extendLive）也用它。 */
+function timeMapFn({ segments, seam }){
+  return t => {
+    if (t <= segments[0].rs) return segments[0].cs - (segments[0].rs - t)
+    for (let i = segments.length - 1; i >= 0; i--){
+      const g = segments[i]
+      if (t < g.rs) continue
+      if (t <= g.re) return g.cs + (t - g.rs)
+      const next = segments[i + 1]
+      const gapLen = next ? next.rs - g.re : 1
+      return g.cs + (g.re - g.rs) + Math.min(1, (t - g.re) / gapLen) * seam
+    }
+    return t
+  }
+}
+
+/** 有运行中节点时给时间轴留的余量（秒）：轻量延长在余量内只改节点，不动轴；用完再整图重画。 */
+function liveHeadroom(data){
+  const anyLive = data.lanes.some(l => l.main.some(n => n.live) || l.detours.some(n => n.live))
+  return anyLive ? Math.max(30, Math.round(data.Tmax * 0.08)) : 0
+}
+
 function compressTimeline(data){
   const iv = []
   for (const l of data.lanes){
@@ -1219,18 +1243,7 @@ function compressTimeline(data){
       c += seam
     }
   }
-  const map = t => {
-    if (t <= segments[0].rs) return segments[0].cs - (segments[0].rs - t)
-    for (let i = segments.length - 1; i >= 0; i--){
-      const g = segments[i]
-      if (t < g.rs) continue
-      if (t <= g.re) return g.cs + (t - g.rs)
-      const next = segments[i + 1]
-      const gapLen = next ? next.rs - g.re : 1
-      return g.cs + (g.re - g.rs) + Math.min(1, (t - g.re) / gapLen) * seam
-    }
-    return t
-  }
+  const map = timeMapFn({ segments, seam })
   const seen = new Set()
   const remap = n => {
     if (seen.has(n)) return
@@ -1715,7 +1728,7 @@ function build(){
     title.textContent = `${laneName(lane)}   ${src}${lane.model ?? (lane.preWindow ? tr('modelNoHeader') : tr('modelNone'))}`
     const info = el('text', { x: X0 + AXIS_W - 4, y: lay.regionTop + 20, 'text-anchor': 'end', class: 'lane-info' })
     const laneTurns = new Set([...lane.main, ...lane.detours].map(n => n.turn).filter(v => v != null)).size
-    info.textContent = tr('laneInfo')(laneTurns, lane.stats) + (lane.preWindow ? tr('preWindow')(lane.preWindow) : '')
+    info.textContent = tr('laneInfo')(laneTurns, lane.stats) + (lane.preWindow ? tr('preWindow')(lane.preWindow) : '') + (lane.subHidden ? tr('subHidden')(lane.subHidden) : '')
     gStatic.appendChild(title); gStatic.appendChild(info)
 
     const main = lane.main
@@ -3312,7 +3325,7 @@ function renderData(data, opts){
   opts = opts ?? {}
   DATA = data
   compressTimeline(DATA)
-  TMAX = DATA.Tmax
+  TMAX = DATA.Tmax + liveHeadroom(DATA)
   // Fresh uploads reset the zoom (and compare-mode user state: anchors, inventory
   // selection); live refreshes keep the user's window, re-clamped to the new
   // (compressed) span. Coordinates can drift slightly when a refresh adds
@@ -3380,10 +3393,12 @@ function renderMetaStrip(){
     const win = occ.valid && peak != null ? occ.peakWin : null
     const pct = win != null ? Math.round(occ.peakRatio * 1000) / 10 : null
     const tokTxt = tr('msTok')(inTot != null ? fmtTok(inTot) : '', outTot != null ? fmtTok(outTot) : '')
+    // 头部写父会话自己的调用数；子代理支路里的调用另计一句，与工具轨道的「共 N 次」（含子代理）对得上
+    const subCalls = lane.detours.filter(d => d.sub).reduce((n, d) => n + (d.tools?.length ?? 0), 0)
     return `<span class="mlane">`
       + `<span><span class="mdot" style="background:${(LANEC[li] ?? LANEC[0]).main}"></span><b>${laneName(lane)}</b> ${esc(lane.model ?? tr('modelUnknown'))}</span>`
       + `<span>${tr('msDur')} <b>${fmtT(lane.stats.T)}</b></span>`
-      + `<span>${tr('msCalls')(lane.stats.steps, lane.stats.tools)}</span>`
+      + `<span>${tr('msCalls')(lane.stats.steps, lane.stats.tools)}${subCalls > 0 ? tr('msSubCalls')(subCalls) : ''}</span>`
       + (tokTxt !== '' ? `<span>Token <b>${tokTxt}</b></span>` : '')
       + (peak != null ? `<span>${tr('msPeak')} <b class="${pct != null && pct >= 90 ? 'warn' : ''}">${pct != null ? pct + '%' : fmtTok(peak)}</b></span>` : '')
       + `</span>`
@@ -3457,6 +3472,49 @@ async function handleFiles(files){
 /* ===== Live mode: parent frame pushes rendered maze data via postMessage ===== */
 let liveMode = false
 let liveSig = null
+let liveRawE = new Map()   // 上一帧里运行中节点的原始时间（未折叠），轻量延长按增量推进
+
+/** 运行中节点的原始时间，按「泳道:类型:step」记。 */
+function liveRawTimes(data){
+  const m = new Map()
+  for (const l of data.lanes) for (const arr of [l.main, l.detours]) for (const n of arr){
+    if (n.live) m.set(l.key + (n.sub ? ':S' : ':M') + n.step, { s: n.s, e: n.e })
+  }
+  return m
+}
+
+/**
+ * 轻量延长（吴昊 2026-10-01 拍板）：结构签名没变、只是宿主的一秒时钟走了，不重跑 renderData——
+ * 把运行中的步骤和子代理支路按原始时间的增量向右推，只重画迷宫 SVG（与缩放同一条路径 queueBuild），
+ * 图例、头部指标条、分析区都不动。轴的余量（liveHeadroom）用完才整图重画。
+ */
+function extendLive(payload, rawLive){
+  let maxE = 0, grew = false
+  const segs = DATA.timeMap ? DATA.timeMap.segments : null
+  const last = segs ? segs[segs.length - 1] : null
+  DATA.lanes.forEach((lane, li) => {
+    const fresh = payload.lanes[li]
+    if (fresh) lane.stats.T = fresh.stats.T
+    for (const arr of [lane.main, lane.detours]) for (const n of arr){
+      if (!n.live) continue
+      const key = lane.key + (n.sub ? ':S' : ':M') + n.step
+      const was = liveRawE.get(key), now = rawLive.get(key)
+      if (!was || !now) continue
+      const d = now.e - was.e
+      if (d <= 0) continue
+      // 运行中的区间本身没有空闲缝，延长量在同一活动段内：折叠坐标等量推进，最后一段的原始终点同步外推
+      if (last && was.e >= last.re - 1e-6) last.re = Math.max(last.re, now.e)
+      if (!n.sub) n.s += d   // 父会话的在途步是钉在「现在」的短标记，整体右移
+      n.e += d
+      grew = true
+      maxE = Math.max(maxE, n.e)
+    }
+  })
+  if (!grew) return
+  if (maxE + 2 > TMAX){ DATA.Tmax = Math.max(DATA.Tmax, maxE); TMAX = DATA.Tmax + liveHeadroom(DATA) }
+  if (!playing) t = TMAX
+  queueBuild()
+}
 
 /**
  * Structural signature of a live payload: settled nodes' identity/verdict and
@@ -3489,10 +3547,17 @@ window.addEventListener('message', e => {
   drop.style.display = 'none'
   filesBox.style.display = 'none'
   document.body.classList.add('live')
-  const sig = mazeSignature(e.data.data)
-  if (sig === liveSig) return
+  const payload = e.data.data
+  const sig = mazeSignature(payload)
+  const rawLive = liveRawTimes(payload)
+  if (sig === liveSig && DATA){
+    extendLive(payload, rawLive)
+    liveRawE = rawLive
+    return
+  }
   liveSig = sig
-  renderData(e.data.data, { follow: true })
+  liveRawE = rawLive
+  renderData(payload, { follow: true })
   // 首帧进滚动模式时同样要落到主干线（follow 路径不重定位，避免打断用户正在看的位置）
   if (firstLive) scrollToMain()
 })
