@@ -322,6 +322,17 @@ describe('outcomeEvidence（六格 + 综合）', () => {
     expect(noAns.overall).toBe('partial')
   })
 
+  it('失败步与回答落在同一个 0.1 秒刻度时按步序判最后一步（实时链路时间取整到 0.1 秒）', () => {
+    const tool = { name: 'read', args: '{}', s: 1, e: 1, v: 'error', err: true, exit: null, res: 'boom' }
+    const lane = {
+      main: [{ step: 2, turn: 1, s: 1, e: 1, v: 'answer', tools: [] }],
+      detours: [{ step: 1, turn: 1, s: 1, e: 1, v: 'error', tools: [tool] }],
+      turnEnds: [{ turn: 1, kind: 'completed', s: 1.1 }],
+      userMsgs: [{ s: 0 }],
+    }
+    expect(outcomeEvidence(lane as never).task.state).toBe('done')
+  })
+
   it('最后一轮没有结束事件 → unfinished；实时链路有在途步 → running', () => {
     expect(outcomeEvidence(synth([['user'], ['bash', 'pnpm test'], ['answer']])).task.state).toBe('unfinished')
     expect(outcomeEvidence(synth([['user'], ['bash', 'pnpm test'], ['live']])).task.state).toBe('running')

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 // Declaration merge only: ui-chat contributes `useChat` to SessionStandardProps
@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import type { ConvViewProps, UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { snapshotToMazeData, type MazeData } from './live-data.ts'
+import { snapshotToMazeData, type ChildSessionMaze, type MazeData } from './live-data.ts'
 import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { SubagentMazeSource } from './subagent-lanes.ts'
@@ -64,6 +64,11 @@ function jumpToChat(frame: HTMLIFrameElement, msg: TraceJumpMessage): void {
   seek()
 }
 
+/** Stable stand-ins while the roster is not built yet (first render, or between session switches). */
+const NO_CHILDREN: readonly ChildSessionMaze[] = []
+const noRosterSubscribe = (): (() => void) => () => {}
+const noChildren = (): readonly ChildSessionMaze[] => NO_CHILDREN
+
 /**
  * Live maze view: a per-session conversation tab that mirrors the current
  * session's execution as a growing exploration maze. Subscribes to the
@@ -80,12 +85,16 @@ export function TraceLiveView({ useChat, useTrajectory, sessionId, sessions, con
   // durable request/header events, which never reach the Chat nodes.
   const requests = useTrajectory(s => s.requests)
   // One roster per (service, session); disposed with the view or on session switch.
-  const source = useMemo(
-    () => new SubagentMazeSource(sessions, conversations, sessionId),
-    [sessions, conversations, sessionId],
-  )
-  useEffect(() => () => { source.dispose() }, [source])
-  const children = useSyncExternalStore(source.subscribe, source.getSnapshot)
+  // Built in an effect, not in render: the roster subscribes to the session list
+  // and follows child sessions as soon as it exists, and React may discard a
+  // render (concurrent rendering) — a roster built there would never be disposed.
+  const [source, setSource] = useState<SubagentMazeSource | null>(null)
+  useEffect(() => {
+    const roster = new SubagentMazeSource(sessions, conversations, sessionId)
+    setSource(roster)
+    return () => { roster.dispose() }
+  }, [sessions, conversations, sessionId])
+  const children = useSyncExternalStore(source?.subscribe ?? noRosterSubscribe, source?.getSnapshot ?? noChildren)
   // 宿主 fork 注册的 modelIdentity 投影：host 侧折叠全量日志，覆盖面比浏览器侧的
   // 事件窗口宽（窗口滚出去的早期请求头它还留着）。0.1.2 起 Trajectory target 已经
   // 原生带模型身份，所以这条降级成兜底；stock dsh 没有这个键，读到 undefined 自然降级

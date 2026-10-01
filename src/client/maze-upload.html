@@ -2340,10 +2340,12 @@ const anaSecEl = document.getElementById('anasec')
 let anaRefs = []   // 失败链行 / Agent 节点 → { node, laneKey }，点击缩放定位用
 let sigRows = []   // 行为信号行 → { laneKey, type, nodes: Set, first: {tl,n}|null }，点击淡化其他节点并定位
 let sigSel = null  // 选中的信号 { laneKey, type }：用键不用下标，实时重渲染信号顺序变了高亮不漂移（评审 P2-5）
+let sigPanelNode = null  // 选中信号时顺带打开的详情面板对应的节点：这时按一次 Esc 同时关面板、撤选中（实机冒烟：原来要按两次，提示只写了按 Esc）
 const sigSelRow = () => sigSel === null ? null : (sigRows.find(r => r.laneKey === sigSel.laneKey && r.type === sigSel.type) ?? null)
 /** 取消信号选中（再点同一条 / Esc）：去高亮并撤淡化。 */
 function clearSigSel(){
   sigSel = null
+  sigPanelNode = null
   anaSecEl.querySelectorAll('.sig.sel').forEach(el => el.classList.remove('sel'))
   applyFilter()
 }
@@ -2681,7 +2683,7 @@ anaSecEl.addEventListener('click', ev => {
     if (!wasSel) sigRow.classList.add('sel')
     applyFilter()
     if (!wasSel){
-      if (r.first) zoomToNode({ node: r.first.n, laneKey: r.laneKey })
+      if (r.first){ zoomToNode({ node: r.first.n, laneKey: r.laneKey }); sigPanelNode = r.first.n }
       svgWrapEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
     return
@@ -2970,6 +2972,7 @@ let panelJump = null  // trace-jump payload for the locate button (live mode onl
 let suppressClick = false   // a drag-pan swallows the click it ends on
 
 function openPanel(n, lane, isMain){
+  if (n !== sigPanelNode) sigPanelNode = null   // 用户自己点开了别的节点：面板不再算信号选中的一部分
   pinnedDet = n._id ? n : null
   panelTexts = []
   panelJump = null
@@ -3130,7 +3133,12 @@ document.getElementById('btnFit').addEventListener('click', () => { VIEW = null;
 window.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return
   if (anchorPick){ stopAnchorPick(); return }
-  if (panelEl.classList.contains('show')){ closePanel(); return }
+  if (panelEl.classList.contains('show')){
+    const bySig = sigSel !== null && sigPanelNode !== null
+    closePanel()
+    if (bySig) clearSigSel()
+    return
+  }
   if (invPanelEl.classList.contains('show')){ closeInv(); return }
   if (sigSel !== null){ clearSigSel(); return }
   parent.postMessage({ kind: 'trace-esc' }, '*')
@@ -3144,6 +3152,8 @@ const seekEl = document.getElementById('seek')
 function prog(s, e){ return e - s <= 0 ? (t >= e ? 1 : 0) : (t - s) / (e - s) }
 
 function render(){
+  // 还没成功画过一次图（例如第一次上传就解析失败）时没有游标与坐标轴可更新；resetView → closePanel 会调到这里
+  if (!window._cursor) return
   const focus = hoverDet ?? pinnedDet
   pathEls.forEach(({ el, s, e, det, base, kind }) => {
     const p = prog(s, e)
@@ -3313,6 +3323,7 @@ function renderData(data, opts){
     if (anchorPick) stopAnchorPick()
     invSel = null
     sigSel = null
+    sigPanelNode = null
   }
   else if (VIEW){
     const span = Math.min(VIEW.t1 - VIEW.t0, TMAX)

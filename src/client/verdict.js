@@ -621,7 +621,9 @@ export function outcomeEvidence(lane, wall){
   for (const n of steps) lastTurn = Math.max(lastTurn, n.turn ?? 1)
   for (const t of turnEnds) lastTurn = Math.max(lastTurn, t.turn ?? 1)
   const running = steps.some(n => n.live && (n.turn ?? 1) === lastTurn)
-  const inTurn = steps.filter(n => !n.live && (n.turn ?? 1) === lastTurn).sort((a, b) => a.s - b.s || a.e - b.e)
+  // 时间打平时按步序裁决：实时链路把时间取整到 0.1 秒，失败的一步和紧跟的回答可能落在同一刻度，
+  // 只按时间排时支路（排在主干之后拼接）会被当成最后一步，误判「没有最终回答」
+  const inTurn = steps.filter(n => !n.live && (n.turn ?? 1) === lastTurn).sort((a, b) => a.s - b.s || a.e - b.e || (a.step ?? 0) - (b.step ?? 0))
   const lastNode = inTurn.length > 0 ? inTurn[inTurn.length - 1] : null
   const answer = lastNode !== null && lastNode.v === 'answer' ? lastNode : null
   const end = turnEnds.filter(t => (t.turn ?? 1) === lastTurn).pop() ?? null
