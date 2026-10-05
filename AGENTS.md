@@ -5,7 +5,8 @@ Single-package DSH client plugin. Read README.md for what it does.
 - `src/index.ts` is the no-op Host half; the real plugin is the browser bundle from `src/client/`, wired through `package.json`'s `dsh.client` and inserted by `cordis.patch.yml`.
 - `src/client/maze-upload.html` is a self-contained page (inline CSS/JS, no imports) rendered via `<iframe srcDoc>`. Parsing, idle-gap folding, layout, and playback all live in its inline script; `tsdown.config.ts` inlines it as a string and splices the fzstd UMD build into its `/*__FZSTD_UMD__*/` placeholder at bundle time.
 - `src/client/live-data.ts` converts the live `ConversationSnapshot` into the same maze payload the page renders; verdicts settle only from arrived tool results (tests in `tests/live-data.test.ts`).
-- Verify with `pnpm check` (typecheck + vitest + build). Peers pin to the published `@deepseek-ai/dsh-*@0.1.0-rc.x` line, not to a harness checkout.
+- Verify with `pnpm check` (typecheck + vitest + build). Peers target the published `@deepseek-ai/dsh-*` package sets (currently `0.2.0-rc.2`), not a harness checkout; the declared range is `>=0.1.2-alpha.1 <0.3.0`, because DSH's runtime disables any profile row whose `@deepseek-ai/dsh*` peers do not satisfy the running host version.
+- `lib/` is **tracked in git on purpose** (see `.gitignore`): DSH's plugin manager packs a git dependency through `package.json`'s `files` whitelist, so `dsh plugin add github:lamost423/dsh-maze` only works when the build output is committed. Run `pnpm build` and commit `lib/` with any source change.
 
 ## Releasing
 

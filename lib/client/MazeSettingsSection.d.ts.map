@@ -1,0 +1,1 @@
+{"version":3,"file":"MazeSettingsSection.d.ts","sourceRoot":"","sources":["../../src/client/MazeSettingsSection.tsx"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,WAAW,EAAE,YAAY,EAAE,MAAM,kCAAkC,CAAA;AAIjF,kFAAkF;AAClF,wBAAgB,mBAAmB,CAAC,EAAE,CAAC,EAAE,EAAE,wBAAwB,2CAmBlE;AAED,qEAAqE;AACrE,MAAM,MAAM,wBAAwB,GAClC,YAAY,CAAC,kBAAkB,CAAC,GAC9B,WAAW,CAAC,cAAc,CAAC,CAAA"}

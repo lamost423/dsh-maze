@@ -107,9 +107,9 @@ Upload accepts DSH session logs in any of these forms, detected by content (the 
 | `0.1.2` and later — npm's `@deepseek-ai/dsh` (its `latest` is `0.2.0-rc.2` now), desktop apps on a `0.1.2`+ kernel, or self-built master | dsh-maze `2.x`, tag `latest` | `dsh plugin --profile web add dsh-maze` |
 | Older hosts (`0.1.0-rc.6` ~ `0.1.1-rc.2`) | dsh-maze `1.1.2`, pinned manually | `dsh plugin --profile web add dsh-maze@1.1.2` |
 
-**Host `0.1.7` needs dsh-maze `2.3.0` or later**: `0.1.7` renamed an icon and changed the subagent catalog API, so earlier `2.x` builds show no sidebar entry and a blank Live Maze tab there. On hosts from `0.1.6-alpha.2`, `2.2.0` does not crash but no longer closes the upload panel on a Session switch, so upgrading is recommended there too. With pnpm 11's default settings, an unpinned install resolves to the previous version for 24 hours after a plugin release; pin the exact version meanwhile, e.g. `dsh plugin --profile web add dsh-maze@2.3.0`.
+**Host `0.1.7` needs dsh-maze `2.3.0` or later**: `0.1.7` renamed an icon and changed the subagent catalog API, so earlier `2.x` builds show no sidebar entry and a blank Live Maze tab there. On hosts from `0.1.6-alpha.2`, `2.2.0` does not crash but no longer closes the upload panel on a Session switch, so upgrading is recommended there too. **Desktop apps (`0.2.0-rc.2`) should use `2.4.0`**: it widens the `@deepseek-ai/dsh*` peer ranges from `<0.2.0` to `<0.3.0` and tracks the built `lib/` in git — without those, a GitHub install produces a shell with no `lib/index.js` and the plugin cannot load at all (which is exactly what happened on the desktop app on 2026-10-05). With pnpm 11's default settings, an unpinned install resolves to the previous version for 24 hours after a plugin release; pin the exact version meanwhile, e.g. `dsh plugin --profile desktop add dsh-maze@2.4.0`.
 
-Compatibility: `2.3.0` builds against the npm `0.1.7-rc.2` package set, with typecheck also clean against the `0.1.2-rc.1`, `0.1.5-rc.3` and `0.2.0-rc.2` sets and all 136 tests green; live acceptance was done on fresh `0.1.5-rc.3`, `0.1.7-rc.2` and `0.2.0-rc.2` hosts — this release's package installed, sessions driven by a mock model, every on-screen number reconciled against the host's own accounting, and the upload page reading the format v3 and v4 logs those hosts wrote. `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance).
+Compatibility: `2.4.0` builds against the npm `0.2.0-rc.2` package set, with typecheck also clean against the `0.1.2-rc.1` and `0.1.5-rc.3` sets and all 158 tests green; live acceptance was done on fresh `0.1.5-rc.3`, `0.1.7-rc.2` and `0.2.0-rc.2` hosts for `2.3.0` (this release's package installed, sessions driven by a mock model, every on-screen number reconciled against the host's own accounting, and the upload page reading the format v3 and v4 logs those hosts wrote), and `2.4.0` was regression-tested in the `0.2.0-rc.2` desktop profile. `1.1.x` is verified against official `0.1.0-rc.6` (build + full tests) and `rc.8` (slot/type audit + live acceptance).
 
 ```sh
 npm install --global @deepseek-ai/dsh
@@ -127,6 +127,12 @@ cd dsh-maze
 corepack enable && pnpm install && pnpm build
 dsh plugin --profile web add .
 dsh web
+```
+
+You can also install straight from GitHub — the repository ships the build output, so nothing is built locally (unpinned installs take the default branch's latest commit):
+
+```sh
+dsh plugin --profile desktop add github:lamost423/dsh-maze
 ```
 
 ## Migrating from dsh-trace-compare
