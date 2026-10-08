@@ -49,3 +49,29 @@ describe('page parse: per-request context window', () => {
     expect(occ.samples.map(s => Math.round(s.ratio! * 100))).toEqual([76, 80, 30])
   })
 })
+
+describe('page parse: compaction events (诊断层第 3 项)', () => {
+  it('记下 compaction/start 的时刻与每次 prune 的时刻，供轨道按真事件标注', () => {
+    const t0 = 1_787_000_000_000
+    const lines = [
+      ev('user/message', { content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }, t0),
+      ev('turn/start', { turn: 1 }, t0 + 100),
+      ev('step/start', { turn: 1, step: 1 }, t0 + 200),
+      ev('compaction/prune', { count: 3 }, t0 + 500),
+      ev('compaction/start', {}, t0 + 1000),
+      ev('compaction/summary', {}, t0 + 1100),
+      ev('compaction/prune', { count: 2 }, t0 + 1200),
+      ev('compaction/end', {}, t0 + 1300),
+      ev('assistant/message', { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'a' }] } }, t0 + 1400),
+      ev('step/end', { turn: 1, step: 1 }, t0 + 1500),
+      ev('turn/end', { turn: 1, reason: { kind: 'completed' } }, t0 + 1600),
+    ].join('\n')
+    const lane = page.buildData([lines], ['x.jsonl']).lanes[0]!
+    const cp = (lane as { compaction: { starts: number[]; pruneAt: number[]; prunes: number; summaries: number; ends: number } }).compaction
+    expect(cp.starts).toEqual([1])          // +1000ms
+    expect(cp.pruneAt).toEqual([0.5, 1.2])  // 每一次 prune 都有时刻，轨道要画刻线
+    expect(cp.prunes).toBe(2)
+    expect(cp.summaries).toBe(1)
+    expect(cp.ends).toBe(1)
+  })
+})

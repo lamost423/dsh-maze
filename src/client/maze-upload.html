@@ -452,6 +452,12 @@ const I18N = {
     lgStepTitle: '横轴按步序，每步等宽、与墙钟解耦；列宽不代表耗时。列头 S<步号> 悬停可看该步真实起止与耗时',
     axisTime: '🕒 时间轴', axisTimeTitle: '横轴按真实时间（长等待折成细缝）；点击切到步序视图',
     axisStep: '#️⃣ 步序', axisStepTitle: '横轴按步序，每步一列等宽、与墙钟解耦；点击切回时间轴',
+    lgCompactReal: '⌄ 压缩事件（日志记录）', lgCompactRealTitle: '日志里有 compaction/start 事件，按事件时刻标注；悬停看压缩前后占用',
+    lgCompactGuess: '⌄ 压缩（按骤降推断）', lgCompactGuessTitle: '这份日志没有 compaction 事件，标注是按相邻请求占用骤降 ≥20% 推断的',
+    lgPruneMarks: '┊ 工具结果被裁剪', lgPruneTitle: '日志里的 compaction/prune：工具结果被裁掉以腾出上下文',
+    ctxReal: '压缩事件', ctxGuess: '压缩（推断）',
+    ctxRealNote: '来自日志里的 compaction 事件', ctxGuessNote: '日志没有 compaction 事件，按相邻请求占用骤降 ≥20% 推断',
+    ctxPruneTip: a => `工具结果被裁剪（prune）；裁剪前上下文约 ${a} tok`,
     lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连；标注为本轮耗时（不含轮间等待）',
     lgAnchor: '手动锚点', lgAnchorTitle: '🔗 添加 · 点线删除',
     lgSameTask: n => `⛓ 已识别为同一任务 ×${n}，对比功能启用`,
@@ -633,6 +639,12 @@ const I18N = {
     lgStepTitle: 'Axis runs in step order: every step gets an equal column, decoupled from wall-clock time — column width is not duration. Hover a column header (S<n>) for that step\u2019s real start, end and duration.',
     axisTime: '🕒 Time axis', axisTimeTitle: 'Axis uses real time (long waits fold into thin seams); click for the step-order view',
     axisStep: '#️⃣ Steps', axisStepTitle: 'Axis runs in step order — one equal-width column per step, decoupled from wall clock; click to go back to the time axis',
+    lgCompactReal: '⌄ compaction (logged)', lgCompactRealTitle: 'The log carries compaction/start events, so marks sit at their real times; hover for before/after occupancy',
+    lgCompactGuess: '⌄ compaction (inferred)', lgCompactGuessTitle: 'This log has no compaction events — marks are inferred from consecutive-request drops of ≥20%',
+    lgPruneMarks: '┊ tool results pruned', lgPruneTitle: 'compaction/prune in the log: tool results were trimmed to free context',
+    ctxReal: 'compaction event', ctxGuess: 'compaction (inferred)',
+    ctxRealNote: 'From the log\u2019s own compaction events', ctxGuessNote: 'No compaction events in this log — inferred from consecutive-request drops of ≥20%',
+    ctxPruneTip: a => `Tool results pruned; the context held about ${a} tok before the prune`,
     lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn; labels show per-turn time (inter-turn waits excluded)',
     lgAnchor: 'Manual anchor', lgAnchorTitle: '🔗 add · click a line to delete',
     lgSameTask: n => `⛓ Same task ×${n} — compare kit enabled`,
@@ -974,7 +986,8 @@ function buildLane(text){
   const turnEnds = []   // 结果与证据块：每轮以什么原因收尾（turn/end 的 reason.kind）
   const userMsgs = []   // 结果与证据块：真人消息的时刻（source.kind = user；指令文件/插件注入/子代理回报不算）
   // 行为信号块的原料：压缩事件（start 的时刻 + prune/summary 次数）、待办陈旧提醒次数、上下文窗口真值
-  const compaction = { starts: [], prunes: 0, summaries: 0, ends: 0 }
+  // pruneAt 记每次裁剪的时刻：上下文压力轨道要在真事件的位置上画刻线（诊断层第 3 项）
+  const compaction = { starts: [], pruneAt: [], prunes: 0, summaries: 0, ends: 0 }
   let todoReminders = 0
   let ctxWindow = null
   let curWin = null   // 当前生效的上下文窗口（最近一条 request/context）
@@ -993,6 +1006,7 @@ function buildLane(text){
       compaction.starts.push(Math.round(tm * 10) / 10)
     } else if (t === 'compaction/prune'){
       compaction.prunes += 1
+      compaction.pruneAt.push(Math.round(tm * 10) / 10)
     } else if (t === 'compaction/summary'){
       compaction.summaries += 1
     } else if (t === 'compaction/end'){
@@ -1277,6 +1291,12 @@ function compressTimeline(data){
   for (const l of data.lanes){
     l.main.forEach(remap)
     l.detours.forEach(remap)
+    // 压缩事件时刻跟着折叠坐标走（诊断层第 3 项：真事件要画在轨道上的正确位置）
+    const cp = l.compaction
+    if (cp){
+      cp.starts = (cp.starts0 ?? cp.starts).map(map)
+      if (cp.pruneAt) cp.pruneAt = (cp.pruneAt0 ?? cp.pruneAt).map(map)
+    }
   }
   data.Tmax = Math.max(c, 60)
   data.timeMap = { segments, gaps, seam }
@@ -1537,6 +1557,18 @@ function renderLegend(){
   lg.push(`<span class="lg"><span class="sw an"></span>${tr('lgAnswer')}</span>`)
   if (DATA.timeMap && DATA.timeMap.kind === 'step') lg.push(`<span class="lg" title="${tr('lgStepTitle')}">${tr('lgStep')}</span>`)
   else if (DATA.timeMap) lg.push(`<span class="lg">${tr('lgIdle')}</span>`)
+  // 压缩标注的口径进图例（诊断层第 3 项）：真事件按事件时刻画，旧日志退回骤降推断并写明是推断
+  const anyReal = DATA.lanes.some(l => (l.compaction?.starts?.length ?? 0) > 0)
+  const anyPrune = DATA.lanes.some(l => (l.compaction?.pruneAt?.length ?? 0) > 0)
+  if (anyReal){
+    lg.push(`<span class="lg" title="${tr('lgCompactRealTitle')}">${tr('lgCompactReal')}</span>`)
+  } else if (DATA.lanes.some(l => {
+    const occ = contextOccupancy(l)
+    return occ.samples.some((sm, i, arr) => i > 0 && arr[i - 1].tok > 0 && sm.tok < arr[i - 1].tok * (1 - SPARSE_RULES.CTX_DROP))
+  })){
+    lg.push(`<span class="lg" title="${tr('lgCompactGuessTitle')}">${tr('lgCompactGuess')}</span>`)
+  }
+  if (anyPrune) lg.push(`<span class="lg" title="${tr('lgPruneTitle')}">${tr('lgPruneMarks')}</span>`)
   if (cmpOn()){
     lg.push(`<span class="lg" title="${tr('lgSameTaskTitle')}">${tr('lgSameTask')(DATA.lanes.length)}</span>`)
     lg.push(`<span class="lg" title="${tr('lgAlignTitle')}"><span class="sw ms"></span>${tr('lgAlign')}</span>`)
@@ -2184,23 +2216,65 @@ function drawTracks(gTime, gStatic, lane, lay){
         gTime.appendChild(dot)
         markEls.push({ el: dot, s: n.e, e: n.e })
       }
-      // 上下文压缩事件标注：相邻样本降幅达 SPARSE_RULES.CTX_DROP 即视为一次压缩，
-      // 锯齿下落点标「⌄−N%」——排查「模型为什么忘了前面的事」的关键时刻；悬停看前后真值。
-      for (let i = 1; i < samples.length; i++){
-        // 降幅按 token 真值判（切模型只改窗口不改 token，不该冒充压缩）；标注位置按当前纵轴
-        const a = samples[i - 1].tok, b = samples[i].tok
-        if (a <= 0 || b >= a * (1 - SPARSE_RULES.CTX_DROP)) continue
-        if (!xVisible(samples[i].e, samples[i].e)) continue
-        const p = Math.round((1 - b / a) * 100)
-        const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(val(samples[i])) - 7, class: 'trk-cap' })
-        mk.setAttribute('fill', SVGC.ctxWarn)
-        mk.style.fontWeight = '700'
-        mk.textContent = '⌄−' + p + '%'
-        mk._ctxDrop = { a, b, p }; mk._ctxLane = lane
-        mk.addEventListener('mouseenter', onCtxDropHover)
-        mk.addEventListener('mouseleave', offTrackHover)
-        gTime.appendChild(mk)
-        markEls.push({ el: mk, s: samples[i].e, e: samples[i].e })
+      // 压缩标注（诊断层第 3 项）：优先画日志里的真事件——compaction/start 标「⌄−N%」、
+      // compaction/prune 画细刻线；没有真事件的旧日志才退回「相邻样本骤降 ≥20%」的推断，
+      // 并在悬停与图例里写明是推断（口径：真事件按时刻落位，推断按样本落点）。
+      const cp = lane.compaction
+      const realStarts = (cp?.starts ?? []).filter(t => xVisible(t, t))
+      const realPrunes = (cp?.pruneAt ?? []).filter(t => xVisible(t, t))
+      const aroundAt = t => {           // 事件前后的占用样本：前 = 最后一个 ≤ t 的样本，后 = 第一个 > t 的样本
+        let before = null, after = null
+        for (const sm of samples){
+          if (sm.e <= t) before = sm
+          else { after = sm; break }
+        }
+        return { before, after }
+      }
+      if (realStarts.length > 0 || realPrunes.length > 0){
+        for (const t of realPrunes){
+          const { before } = aroundAt(t)
+          const tk = el('line', { x1: x(t), y1: y0 + 14, x2: x(t), y2: yB, stroke: SVGC.ctxWarn, 'stroke-width': 1, 'stroke-dasharray': '2 3', opacity: '.85' })
+          tk._ctxDrop = { real: 'prune', at: t, a: before?.tok ?? null }
+          tk._ctxLane = lane
+          tk.addEventListener('mouseenter', onCtxDropHover)
+          tk.addEventListener('mouseleave', offTrackHover)
+          gTime.appendChild(tk)
+          markEls.push({ el: tk, s: t, e: t })
+        }
+        for (const t of realStarts){
+          const { before, after } = aroundAt(t)
+          const a = before?.tok ?? null, b = after?.tok ?? null
+          const p = a && b && a > 0 && b < a ? Math.round((1 - b / a) * 100) : null
+          const anchor = after ?? before
+          if (!anchor) continue
+          const mk = el('text', { x: x(t) + 4, y: yOf(val(anchor)) - 7, class: 'trk-cap' })
+          mk.setAttribute('fill', SVGC.ctxWarn)
+          mk.style.fontWeight = '700'
+          mk.textContent = p != null ? '⌄−' + p + '%' : '⌄'
+          mk._ctxDrop = { real: 'start', at: t, a, b, p }
+          mk._ctxLane = lane
+          mk.addEventListener('mouseenter', onCtxDropHover)
+          mk.addEventListener('mouseleave', offTrackHover)
+          gTime.appendChild(mk)
+          markEls.push({ el: mk, s: t, e: t })
+        }
+      } else {
+        for (let i = 1; i < samples.length; i++){
+          // 降幅按 token 真值判（切模型只改窗口不改 token，不该冒充压缩）；标注位置按当前纵轴
+          const a = samples[i - 1].tok, b = samples[i].tok
+          if (a <= 0 || b >= a * (1 - SPARSE_RULES.CTX_DROP)) continue
+          if (!xVisible(samples[i].e, samples[i].e)) continue
+          const p = Math.round((1 - b / a) * 100)
+          const mk = el('text', { x: x(samples[i].e) + 5, y: yOf(val(samples[i])) - 7, class: 'trk-cap' })
+          mk.setAttribute('fill', SVGC.ctxWarn)
+          mk.style.fontWeight = '700'
+          mk.textContent = '⌄−' + p + '%'
+          mk._ctxDrop = { a, b, p, real: null }; mk._ctxLane = lane
+          mk.addEventListener('mouseenter', onCtxDropHover)
+          mk.addEventListener('mouseleave', offTrackHover)
+          gTime.appendChild(mk)
+          markEls.push({ el: mk, s: samples[i].e, e: samples[i].e })
+        }
       }
     }
   }
@@ -2209,8 +2283,12 @@ function drawTracks(gTime, gStatic, lane, lay){
 function onCtxDropHover(e){
   const d = e.currentTarget._ctxDrop
   const tip = document.getElementById('tip')
-  tip.innerHTML = `<div class="th">${laneName(e.currentTarget._ctxLane)} · ${tr('trkCtx')}</div>`
-    + `<div class="rs">${esc(tr('ctxDropTip')(d.a, d.b, d.p))}</div>`
+  const title = d.real ? tr('ctxReal') : tr('ctxGuess')
+  tip.innerHTML = `<div class="th">${laneName(e.currentTarget._ctxLane)} · ${tr('trkCtx')} · ${title}</div>`
+    + (d.real === 'prune'
+      ? `<div class="rs">${esc(tr('ctxPruneTip')(fmtTok(d.a ?? 0)))}</div>`
+      : `<div class="rs">${esc(tr('ctxDropTip')(d.a, d.b, d.p))}</div>`)
+    + `<div class="rs">${esc(tr(d.real ? 'ctxRealNote' : 'ctxGuessNote'))}</div>`
   tip.style.display = 'block'
   placeTip(e)
 }

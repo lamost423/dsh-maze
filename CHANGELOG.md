@@ -4,6 +4,14 @@
 
 ## 未发布
 
+**诊断层第 3 项：上下文压力轨道的压缩标注改读日志真事件——`compaction/start` 标「⌄−N%」（悬停看压缩前后占用），`compaction/prune` 画细刻线（工具结果被裁剪）；没有真事件的旧日志退回「相邻请求骤降 ≥20%」的推断，图例与悬停都写明是推断。**
+
+- 解析层记下每一次 `compaction/prune` 的时刻（原先只有次数），压缩事件时刻跟着轴映射一起走（折叠/步序两种视图都落位正确，切视图不漂移）。
+- 口径与信号块对账：轨道上的 ⌄ 数量 = 行为信号「压缩发生」的次数、刻线数 = prune 次数；实测一份 574 步的真实日志：6 个 ⌄ / 15 条刻线，与信号块「压缩 6 次，裁剪 15 次」逐项一致，悬停显示「583,479 → 537,136 tok（−8%）」。
+- 新增 2 个单元测试（`compaction/prune` 时刻解析、压缩时刻随步序列映射与还原），168 → 170 全绿。
+
+_EN: Diagnosis item 3 — the context-pressure track now marks the log's real compaction events: `compaction/start` renders as `⌄−N%` (hover shows before/after occupancy) and `compaction/prune` as thin ticks (tool results trimmed); logs without events fall back to the ≥20% consecutive-request inference, labelled as inference both in the legend and on hover. The parser now records every prune timestamp, and compaction marks follow the axis mapping in both views. Verified against a real 574-step log: 6 ⌄ marks and 15 ticks, matching the behavior-signal block's "6 compactions, 15 prunes", with hover showing 583,479 → 537,136 tok (−8%). 2 new unit tests, 168 → 170._
+
 **issue #9：横轴新增「步序视图」——每一步一列等宽、与墙钟解耦；耗时与时刻的显示仍走墙钟真值。**
 
 - **背景**（issue #9，2026-09-01 提）：横轴原本只有墙钟时间（长等待折成细缝）。但「一分钟里跑二十步」的密集会话看不出到底多少步、逐步对账要来回找；等待段即使折成细缝，工作流在长会话里仍被压成一条窄带。

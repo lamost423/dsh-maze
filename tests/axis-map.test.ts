@@ -115,6 +115,19 @@ describe('axis-map：步序视图', () => {
     l.detours.push({ step: 2, s: 5, e: 6, tools: [] })
     expect(laneSteps(l).map(n => n.step)).toEqual([1, 2, 3])
   })
+
+  it('压缩事件时刻跟着所在列走，还原后回到原始时刻（诊断层第 3 项）', () => {
+    const d = data(lane('l1', [[1, 0, 10, []], [2, 20, 30, []]]))
+    d.lanes[0].compaction = { starts: [25], pruneAt: [5], prunes: 1, summaries: 1, ends: 1 }
+    applyStepMap(d)
+    expect(d.lanes[0].compaction!.starts).toEqual([1])     // 25 秒落在第 2 步 → 列 1
+    expect(d.lanes[0].compaction!.pruneAt).toEqual([0])    // 5 秒落在第 1 步 → 列 0
+    restoreOriginals(d)
+    expect(d.lanes[0].compaction!.starts).toEqual([25])
+    expect(d.lanes[0].compaction!.pruneAt).toEqual([5])
+    applyStepMap(d)
+    expect(d.lanes[0].compaction!.starts).toEqual([1])     // 再映射一次结果一致
+  })
 })
 
 describe('axis-map：折叠视图反查', () => {

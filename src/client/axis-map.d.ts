@@ -20,10 +20,22 @@ export interface AxisNode extends AxisSpan {
   tools?: (AxisSpan & { s?: number | null; e?: number | null })[]
 }
 
+/** 压缩事件原料：starts/pruneAt 是当前轴坐标，starts0/pruneAt0 是原始墙钟秒。 */
+export interface AxisCompaction {
+  starts: number[]
+  starts0?: number[]
+  pruneAt?: number[]
+  pruneAt0?: number[]
+  prunes?: number
+  summaries?: number
+  ends?: number
+}
+
 export interface AxisLane {
   key: string
   main: AxisNode[]
   detours: AxisNode[]
+  compaction?: AxisCompaction
 }
 
 export interface AxisData {

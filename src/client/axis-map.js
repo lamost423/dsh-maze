@@ -17,6 +17,11 @@ export const STEP_WIDTH = 0.92
 /** 把每个节点/工具的原始时间备份到 s0/e0。已有备份不覆盖（切视图来回时不丢原始值）。 */
 export function keepOriginals(data) {
   for (const l of data.lanes) {
+    const c = l.compaction
+    if (c) {
+      if (c.starts0 === undefined) c.starts0 = (c.starts ?? []).slice()
+      if (c.pruneAt0 === undefined && c.pruneAt !== undefined) c.pruneAt0 = c.pruneAt.slice()
+    }
     for (const arr of [l.main, l.detours]) {
       for (const n of arr) {
         if (n.s0 === undefined) n.s0 = n.s
@@ -32,9 +37,14 @@ export function keepOriginals(data) {
   }
 }
 
-/** 还原原始时间。切视图前调用：映射永远从原始坐标出发，多次切换不累积误差。 */
+/** 还原原始时间（含压缩事件时刻）。切视图前调用：映射永远从原始坐标出发，多次切换不累积误差。 */
 export function restoreOriginals(data) {
   for (const l of data.lanes) {
+    const c = l.compaction
+    if (c) {
+      if (c.starts0 !== undefined) c.starts = c.starts0.slice()
+      if (c.pruneAt0 !== undefined) c.pruneAt = c.pruneAt0.slice()
+    }
     for (const arr of [l.main, l.detours]) {
       for (const n of arr) {
         if (n.s0 !== undefined) n.s = n.s0
@@ -89,6 +99,20 @@ export function applyStepMap(data) {
       }
       cols.push({ lane: l.key, step: n.step, cs, ce, realS: s0, realE: e0 })
     })
+  }
+  // 压缩事件时刻跟着所在列走：落在第 k 步区间内的事件画到第 k 列（事件本身挂在两步之间的缝隙里时，
+  // 归到它前面那一步，和节点归属同一口径）。
+  for (const l of data.lanes) {
+    const c = l.compaction
+    if (!c) continue
+    const cols0 = laneSteps(l).map((n, k) => ({ s0: n.s0 ?? n.s, k }))
+    const colOf = t => {
+      let k = 0
+      for (const e of cols0) if (t >= e.s0) k = e.k
+      return k * unit
+    }
+    if (c.starts0) c.starts = c.starts0.map(colOf)
+    if (c.pruneAt0) c.pruneAt = c.pruneAt0.map(colOf)
   }
   const count = stepColumnCount(data.lanes)
   data.Tmax = Math.max(count, 1) * unit
