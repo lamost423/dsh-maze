@@ -394,6 +394,7 @@
   <span style="flex:1"></span>
   <button id="btnAnchor" style="display:none" title="两条泳道各点一个节点，钉一条对比锚线；点已钉的锚线可删除">🔗 加锚点</button>
   <button id="btnInv" style="display:none" title="按轮次盘点两条泳道的支路差额">📋 支路盘点</button>
+  <button id="btnAxis" title="横轴按真实时间（长等待折成细缝）；点击切到步序视图">🕒 时间轴</button>
   <button id="btnTracks" class="on" title="显示/隐藏泳道下方的数据轨道">📊 轨道</button>
   <button id="btnExpSvg" title="导出当前视图为 SVG">⬇ SVG</button>
   <button id="btnExpPng" title="导出当前视图为 PNG（2x）">⬇ PNG</button>
@@ -447,6 +448,10 @@ const I18N = {
     lgOut: '出程探索', lgOutTitle: '从分支点出发的探索',
     lgBack: '回程折返', lgBackTitle: '失败后折返分支点',
     lgAnswer: '最终回答', lgIdle: '⏸ 空闲已折叠',
+    lgStep: '#️⃣ 步序视图：每列一步',
+    lgStepTitle: '横轴按步序，每步等宽、与墙钟解耦；列宽不代表耗时。列头 S<步号> 悬停可看该步真实起止与耗时',
+    axisTime: '🕒 时间轴', axisTimeTitle: '横轴按真实时间（长等待折成细缝）；点击切到步序视图',
+    axisStep: '#️⃣ 步序', axisStepTitle: '横轴按步序，每步一列等宽、与墙钟解耦；点击切回时间轴',
     lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连；标注为本轮耗时（不含轮间等待）',
     lgAnchor: '手动锚点', lgAnchorTitle: '🔗 添加 · 点线删除',
     lgSameTask: n => `⛓ 已识别为同一任务 ×${n}，对比功能启用`,
@@ -624,6 +629,10 @@ const I18N = {
     lgOut: 'Outbound exploration', lgOutTitle: 'Exploration leaving a branch point',
     lgBack: 'Return backtrack', lgBackTitle: 'Backtrack to the branch point after a failure',
     lgAnswer: 'Final answer', lgIdle: '⏸ idle collapsed',
+    lgStep: '#️⃣ Step view: one column per step',
+    lgStepTitle: 'Axis runs in step order: every step gets an equal column, decoupled from wall-clock time — column width is not duration. Hover a column header (S<n>) for that step\u2019s real start, end and duration.',
+    axisTime: '🕒 Time axis', axisTimeTitle: 'Axis uses real time (long waits fold into thin seams); click for the step-order view',
+    axisStep: '#️⃣ Steps', axisStepTitle: 'Axis runs in step order — one equal-width column per step, decoupled from wall clock; click to go back to the time axis',
     lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn; labels show per-turn time (inter-turn waits excluded)',
     lgAnchor: 'Manual anchor', lgAnchorTitle: '🔗 add · click a line to delete',
     lgSameTask: n => `⛓ Same task ×${n} — compare kit enabled`,
@@ -829,6 +838,10 @@ function applyStatic(){
   bi.textContent = tr('invBtn'); bi.title = tr('invTitle')
   const bt = document.getElementById('btnTracks')
   bt.textContent = tr('tracksBtn'); bt.title = tr('tracksTitle')
+  const bx = document.getElementById('btnAxis')
+  bx.textContent = tr(AXIS_MODE === 'step' ? 'axisStep' : 'axisTime')
+  bx.title = tr(AXIS_MODE === 'step' ? 'axisStepTitle' : 'axisTimeTitle')
+  bx.classList.toggle('on', AXIS_MODE === 'step')
   document.getElementById('btnExpSvg').title = tr('expSvgTitle')
   document.getElementById('btnExpPng').title = tr('expPngTitle')
   document.getElementById('panelClose').title = tr('closeEsc')
@@ -1077,6 +1090,10 @@ function buildLane(text){
    自 verdict.js 注入——与 live-data.ts 共用同一份真相源，改判定请改 verdict.js。 */
 /*__VERDICT__*/
 
+/* 横轴映射（keepOriginals/restoreOriginals/applyStepMap/stepWallClock/foldWallClock）
+   构建期自 axis-map.js 注入——与 tests/axis-map.test.ts 共用同一份真相源。 */
+/*__AXIS__*/
+
 function buildData(fileTexts, fileNames){
   const lanes = fileTexts.map((text, i) => {
     const { rows, model, firstUser, turnEnds, userMsgs, compaction, todoReminders, ctxWindow } = buildLane(text)
@@ -1123,13 +1140,13 @@ function buildData(fileTexts, fileNames){
 /* 轮次聚合（纯数据，对比模式的对齐线与支路盘点共用）。turn 缺失的旧日志统一记第 1 轮。 */
 
 /** 每轮支路聚合：Map(turn → { n, T, by:{error,retry,deadend} })。T 为墙钟秒——wall 把（可能折叠过的）坐标反查回墙钟，未折叠时传恒等函数。 */
-function turnDetourStats(lane, wall){
+function turnDetourStats(lane){
   const m = new Map()
   for (const d of lane.detours){
     const t = d.turn ?? 1
     const g = m.get(t) ?? { n: 0, T: 0, by: { error: 0, retry: 0, deadend: 0 } }
     g.n += 1
-    g.T += Math.max(0, wall(d.e) - wall(d.s))
+    g.T += rawDur(d)
     g.by[d.v] = (g.by[d.v] ?? 0) + 1
     m.set(t, g)
   }
@@ -1148,7 +1165,7 @@ function turnStartTimes(lane){
   const m = new Map()
   for (const n of [...lane.main, ...lane.detours]){
     const t = n.turn ?? 1
-    if (!m.has(t) || n.s < m.get(t)) m.set(t, n.s)
+    if (!m.has(t) || rawS(n) < m.get(t)) m.set(t, rawS(n))
   }
   return m
 }
@@ -1265,15 +1282,53 @@ function compressTimeline(data){
   data.timeMap = { segments, gaps, seam }
 }
 
-/** Compressed time → wall-clock seconds (for the playback clock). */
+/** 轴坐标 → 墙钟秒（播放时钟这类显示用）。两种映射分别反查；要精确耗时请直接读节点的 s0/e0。 */
 function wallClock(t){
   if (!DATA || !DATA.timeMap) return t
-  const segs = DATA.timeMap.segments
-  for (let i = segs.length - 1; i >= 0; i--){
-    const g = segs[i]
-    if (t >= g.cs) return Math.min(g.re, g.rs + (t - g.cs))
+  return DATA.timeMap.kind === 'step' ? stepWallClock(t, DATA.timeMap) : foldWallClock(t, DATA.timeMap)
+}
+
+/* ==================== 横轴视图：时间（空闲折叠）/ 步序 ==================== */
+/*
+ * 时间视图解决"整段挂起横贯一屏"，但对"一分钟里跑二十步"这类会话仍然只能看出相对宽窄；
+ * 步序视图（issue #9）把每一步压成一列等宽，与墙钟解耦——对比模式下同一列就是各泳道的同一步。
+ * 两个视图都从原始时间重新映射，随时切换不会累积误差；真实耗时的显示一律读 s0/e0。
+ */
+let AXIS_MODE = 'time'   // 'time' | 'step'
+
+/** 按当前视图把节点时间映射到轴坐标：先还原原始时间，再套该视图的映射。 */
+function applyAxisMap(data){
+  keepOriginals(data)
+  restoreOriginals(data)
+  if (AXIS_MODE === 'step'){
+    applyStepMap(data)
+    return
   }
-  return t
+  compressTimeline(data)
+}
+
+/** 真实时间读数（原始墙钟秒）：映射只改 s/e，时刻与耗时的显示一律读 s0/e0。 */
+const rawS = o => o.s0 ?? o.s
+const rawE = o => o.e0 ?? o.e ?? o.s
+const rawDur = o => Math.max(0, rawE(o) - rawS(o))
+
+/** 切换横轴视图：重置缩放（旧窗口是上一套坐标），重画整图与图例。 */
+function setAxisMode(mode){
+  if (mode === AXIS_MODE) return
+  AXIS_MODE = mode
+  const btn = document.getElementById('btnAxis')
+  if (btn){
+    btn.classList.toggle('on', mode === 'step')
+    btn.textContent = tr(mode === 'step' ? 'axisStep' : 'axisTime')
+    btn.title = tr(mode === 'step' ? 'axisStepTitle' : 'axisTimeTitle')
+  }
+  if (!DATA) return
+  applyAxisMap(DATA)
+  TMAX = DATA.Tmax + liveHeadroom(DATA)
+  VIEW = null
+  renderLegend()
+  renderMetaStrip()
+  queueBuild()
 }
 
 /* ============================ 布局 ============================ */
@@ -1480,7 +1535,8 @@ function renderLegend(){
   lg.push(`<span class="lg"><span class="sw de"></span>${tr('vDead')}</span>`)
   lg.push(`<span class="lg"><span class="sw rt"></span>${tr('vRetry')}</span>`)
   lg.push(`<span class="lg"><span class="sw an"></span>${tr('lgAnswer')}</span>`)
-  if (DATA.timeMap) lg.push(`<span class="lg">${tr('lgIdle')}</span>`)
+  if (DATA.timeMap && DATA.timeMap.kind === 'step') lg.push(`<span class="lg" title="${tr('lgStepTitle')}">${tr('lgStep')}</span>`)
+  else if (DATA.timeMap) lg.push(`<span class="lg">${tr('lgIdle')}</span>`)
   if (cmpOn()){
     lg.push(`<span class="lg" title="${tr('lgSameTaskTitle')}">${tr('lgSameTask')(DATA.lanes.length)}</span>`)
     lg.push(`<span class="lg" title="${tr('lgAlignTitle')}"><span class="sw ms"></span>${tr('lgAlign')}</span>`)
@@ -1616,7 +1672,35 @@ function build(){
     }
     gTicks.appendChild(g)
   }
-  if (DATA.timeMap){
+  if (DATA.timeMap && DATA.timeMap.kind === 'step'){
+    // 步序视图：每列一步，等宽；列头标步序号，悬停给该步的真实起止与耗时。
+    let lastLab = -1e9
+    const U = DATA.timeMap.unit
+    for (let k = 0; k < DATA.timeMap.count; k++){
+      const cx = x(k * U)
+      if (cx < X0 - 20 || cx > X0 + AXIS_W + 20) continue
+      const g = el('g', {})
+      g.appendChild(el('line', { x1: cx, y1: 0, x2: cx, y2: DATA.viewH, stroke: SVGC.grid, 'stroke-width': k % 5 === 0 ? 1 : 0.5 }))
+      const col = DATA.timeMap.cols.filter(c => Math.abs(c.cs - k * U) < 1e-9)
+      if (col.length){
+        const realS = Math.min(...col.map(c => c.realS))
+        const realE = Math.max(...col.map(c => c.realE))
+        const tip = el('title', {})
+        tip.textContent = `S${k + 1} · ${fmtT(realS)} → ${fmtT(realE)}（${fmtT(realE - realS)}）`
+        g.appendChild(tip)
+      }
+      const label = 'S' + (k + 1)
+      const half = label.length * 3 + 3
+      if (cx - half >= lastLab + 6){
+        const tx = el('text', { x: cx, y: 14, 'text-anchor': 'middle', class: k % 5 === 0 ? 'tick big' : 'tick' })
+        tx.textContent = label
+        g.appendChild(tx)
+        tickLabels.push({ x: cx, text: label, cls: k % 5 === 0 ? 'tick big' : 'tick' })
+        lastLab = cx + half
+      }
+      gTicks.appendChild(g)
+    }
+  } else if (DATA.timeMap){
     // Ticks live inside activity segments and carry wall-clock labels; each
     // collapsed idle gap renders as a hatched seam labeled with the skipped time.
     for (const seg of DATA.timeMap.segments){
@@ -1653,7 +1737,7 @@ function build(){
   if (cmpOn()){
     const ends = DATA.lanes.map(turnEndNodes)
     const starts = DATA.lanes.map(turnStartTimes)
-    const dets = DATA.lanes.map(l => turnDetourStats(l, wallClock))
+    const dets = DATA.lanes.map(l => turnDetourStats(l))
     for (const turn of unionTurns(DATA.lanes)){
       const pts = []
       DATA.lanes.forEach((l, i) => {
@@ -1672,10 +1756,10 @@ function build(){
         g.appendChild(f)
         g.appendChild(el('circle', { cx: x(p.n.e), cy: p.y, r: 12, fill: 'none', stroke: SVGC.milestone, 'stroke-width': 2 }))
       }
-      const per = pts.map(p => fmtT(wallClock(p.n.e) - wallClock(starts[p.i].get(turn) ?? p.n.s)))
+      const per = pts.map(p => fmtT(rawE(p.n) - (starts[p.i].get(turn) ?? rawS(p.n))))
       const lab = el('text', { x: (x(pts[0].n.e) + x(pts[1].n.e)) / 2, y: (pts[0].y + pts[1].y) / 2 - 8, 'text-anchor': 'middle', class: 'mslabel' })
       if (pts.length === 2){
-        const [wa, wb] = [wallClock(pts[0].n.e) - wallClock(starts[pts[0].i].get(turn) ?? pts[0].n.s), wallClock(pts[1].n.e) - wallClock(starts[pts[1].i].get(turn) ?? pts[1].n.s)]
+        const [wa, wb] = [rawE(pts[0].n) - (starts[pts[0].i].get(turn) ?? rawS(pts[0].n)), rawE(pts[1].n) - (starts[pts[1].i].get(turn) ?? rawS(pts[1].n))]
         const dA = dets[pts[0].i].get(turn), dB = dets[pts[1].i].get(turn)
         lab.textContent = tr('alignLabel')(turn, per[0], per[1], fmtT(Math.abs(wb - wa)))
           + ((dA?.n ?? 0) + (dB?.n ?? 0) > 0 ? tr('alignDet')(dA?.n ?? 0, dB?.n ?? 0) : '')
@@ -2204,7 +2288,7 @@ function drawAnchors(gTime){
     const g = el('g', {})
     g.appendChild(el('line', { x1: ax, y1: pa.y, x2: bx, y2: pb.y, class: 'ancline' }))
     const lab = el('text', { x: (ax + bx) / 2 + 8, y: (pa.y + pb.y) / 2 + 4, class: 'anclabel' })
-    lab.textContent = `⚓ ${nodeLabel(pa.n)} ↔ ${nodeLabel(pb.n)}（Δ${fmtT(Math.abs(wallClock(pb.n.e) - wallClock(pa.n.e)))}）✕`
+    lab.textContent = `⚓ ${nodeLabel(pa.n)} ↔ ${nodeLabel(pb.n)}（Δ${fmtT(Math.abs(rawE(pb.n) - rawE(pa.n)))}）✕`
     g.appendChild(lab)
     const tt = el('title', {}); tt.textContent = tr('anchorDel'); g.appendChild(tt)
     g.addEventListener('click', ev => { ANCHORS.splice(i, 1); queueBuild(); ev.stopPropagation() })
@@ -2298,7 +2382,7 @@ function fmtDetDiff(dT, any){
 
 function renderInventory(){
   if (!cmpOn()) return
-  const stats = DATA.lanes.map(l => turnDetourStats(l, wallClock))
+  const stats = DATA.lanes.map(l => turnDetourStats(l))
   const totals = DATA.lanes.map(() => ({ n: 0, T: 0 }))
   const two = DATA.lanes.length === 2   // 差额列只对两条泳道有意义；N 泳道各列并排即为盘点
   let rows = ''
@@ -2371,14 +2455,14 @@ function clearSigSel(){
  * 该泳道的活动时长（墙钟秒）：节点/工具区间按空闲折叠同口径（IDLE_MIN 内视为连续）
  * 合并后求和。「工具占比」的分母用它而不用总时长——27 小时挂机的会话不该把密集的
  * 工具活动稀释成 1%（对齐线 v0.5.1 起就剔除轮间等待，这里同口径）。
- * 墙钟折算在此完成（compressTimeline 后节点时间是折叠坐标），合并规则在可测模块。
+ * 墙钟折算在此完成（映射后节点时间是轴坐标，耗时统计一律读原始 s0/e0），合并规则在可测模块。
  */
 function laneActiveTime(lane){
   const iv = []
   for (const n of [...lane.main, ...lane.detours]){
-    iv.push([wallClock(n.s), wallClock(Math.max(n.e, n.s))])
+    iv.push([rawS(n), rawE(n)])
     for (const tl of n.tools ?? []){
-      if (tl.s != null) iv.push([wallClock(tl.s), wallClock(Math.max(tl.e ?? tl.s, tl.s))])
+      if (tl.s != null) iv.push([rawS(tl), rawE(tl)])
     }
   }
   return mergeIntervalsTotal(iv, IDLE_MIN)
@@ -2567,10 +2651,10 @@ function renderAnalysis(){
   let h = ''
   DATA.lanes.forEach((lane, li) => {
     const calls = settledLaneCalls(lane)
-    // 恢复链在墙钟坐标上算（compressTimeline 把节点时间改成了折叠坐标，恢复耗时必须是真实秒数）
+    // 恢复链在墙钟坐标上算（映射只改 s/e，恢复耗时必须是真实秒数）
     const chains = analyzeFailureChains(calls.map(c => ({
       name: c.tl.name, args: c.tl.args ?? '', v: c.tl.v,
-      s: wallClock(c.tl.s), e: c.tl.e != null ? wallClock(c.tl.e) : null,
+      s: rawS(c.tl), e: c.tl.e != null ? rawE(c.tl) : null,
     })))
     const m = toolMatrix(calls.map(c => c.tl))
     const fails = chains.length
@@ -2727,6 +2811,10 @@ document.getElementById('btnTracks').addEventListener('click', () => {
   tracksOn = !tracksOn
   document.getElementById('btnTracks').classList.toggle('on', tracksOn)
   queueBuild()
+})
+
+document.getElementById('btnAxis').addEventListener('click', () => {
+  setAxisMode(AXIS_MODE === 'step' ? 'time' : 'step')
 })
 
 /* ==================== 导出：当前视图 SVG / PNG（2x），固定浅色底 ==================== */
@@ -2905,11 +2993,11 @@ function showTipFor(d){
   const sub = d.sub === true
   let inner = `<div class="th">${laneName(lane)} ${nodeLabel(d)} · ${nodeKindLabel(d, false)} · ${vlabel(d.v)}${d.v === 'error' && !d.evt ? tr('rejected') : ''}</div>`
   if (d.why) inner += `<div class="rs">${tr('whyLabel')}${esc(whyText(d.why, d.why2))}</div>`
-  inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(d.s)), fmtT(wallClock(d.e)))}${tr('durP')((d.e - d.s).toFixed(1))}${d.evt ? '' : ' · ' + rzLabel(d)}</div>`
+  inner += `<div class="rs">${tr('spanTo')(fmtT(rawS(d)), fmtT(rawE(d)))}${tr('durP')(rawDur(d).toFixed(1))}${d.evt ? '' : ' · ' + rzLabel(d)}</div>`
   inner += d.evt ? ''
     : sub
     ? `<div class="back">${tr('subSpawn')(d.attach, d.live === true)}</div>`
-    : `<div class="back">${tr('outCurve')(d.attach, fmtT(wallClock(d.s)), fmtT(wallClock(d.e)))}</div>`
+    : `<div class="back">${tr('outCurve')(d.attach, fmtT(rawS(d)), fmtT(rawE(d)))}</div>`
       + `<div class="back">${tr('deadReturn')(d.attach)}</div>`
   d.tools.forEach(t => {
     inner += `<pre><b>${tlabel(t.name)}</b> (${t.dur}s) ${t.v === 'error' ? '✗' : (t.v === 'retry' ? '↻' : '')}\n${esc(t.args)}</pre>`
@@ -2927,7 +3015,7 @@ function onHover(e){
   let inner = `<div class="th">${laneName(lane)} ${nodeLabel(n)} · ${nodeKindLabel(n, g._isMain)} · ${vlabel(n.v)}${n.v === 'error' && !n.evt ? tr('rejected') : ''}</div>`
   if (n.v !== 'answer'){
     if (n.why) inner += `<div class="rs">${tr('whyLabel')}${esc(whyText(n.why, n.why2))}</div>`
-    inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))}${tr('durP')((n.e - n.s).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}</div>`
+    inner += `<div class="rs">${tr('spanTo')(fmtT(rawS(n)), fmtT(rawE(n)))}${tr('durP')(rawDur(n).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}</div>`
     if (!g._isMain && !n.evt){
       inner += n.sub
         ? `<div class="back">${tr('subSpawn')(n.attach, n.live === true)}</div>`
@@ -2959,7 +3047,7 @@ function onToolHover(e){
   const tl = bar._tool, lane = bar._toolLane, n = bar._toolNode
   const tip = document.getElementById('tip')
   let inner = `<div class="th">${laneName(lane)} S${n.step} · ${tr('parallelCall')} ${esc(tlabel(tl.name))} · ${vlabel(tl.v)}</div>`
-  inner += `<div class="rs">${tr('spanTo')(fmtT(wallClock(tl.s)), tl.e != null ? fmtT(wallClock(tl.e)) : tr('running'))}${tl.dur != null ? tr('durP')(tl.dur) : ''}</div>`
+  inner += `<div class="rs">${tr('spanTo')(fmtT(rawS(tl)), tl.e != null ? fmtT(rawE(tl)) : tr('running'))}${tl.dur != null ? tr('durP')(tl.dur) : ''}</div>`
   if (tl.why) inner += `<div class="rs">${tr('whyLabel')}${esc(whyText(tl.why, tl.why2))}</div>`
   inner += `<pre>${esc(tl.args || tr('noArgs'))}</pre>`
   if (tl.res) inner += `<div class="rs">${tr('resultLabel')}<pre>${esc(tl.res)}</pre></div>`
@@ -2993,7 +3081,7 @@ function openPanel(n, lane, isMain){
   const chip = document.getElementById('panelChip')
   chip.textContent = nodeKindLabel(n, isMain) + ' · ' + vlabel(n.v)
   chip.style.background = isMain && n.v === 'ok' ? MAIN_COLOR[lane.key] : (VCOLOR[n.v] ?? '#9aa4b8')
-  let inner = `<div class="prow">${tr('spanTo')(fmtT(wallClock(n.s)), fmtT(wallClock(n.e)))} · ${tr('took')((n.e - n.s).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}${n.turn != null ? tr('turnSuffix')(n.turn) : ''}</div>`
+  let inner = `<div class="prow">${tr('spanTo')(fmtT(rawS(n)), fmtT(rawE(n)))} · ${tr('took')(rawDur(n).toFixed(1))}${n.evt ? '' : ' · ' + rzLabel(n)}${n.turn != null ? tr('turnSuffix')(n.turn) : ''}</div>`
   if (n.why) inner += `<div class="prow">${tr('whyLabel')}${esc(whyText(n.why, n.why2))}</div>`
   if (!isMain && !n.evt){
     inner += n.sub
@@ -3324,7 +3412,7 @@ function scrollToMain(){
 function renderData(data, opts){
   opts = opts ?? {}
   DATA = data
-  compressTimeline(DATA)
+  applyAxisMap(DATA)
   TMAX = DATA.Tmax + liveHeadroom(DATA)
   // Fresh uploads reset the zoom (and compare-mode user state: anchors, inventory
   // selection); live refreshes keep the user's window, re-clamped to the new
@@ -3489,6 +3577,9 @@ function liveRawTimes(data){
  * 图例、头部指标条、分析区都不动。轴的余量（liveHeadroom）用完才整图重画。
  */
 function extendLive(payload, rawLive){
+  // 步序视图下坐标是「列号」，按秒推进没有意义：跳过轻量延长，等结构变化时整图重画
+  // （列宽恒等，运行中的步在下次 renderData 里按当时的真实终点重算列内进度）。
+  if (AXIS_MODE === 'step') return
   let maxE = 0, grew = false
   const segs = DATA.timeMap ? DATA.timeMap.segments : null
   const last = segs ? segs[segs.length - 1] : null

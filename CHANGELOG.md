@@ -2,6 +2,18 @@
 
 本仓库的版本历史。英文摘要附在每个条目末尾。
 
+## 未发布
+
+**issue #9：横轴新增「步序视图」——每一步一列等宽、与墙钟解耦；耗时与时刻的显示仍走墙钟真值。**
+
+- **背景**（issue #9，2026-09-01 提）：横轴原本只有墙钟时间（长等待折成细缝）。但「一分钟里跑二十步」的密集会话看不出到底多少步、逐步对账要来回找；等待段即使折成细缝，工作流在长会话里仍被压成一条窄带。
+- **做法**：工具条加 `🕒 时间轴` / `#️⃣ 步序` 开关。步序视图把每一步压成一列等宽（列宽不代表耗时），步内工具的先后与相对位置保留；对比模式下同一列就是各泳道的同一步，逐步对账直接对齐。列头悬停给出该步的真实起止与耗时。
+- **实现**：新增 `src/client/axis-map.js`（纯函数，构建期按 `/*__AXIS__*/` 占位符内联进页面，`tests/axis-map.test.ts` 直接 import 同一份源码）。两种视图都先把原始时间备份到 `s0`/`e0` 再从原始坐标映射，来回切换不累积误差；所有耗时/时刻显示（提示面板、对齐线、锚点 Δ、恢复链、活动时长）改读 `s0`/`e0`，坐标反查只留给播放时钟。
+- **已知取舍**：步序视图下实时页签的「每秒生长」不生效（列坐标按秒推进没有意义），结构变化时整图重画；时间视图不受影响。
+- 新增 10 个单元测试（等宽列、列内工具按比例压缩、多泳道同一步同列、来回切换坐标不漂移、列内插值与列间距反查、空泳道与单步会话、折叠视图反查四情形），158 → 168 全绿。实机在 `0.2.0-rc.2` 宿主上用两份真实日志验证（63 秒 23 步的密集会话、8 月的长会话）：步序列 12–13px 等间距、轴标签 `S1…Sn`、图例与按钮随视图切换、来回切换零控制台报错。
+
+_EN: Issue #9 — the axis gains a **step view**: one equal-width column per step, decoupled from wall-clock time, while every duration and timestamp shown stays wall-clock. A toolbar toggle (`🕒 Time axis` / `#️⃣ Steps`) switches between the existing idle-folded time axis and the new step axis; inside a step, tool order and relative position are preserved, and in comparison mode the same column is the same step of every lane. The mapping lives in a new pure module (`src/client/axis-map.js`, inlined into the page at build time and imported directly by its tests); both views remap from originals backed up as `s0`/`e0`, so switching back and forth never drifts, and all duration/timestamp displays read those originals instead of inverting axis coordinates (the inverse is kept for the playback clock only). Known trade-off: the live tab's per-second growth is skipped in step view (advancing column coordinates by seconds is meaningless) — the maze redraws when structure changes; the time axis is unaffected. 10 new unit tests, 158 → 168, all green, plus live verification on a `0.2.0-rc.2` host with two real logs (a 63-second/23-step session and a long August session): equal 12–13 px columns, `S1…Sn` axis labels, legend and button following the mode, zero console errors on switching._
+
 ## v2.4.0 — 2026-10-05
 
 **子代理支路在新宿主上改由插件自己持有（`0.1.6-alpha.2` 起）；运行中的步骤与支路每秒生长；上下文窗口优先用宿主真值；并修掉 2.3.0 冒烟与评审查出的几处小问题。另外补上了桌面版装不上的两个包侧问题：GitHub 安装不再装出空壳，peer 范围放开到 `0.2.x`。**

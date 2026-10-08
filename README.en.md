@@ -78,6 +78,7 @@ Two entries: the **Live Maze** tab inside every session (grows with the running 
 Timeline honesty rules:
 
 - **Idle folding**: stretches with no step or tool activity for over 60 s (you thinking between turns) collapse into a thin `⏸` seam labeled with the skipped duration. Axis ticks keep wall-clock labels inside activity segments.
+- **Step view** (`🕒 Time axis` / `#️⃣ Steps` in the toolbar): one equal-width column per step, decoupled from wall-clock time — dense sessions that pack twenty steps into a minute, and long waits that squeeze the real work into a sliver, both read clearly. In comparison mode the same column is the same step of every lane, so step-by-step accounting needs no hunting. Hover a column header for that step's real start, end and duration; every duration stays wall-clock, and switching back to the time axis loses nothing but the zoom.
 - Step identity is turn-qualified (`S15·47`), so multi-turn sessions attach detours to the right nodes.
 - Durations, tool timings, and totals stay wall-clock; only the axis is compressed.
 - **The live tab renders only the conversation's loaded event window** (honestly labeled since v0.2.3): stale steps from earlier turns leaking into the window edge are dropped and noted as "⏮ N earlier steps not loaded" instead of piling at 0 s and inflating stats; for the whole session, download the log and use the upload view.
