@@ -75,3 +75,43 @@ describe('page parse: compaction events (诊断层第 3 项)', () => {
     expect(cp.ends).toBe(1)
   })
 })
+
+describe('page parse: 上下文构成（诊断层第 4 项）', () => {
+  it('逐段按字符估算，并识别 skill 工具加载了哪个技能', () => {
+    const t0 = 1_787_000_000_000
+    const lines = [
+      ev('user/message', { content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }, t0),
+      ev('request/header', { header: { system: 'S'.repeat(1200), config: { model: 'm' } } }, t0 + 50),
+      ev('user/message', {
+        content: [{ type: 'text', text: 'x'.repeat(30) }],
+        source: { kind: 'agent-instructions', changes: [{ path: 'AGENTS.md' }, { path: 'CLAUDE.md' }, { path: 'AGENTS.md' }] },
+      }, t0 + 60),
+      ev('user/message', {
+        content: [{ type: 'text', text: 'y'.repeat(40) }],
+        source: { kind: 'skill-catalog', entries: [{ name: 'a', description: 'd'.repeat(9) }, { name: 'bb', description: 'd'.repeat(8) }] },
+      }, t0 + 70),
+      ev('user/message', { content: [{ type: 'text', text: 'p'.repeat(25) }], source: { kind: 'plugin:todo-freshness-guard' } }, t0 + 80),
+      ev('turn/start', { turn: 1 }, t0 + 100),
+      ev('step/start', { turn: 1, step: 1 }, t0 + 200),
+      ev('tool/call', { name: 'skill', arguments: JSON.stringify({ name: 'digest-qa-verify' }), callId: 'c1' }, t0 + 300),
+      ev('tool/result', { callId: 'c1', content: [{ type: 'text', text: 'r'.repeat(50) }] }, t0 + 400),
+      ev('assistant/message', { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'z'.repeat(70) }] }, usage: { inputTokens: 10, cacheReadTokens: 0, outputTokens: 5 } }, t0 + 500),
+      ev('step/end', { turn: 1, step: 1 }, t0 + 600),
+      ev('turn/end', { turn: 1, reason: { kind: 'completed' } }, t0 + 700),
+    ].join('\n')
+    const lane = page.buildData([lines], ['x.jsonl']).lanes[0]!
+    const ctx = (lane as { context: {
+      sys: number | null; instr: number | null; skills: { n: number; chars: number } | null
+      plugin: { name: string; chars: number }[]; tool: number | null; user: number | null
+      assistant: number | null; loaded: string[]
+    } }).context
+    expect(ctx.sys).toBe(1200)                                   // request/header.header.system 长度
+    expect(ctx.instr).toBe(2)                                    // 三个 changes 里两个不同路径
+    expect(ctx.skills).toEqual({ n: 2, chars: 20 })              // (1+9) + (2+8)
+    expect(ctx.plugin).toEqual([{ name: 'todo-freshness-guard', chars: 25 }])
+    expect(ctx.tool).toBe(50)
+    expect(ctx.user).toBe(2)                                     // 'go'
+    expect(ctx.assistant).toBe(70)
+    expect(ctx.loaded).toEqual(['digest-qa-verify'])
+  })
+})

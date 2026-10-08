@@ -116,6 +116,27 @@ export interface MazeLane {
         summaries: number;
         ends: number;
     };
+    /**
+     * 上下文构成（诊断层第 4 项）：逐段字符数估算。实时窗口里只有工具返回的**截断**文本，
+     * 系统提示/指令文件/技能目录不在快照里，所以这里只有工具返回一项并标 live。
+     */
+    context?: {
+        sys: number | null;
+        instr: number | null;
+        skills: {
+            n: number;
+            chars: number;
+        } | null;
+        plugin: {
+            name: string;
+            chars: number;
+        }[];
+        tool: number | null;
+        user: number | null;
+        assistant: number | null;
+        loaded: string[];
+        live?: boolean;
+    };
     /** todo-freshness-guard 插件提醒次数（行为信号「待办陈旧」）。 */
     todoReminders?: number;
     /** 上下文窗口真值：上传链路读 request/context，实时链路读宿主 contextPressure 投影；都没有时省略，页面退回模型表。 */

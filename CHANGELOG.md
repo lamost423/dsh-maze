@@ -4,6 +4,14 @@
 
 ## 未发布
 
+**诊断层第 4 项：分析区新增「上下文里装了什么」——系统提示、技能目录、插件注入、工具返回、用户消息、模型输出按字符数估算画堆叠条，并列「技能目录 N 个、本场加载 M 个」。**
+
+- 口径（一律标注是**字符估算，不是 token 真值**）：系统提示取 `request/header.header.system` 最长的一份；技能目录取 catalog 条目 name+description；插件注入按来源名分组（日志格式 v4 的 `plugin:<名>` 与旧格式都认）；工具返回、用户消息、模型输出按日志原文长度累计；指令文件只有路径与摘要，只报文件数并注明「正文大小未记录」。技能加载 = `skill` 工具调用参数里的名字（去重）。
+- 没有可估数据的日志该块不画；实时页签只统计已加载窗口内的部分（块里注明，且工具返回是截断文本，属于下界）。
+- 验收：同一份 500 行真实日志，块里的六段字符数与独立脚本核算逐项一致（系统提示 6,331 / 技能目录 17,367 / 插件注入 855 / 工具返回 91,648 / 用户消息 73 / 模型输出 1,199，指令文件 2 个、技能目录 119 个、本场加载 0 个），零控制台报错；新增 1 个解析单元测试，170 → 171 全绿。
+
+_EN: Diagnosis item 4 — the analysis area gains a **"What the context carried"** block: system prompt, skill catalog, plugin injections, tool results, user messages and model output, estimated by character count in one stacked bar, plus "catalog holds N, M loaded this session". Every number is labelled a character estimate, never a token count; instruction files only report a file count (the log records paths and digests, not sizes). Logs with nothing to measure skip the block; the live tab counts only its loaded window and says so (tool results there are truncated lower bounds). Verified on a 500-line real log: all six segments match an independent script exactly (6,331 / 17,367 / 855 / 91,648 / 73 / 1,199; 2 instruction files, 119 catalog entries, 0 loaded), zero console errors; 1 new parse unit test, 170 → 171._
+
 **诊断层第 3 项：上下文压力轨道的压缩标注改读日志真事件——`compaction/start` 标「⌄−N%」（悬停看压缩前后占用），`compaction/prune` 画细刻线（工具结果被裁剪）；没有真事件的旧日志退回「相邻请求骤降 ≥20%」的推断，图例与悬停都写明是推断。**
 
 - 解析层记下每一次 `compaction/prune` 的时刻（原先只有次数），压缩事件时刻跟着轴映射一起走（折叠/步序两种视图都落位正确，切视图不漂移）。

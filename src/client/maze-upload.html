@@ -237,6 +237,16 @@
   @media (max-width:980px){ .anagrid{grid-template-columns:1fr} }
   .anablock{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 13px 12px; box-shadow:var(--shadow-sm); min-width:0}
   .anablock > .bt{font-size:12px; font-weight:700; color:var(--txt); margin-bottom:6px; letter-spacing:.01em}
+  /* 上下文构成（诊断层第 4 项）：堆叠条 + 逐段字符数 */
+  .cchint{font-weight:400; color:var(--dim); font-size:10.5px; margin-left:6px}
+  .ccbar{display:flex; height:13px; border-radius:7px; overflow:hidden; border:1px solid var(--line); margin:2px 0 8px}
+  .ccseg{min-width:2px}
+  .cclist{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:11px; color:var(--dim)}
+  .ccrow{display:flex; align-items:center; gap:5px}
+  .ccsw{width:9px; height:9px; border-radius:2px; display:inline-block}
+  .ccnum{color:var(--txt); font-variant-numeric:tabular-nums}
+  .ccpct{opacity:.75}
+  .ccnote{margin-top:7px; font-size:10.5px; color:var(--dim)}
   .anatbl{width:100%; border-collapse:collapse; font-size:11px}
   .anatbl th{color:var(--dim); font-weight:600; text-align:right; font-size:10px; padding:4px 6px; border-bottom:1px solid var(--line); letter-spacing:.02em}
   .anatbl td{padding:4px 6px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums}
@@ -458,6 +468,12 @@ const I18N = {
     ctxReal: '压缩事件', ctxGuess: '压缩（推断）',
     ctxRealNote: '来自日志里的 compaction 事件', ctxGuessNote: '日志没有 compaction 事件，按相邻请求占用骤降 ≥20% 推断',
     ctxPruneTip: a => `工具结果被裁剪（prune）；裁剪前上下文约 ${a} tok`,
+    ccTitle: '上下文里装了什么', ccHint: '按字符数估算，不是 token 真值',
+    ccName: { sys: '系统提示', skills: '技能目录', plugin: '插件注入', tool: '工具返回', user: '用户消息', assistant: '模型输出' },
+    ccSkills: (n, loaded, names) => `技能目录 ${n} 个，本场加载 ${loaded} 个${loaded > 0 && names ? '：' + names + (loaded > 4 ? ' 等' : '') : ''}`,
+    ccInstr: n => `指令文件 ${n} 个（日志只有路径与摘要，正文大小未记录）`,
+    ccPlugins: n => `插件注入来自 ${n} 个插件`,
+    ccLiveNote: '实时页签只统计已加载窗口内的部分',
     lgAlign: '轮次对齐线', lgAlignTitle: '每轮回答互连；标注为本轮耗时（不含轮间等待）',
     lgAnchor: '手动锚点', lgAnchorTitle: '🔗 添加 · 点线删除',
     lgSameTask: n => `⛓ 已识别为同一任务 ×${n}，对比功能启用`,
@@ -645,6 +661,12 @@ const I18N = {
     ctxReal: 'compaction event', ctxGuess: 'compaction (inferred)',
     ctxRealNote: 'From the log\u2019s own compaction events', ctxGuessNote: 'No compaction events in this log — inferred from consecutive-request drops of ≥20%',
     ctxPruneTip: a => `Tool results pruned; the context held about ${a} tok before the prune`,
+    ccTitle: 'What the context carried', ccHint: 'Character estimates, not token counts',
+    ccName: { sys: 'System prompt', skills: 'Skill catalog', plugin: 'Plugin injections', tool: 'Tool results', user: 'User messages', assistant: 'Model output' },
+    ccSkills: (n, loaded, names) => `Skill catalog holds ${n}; ${loaded} loaded this session${loaded > 0 && names ? ': ' + names + (loaded > 4 ? ' …' : '') : ''}`,
+    ccInstr: n => `${n} instruction file${n > 1 ? 's' : ''} (the log records paths and digests only, not sizes)`,
+    ccPlugins: n => `Plugin injections came from ${n} plugin${n > 1 ? 's' : ''}`,
+    ccLiveNote: 'The live tab counts only the loaded event window',
     lgAlign: 'Turn alignment', lgAlignTitle: 'Answer nodes connected per turn; labels show per-turn time (inter-turn waits excluded)',
     lgAnchor: 'Manual anchor', lgAnchorTitle: '🔗 add · click a line to delete',
     lgSameTask: n => `⛓ Same task ×${n} — compare kit enabled`,
@@ -988,6 +1010,10 @@ function buildLane(text){
   // 行为信号块的原料：压缩事件（start 的时刻 + prune/summary 次数）、待办陈旧提醒次数、上下文窗口真值
   // pruneAt 记每次裁剪的时刻：上下文压力轨道要在真事件的位置上画刻线（诊断层第 3 项）
   const compaction = { starts: [], pruneAt: [], prunes: 0, summaries: 0, ends: 0 }
+  // 上下文构成（诊断层第 4 项）：逐段按**字符数**估算——日志里没有分段 token，也只能这样估。
+  // 系统提示来自 request/header.header.system；指令文件只有路径与摘要（大小日志不记）；
+  // 技能目录取 catalog 条目的 name+description；插件注入按来源名分组；工具返回/用户/模型输出按文本长度累计。
+  const composition = { sysChars: 0, instrFiles: 0, skillCount: 0, skillChars: 0, plugin: new Map(), toolChars: 0, userChars: 0, assistantChars: 0, loaded: new Set() }
   let todoReminders = 0
   let ctxWindow = null
   let curWin = null   // 当前生效的上下文窗口（最近一条 request/context）
@@ -1000,8 +1026,22 @@ function buildLane(text){
     const tm = (tOf(e) - t0) / 1000
     if (t === 'user/message'){
       const sk = d.source?.kind
-      if (sk === undefined || sk === 'user') userMsgs.push({ s: Math.round(tm * 10) / 10 })
-      else if (isTodoReminderSource(d.source)) todoReminders += 1
+      if (sk === undefined || sk === 'user'){
+        userMsgs.push({ s: Math.round(tm * 10) / 10 })
+        composition.userChars += resultText(d).length
+      } else if (sk === 'agent-instructions'){
+        // 只有路径与摘要，没有正文大小：只数文件数，块里注明「大小日志未记录」
+        composition.instrFiles += new Set((d.source?.changes ?? []).map(c => c.path)).size
+      } else if (sk === 'skill-catalog'){
+        const ents = d.source?.entries ?? []
+        composition.skillCount = Math.max(composition.skillCount, ents.length)
+        composition.skillChars = Math.max(composition.skillChars, ents.reduce((n, e) => n + String(e.name ?? '').length + String(e.description ?? '').length, 0))
+      } else if (typeof sk === 'string' && sk.startsWith('plugin')){
+        // 日志格式 v4 把来源改写成 'plugin:<插件名>'，旧格式是 'plugin'（按注释里的插件名兜底）
+        const name = sk.includes(':') ? sk.slice(sk.indexOf(':') + 1) : (d.source?.plugin ?? 'plugin')
+        composition.plugin.set(name, (composition.plugin.get(name) ?? 0) + resultText(d).length)
+      }
+      if (isTodoReminderSource(d.source)) todoReminders += 1
     } else if (t === 'compaction/start'){
       compaction.starts.push(Math.round(tm * 10) / 10)
     } else if (t === 'compaction/prune'){
@@ -1035,6 +1075,7 @@ function buildLane(text){
         if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = d.usage.cacheReadTokens
         if (curWin != null) row.ctxWin = curWin
       }
+      composition.assistantChars += resultText(d).length
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
     } else if (t === 'reasoning-chunks' && cur !== null){
@@ -1045,6 +1086,12 @@ function buildLane(text){
       const ev = { k: 't', name: d.name ?? '?', s: tm, e: tm, args: argSummary(d.arguments), callId: d.callId }
       cur.events.push(ev)
       pending.push(ev)
+      if (d.name === 'skill'){
+        try {
+          const parsed = JSON.parse(d.arguments ?? '{}')
+          if (parsed && typeof parsed.name === 'string') composition.loaded.add(parsed.name)
+        } catch { /* 参数不是 JSON 就不记，块里如实少一个 */ }
+      }
     } else if (t === 'tool/result' && pending.length > 0){
       const ev = pending.shift()
       ev.e = tm
@@ -1053,6 +1100,7 @@ function buildLane(text){
       ev.exit = exitCodeOf(raw)
       ev.res = raw.replace(/\s+/g, ' ').trim()
       ev.err = d.isError === true || hasErrorFlag(d)
+      composition.toolChars += raw.length
     } else if (t === 'llm/retry'){
       // 请求失败后的重试排期：失败的那次请求没有 assistant 输出，不画就是纯空白。
       // 伪行进 rows（时间序保持），条长 = 退避等待；判定在 buildData 里定死为 error。
@@ -1097,7 +1145,23 @@ function buildLane(text){
     r.s = Math.round(r.s * 10) / 10
     r.e = Math.round(r.e * 10) / 10
   }
-  return { rows, model, firstUser: firstUserText, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, title: model ?? (rows.length ? 'Session' : '?') }
+  // 系统提示按各次 request/header 里最长的那份算（同一场一般不变；换过指令文件时取最大更诚实）
+  for (const e of evs){
+    if (e.type !== 'request/header') continue
+    const len = String(e.data?.header?.system ?? '').length
+    if (len > composition.sysChars) composition.sysChars = len
+  }
+  const context = {
+    sys: composition.sysChars || null,
+    instr: composition.instrFiles || null,
+    skills: composition.skillCount > 0 ? { n: composition.skillCount, chars: composition.skillChars } : null,
+    plugin: [...composition.plugin].map(([name, chars]) => ({ name, chars })),
+    tool: composition.toolChars || null,
+    user: composition.userChars || null,
+    assistant: composition.assistantChars || null,
+    loaded: [...composition.loaded],
+  }
+  return { rows, model, firstUser: firstUserText, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, title: model ?? (rows.length ? 'Session' : '?') }
 }
 
 /* 判定逻辑（toolVerdict/stepVerdict/markRetryClusters/VERDICT_RULES/SEV）构建期
@@ -1110,7 +1174,7 @@ function buildLane(text){
 
 function buildData(fileTexts, fileNames){
   const lanes = fileTexts.map((text, i) => {
-    const { rows, model, firstUser, turnEnds, userMsgs, compaction, todoReminders, ctxWindow } = buildLane(text)
+    const { rows, model, firstUser, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context } = buildLane(text)
     const fname = fileNames?.[i] ?? null
     // 工具级判定已在 buildLane 的全文上完成；这里做跨步骤盲目重试簇标注（会改工具判定），再步级聚合
     const allEvs = []
@@ -1141,7 +1205,7 @@ function buildData(fileTexts, fileNames){
     const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
     const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
     const T = Math.round(Math.max(...rows.map(r => r.e)) * 10) / 10
-    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
+    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
   // 轴跨度贴合内容：短会话不再被 460s 固定下限压扁在左侧（×1.04 给右缘旗标留呼吸位）。
   const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
@@ -2722,6 +2786,42 @@ function signalsBlockHtml(lane){
   return h + `</div><div class="anahint">${esc(tr('sigHint'))}</div>`
 }
 
+/**
+ * 上下文构成块（诊断层第 4 项）：把「上下文里装了什么」按**字符数**估出来画一条堆叠条。
+ * 诚实边界：日志没有分段 token，这里一律是字符估算，不换算成 token；指令文件只有路径与摘要，
+ * 只报文件数；实时页签只有已加载窗口，注明部分是窗口内统计。
+ */
+function ctxCompositionBlockHtml(lane){
+  const c = lane.context
+  if (!c) return ''
+  const parts = [
+    { key: 'sys', chars: c.sys, color: '#6d55a3' },
+    { key: 'skills', chars: c.skills ? c.skills.chars : null, color: '#2f7d5f' },
+    { key: 'plugin', chars: c.plugin && c.plugin.length ? c.plugin.reduce((n, x) => n + x.chars, 0) : null, color: '#a06a35' },
+    { key: 'tool', chars: c.tool, color: '#8a93a3' },
+    { key: 'user', chars: c.user, color: '#a04b62' },
+    { key: 'assistant', chars: c.assistant, color: '#4f7ca8' },
+  ].filter(x => x.chars != null && x.chars > 0)
+  const instr = c.instr ?? 0
+  const loaded = c.loaded ?? []
+  if (parts.length === 0 && instr === 0 && !c.skills) return ''
+  const total = parts.reduce((n, x) => n + x.chars, 0)
+  const nm = tr('ccName')
+  const bar = total > 0
+    ? '<div class="ccbar">' + parts.map(x => `<span class="ccseg" style="flex:${x.chars} 0 0;background:${x.color}" title="${esc(nm[x.key] + ' ' + x.chars.toLocaleString() + ' 字符')}"></span>`).join('') + '</div>'
+    : ''
+  const rows = parts.map(x => `<span class="ccrow"><i class="ccsw" style="background:${x.color}"></i>${esc(nm[x.key])} <b class="ccnum">${x.chars.toLocaleString()}</b><span class="ccpct">${Math.round(x.chars / Math.max(1, total) * 100)}%</span></span>`).join('')
+  const extras = []
+  if (c.skills) extras.push(tr('ccSkills')(c.skills.n, loaded.length, loaded.slice(0, 4).map(x => esc(x)).join('、')))
+  if (instr > 0) extras.push(tr('ccInstr')(instr))
+  if (c.plugin && c.plugin.length) extras.push(tr('ccPlugins')(c.plugin.length))
+  return `<div class="anablock"><div class="bt">${tr('ccTitle')}<span class="cchint">${tr('ccHint')}</span></div>`
+    + bar + `<div class="cclist">${rows}</div>`
+    + (extras.length ? `<div class="ccnote">${extras.join(' · ')}</div>` : '')
+    + (c.live ? `<div class="ccnote">${tr('ccLiveNote')}</div>` : '')
+    + `</div>`
+}
+
 function renderAnalysis(){
   if (!DATA) return
   anaRefs = []
@@ -2786,6 +2886,9 @@ function renderAnalysis(){
           : tr('cardCtxAbs')(ctxPeak))
       + `</div></div></div>`
     h += `</div>`
+
+    // 上下文里装了什么：先回答「模型每次都带着什么在读」，再看下面的耗时/矩阵
+    h += ctxCompositionBlockHtml(lane)
 
     // 双列：耗时散点 | 工具结果矩阵
     const names = [...m.keys()].sort((a, b) => m.get(b).calls - m.get(a).calls)

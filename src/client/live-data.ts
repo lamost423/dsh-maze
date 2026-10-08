@@ -158,6 +158,21 @@ export interface MazeLane {
   userMsgs?: { s: number }[]
   /** 压缩事件（行为信号块）：start 的时刻与 prune / summary 次数。快照只有落地的压缩节点，prune 不在窗口里，记 0。 */
   compaction?: { starts: number[]; prunes: number; summaries: number; ends: number }
+  /**
+   * 上下文构成（诊断层第 4 项）：逐段字符数估算。实时窗口里只有工具返回的**截断**文本，
+   * 系统提示/指令文件/技能目录不在快照里，所以这里只有工具返回一项并标 live。
+   */
+  context?: {
+    sys: number | null
+    instr: number | null
+    skills: { n: number; chars: number } | null
+    plugin: { name: string; chars: number }[]
+    tool: number | null
+    user: number | null
+    assistant: number | null
+    loaded: string[]
+    live?: boolean
+  }
   /** todo-freshness-guard 插件提醒次数（行为信号「待办陈旧」）。 */
   todoReminders?: number
   /** 上下文窗口真值：上传链路读 request/context，实时链路读宿主 contextPressure 投影；都没有时省略，页面退回模型表。 */
@@ -286,6 +301,8 @@ function firstTurnStart(snap: ChatSnapshot): number | null {
 
 /** Scanned, verdict-settled rows of one conversation on a caller-chosen clock. */
 interface ScanResult {
+  /** 上下文构成（诊断层第 4 项，实时口径）：见 MazeLane.context。 */
+  context: NonNullable<MazeLane['context']>
   rows: MazeNode[]
   /** The in-flight partial row, when present; always last in `rows`. */
   liveRow: MazeNode | null
@@ -373,6 +390,10 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number, nowMs: number 
   const turnTokens = new Map<number, { in: number; out: number; rz: number | null }>()
   const userMsgs: { s: number }[] = []
   const compaction = { starts: [] as number[], prunes: 0, summaries: 0, ends: 0 }
+  // 上下文构成（诊断层第 4 项，实时口径）：窗口里只有截断过的工具返回文本，
+  // 所以只统计它并在块里注明；系统提示/指令文件/技能目录不在窗口数据里，留空不画。
+  let ctxToolChars = 0
+  const ctxSkillsLoaded = new Set<string>()
   let todoReminders = 0
   /** Turn endings read off the nodes themselves — the fallback when the timeline carries no turn/end event. */
   const endByNode = new Map<number, { kind: string; s: number }>()
@@ -433,12 +454,20 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number, nowMs: number 
       if (loc === null) continue
       const s = rel(callAt)
       const cur = rowFor(loc, s)
+      const toolName = settled ? (root.call?.name ?? '?') : root.name
+      const toolArgs = settled ? (root.call?.argsRaw ?? '') : ((root as { argsRaw?: string }).argsRaw ?? '')
+      // 上下文构成（诊断层第 4 项）实时口径：只有已加载窗口里、且被截断过的工具返回文本，
+      // 所以块里注明是窗口内统计；系统提示/指令文件/技能目录不在窗口数据里，留 null 不画。
+      if (toolName === 'skill') {
+        const m = /name=([^\s&]+)/.exec(toolArgs)
+        if (m && m[1]) ctxSkillsLoaded.add(m[1])
+      }
       const tool: MazeTool = {
         k: 't',
-        name: settled ? (root.call?.name ?? '?') : root.name,
+        name: toolName,
         s, e: null,
         // 0.1.7-rc.1 adds a 'preparing' running phase that has no argsRaw yet.
-        args: settled ? (root.call?.argsRaw ?? '') : ((root as { argsRaw?: string }).argsRaw ?? ''),
+        args: toolArgs,
         res: '', err: false, dur: 0, v: 'ok',
         callId: root.callId,
       }
@@ -453,6 +482,7 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number, nowMs: number 
         const raw = rawText(root.content)
         tool.exit = exitCodeOf(raw)
         tool.res = raw.replace(/\s+/g, ' ').trim()
+        ctxToolChars += raw.length
         tool.err = root.isError
         cur.e = Math.max(cur.e, tool.e)
         settledTools.push(tool)
@@ -583,7 +613,12 @@ function scanRows(snap: ChatSnapshot, rel: (t: number) => number, nowMs: number 
     }
   }
 
-  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep }
+  const context = {
+    sys: null, instr: null, skills: null, plugin: [] as { name: string; chars: number }[],
+    tool: ctxToolChars || null, user: null, assistant: null,
+    loaded: [...ctxSkillsLoaded], live: true,
+  }
+  return { rows, liveRow, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep, context }
 }
 
 /**
@@ -655,7 +690,7 @@ export function snapshotToMazeData(
   const anchor = firstTurnStart(snap) ?? firstNode ?? Date.now()
   const rel = (t: number): number => Math.max(0, Math.round((t - anchor) / 100) / 10)
 
-  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep } = scanRows(snap, rel, nowMs)
+  const { rows, preWindow, turnTokens, turnEnds, userMsgs, compaction, todoReminders, byStep, context } = scanRows(snap, rel, nowMs)
   if (rows.length === 0) return null
 
   // Partition main path vs detours (mirror of the upload page).
@@ -749,7 +784,7 @@ export function snapshotToMazeData(
     model,
     preWindow,
     main, detours,
-    turnEnds, userMsgs, compaction, todoReminders,
+    turnEnds, userMsgs, compaction, todoReminders, context,
     ...(hostWindow === null ? {} : { ctxWindow: hostWindow }),
     ...(subHidden > 0 ? { subHidden } : {}),
     stats: {
