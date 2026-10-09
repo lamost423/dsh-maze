@@ -4,6 +4,17 @@
 
 ## 未发布
 
+**诊断层第 7 项：本机会话库——迷宫页左上角「本机会话」直接列本机会话，勾 2~5 场即对比，不用先导出再上传。同时插件首次有了宿主半（性质变化，见下）。**
+
+- **为什么需要宿主半**：客户端能列会话、能 retain，但宿主对一场会话的可读消息有分页上限，长会话不保证一次给全；完整日志只有进程内可取——宿主的 `sessionQuery.readSession()` 已经正确读多帧 `.jsonl.zstd`（Node 自带的 `zstdDecompressSync` 只解第一帧且**静默截断**）。所以宿主半注册两个**只读**路由：`GET /api/maze.sessions`（`listSessions()` → id/cwd/createdAt/live，新到旧，默认只列顶层会话）与 `GET /api/maze.log?sessionId=…`（完整逻辑日志，NDJSON；id 必须来自宿主自己的列表，无路径输入）。
+- **两条链路不分叉**：取回的日志走与手动上传**完全相同**的入口（`loaded → apply → buildData`）。实测同一场会话：端点 740 个逻辑事件（对应原始 8966 行）解析出 **120 步 / 140 次工具 / 133,019 输出 tok / 3015 秒**，与上传原始文件**逐项相同**。
+- **容错**：多份日志里有的没有有效步骤（空会话、刚开的会话）时，跳过那一份、其余照画，并在错误条里点名跳过了谁；全都不可解析才报错复位。
+- **安全边界（性质变化）**：宿主半的代码在宿主进程内运行（官方口径：工作区沙箱之外）。约束：两个路由只读、同源、按 id 取数、不接触凭据、不写文件；超过 96 MB 的日志明确 413。README 新增「安全边界」一节，不想要宿主半的可在 `cordis.patch.yml` 里禁掉该行，客户端半照常。
+- 实现细节与踩坑（都写进了注释）：cordis 服务必须用 `ctx.get(name)` 取——`Reflect.get` 拿不到，会与「宿主没装该服务」混淆；`sessionQuery` 的方法是 `readSession` 不是 `load`。
+- 验收：typecheck 零错误；189 → 199 测试全绿（新增 7 个宿主路由用例 + 6 个客户端半/容错用例）；独立 `0.2.0-rc.2` 宿主上端到端实测——面板列出 3 场会话、勾两场后端点两个 200、空会话被点名跳过、剩余场次画出 120 步迷宫，零控制台报错。
+
+_EN: Diagnosis item 7 — a **local session library**: the maze page's top-left panel lists this machine's sessions and compares 2–5 of them without a manual export. The plugin also gains a host half for the first time (a property change, below). A host half is needed because a retained cold session only yields a bounded page of history, while the complete log is only reachable in-process — `sessionQuery.readSession()` already reads multi-frame `.jsonl.zstd` correctly, whereas Node's own decompressor silently returns the first frame. The host half therefore registers two **read-only** routes: `GET /api/maze.sessions` (listSessions → id/cwd/createdAt/live, newest first, top-level only by default) and `GET /api/maze.log?sessionId=…` (the complete logical log as NDJSON; ids must come from the Host's own list, so there is no path input). Fetched logs enter exactly the same path as a manual upload, and measured on one session: 740 logical events (from 8 966 raw lines) parse to **120 steps / 140 tool calls / 133 019 output tokens / 3 015 s**, item-for-item identical to uploading the raw file. Logs with no parsable steps are skipped and named in the error bar instead of failing the comparison. **Security boundary**: host code runs in-process, outside the workspace sandbox; both routes are read-only, same-origin, id-scoped, touch no credentials and write no files, and refuse logs over 96 MB with a 413 — the README states this and shows how to disable the host row, leaving the browser half working. Implementation notes: cordis services must be read with `ctx.get(name)` (`Reflect.get` cannot see them and confuses "not installed" with "not injected"), and `sessionQuery` exposes `readSession`, not `load`. 189 → 199 tests green, plus an end-to-end run on a standalone `0.2.0-rc.2` host: three sessions listed, two fetched with 200s, the empty one skipped by name, the rest drawn as a 120-step maze, zero console errors._
+
 **诊断层第 6 项：分析区末尾新增「优化建议」——每条都引用本场实测数字、涉及调用可点击定位；模板与阈值先按本机 240 场会话跑出真实分布再定。**
 
 - 十类模板（括号里是本机 240 场的命中率，都落在尾部）：失败后没换策略（未恢复失败链 ≥3，2.5%）、失败后原样重试（16.7%）、疑似卡在循环（13.8%）、改了文件但没验证（12.1%）、上下文接近窗口上限（峰值 ≥70%，5.0%）、本场发生上下文压缩（4.2%）、工具返回占上下文偏高（≥95% 且调用 ≥10，15.4%）、同轮重复调用（18.3%）、待办清单陈旧（10.0%）、技能目录 ≥50 条且一条没加载（1.7%）。最多给 5 条，按行动价值排序（未恢复的失败排最前）。

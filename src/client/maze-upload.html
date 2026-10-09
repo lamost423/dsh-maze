@@ -482,6 +482,7 @@ const I18N = {
     ccPlugins: n => `插件注入来自 ${n} 个插件`,
     ccLiveNote: '实时页签只统计已加载窗口内的部分',
     cvTitle: '对比变量表', cvHint: '受控对比 = 除模型外全部相同',
+    errSkipped: (n, names) => `⚠︎ 有 ${n} 份日志没有可解析的步骤，已跳过：${names}（其余照常对比）`,
     sugTitle: '优化建议', sugHint: '每条都写着本场实测的数字；点一条定位到相关调用',
     sugNone: '本场没有触发任何建议模板（阈值按本机 240 场会话校准，只挑少数会话才会亮的问题）。',
     sugNote: '建议由确定性规则从本场日志算出，不调用模型；阈值与依据见 README「优化建议」一节。',
@@ -696,6 +697,7 @@ const I18N = {
     ccPlugins: n => `Plugin injections came from ${n} plugin${n > 1 ? 's' : ''}`,
     ccLiveNote: 'The live tab counts only the loaded event window',
     cvTitle: 'Comparison variables', cvHint: 'controlled = everything but the model matches',
+    errSkipped: (n, names) => `⚠︎ ${n} log${n > 1 ? 's have' : ' has'} no parsable steps and ${n > 1 ? 'were' : 'was'} skipped: ${names} (the rest are compared as usual)`,
     sugTitle: 'Suggestions', sugHint: 'each cites numbers measured in this session; click one to locate the calls',
     sugNone: 'No suggestion template fired for this session (thresholds are calibrated on 240 local sessions — only the minority that stand out light up).',
     sugNote: 'Suggestions come from deterministic rules over this session\u2019s log — no model call; thresholds and rationale in the README.',
@@ -3710,15 +3712,47 @@ function resetView(){
   while (svg.firstChild) svg.removeChild(svg.firstChild)
 }
 
+/**
+ * 合并多份解析结果：逐份重编泳道键（l1..lN），同任务判定与轴跨度按合并后的泳道重算。
+ * 用于「有的日志没有有效步骤」时的容错路径（诊断层第 7 项：本机会话库里会有空会话/
+ * 刚开的会话，不该让整次对比失败）。
+ */
+function mergeParsed(parsed){
+  const lanes = []
+  for (const d of parsed){
+    for (const l of d.lanes){
+      lanes.push({ ...l, key: 'l' + (lanes.length + 1) })
+    }
+  }
+  const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
+  const sameTask = taskComparability(lanes.map(l => l.firstUser)).sameTask
+  return { Tmax, lanes, sameTask }
+}
+
 function apply(){
   clearErr()
   let data
   try {
     data = buildData(loaded.map(f => f.text), loaded.map(f => f.name))
   } catch (e){
-    showErr(tr('errParse')(e.message ?? e))
-    resetView()
-    return
+    // 逐份重试：跳过没有有效步骤的那几份（空会话、刚开的会话、被截断的日志），
+    // 剩下的照画，并如实说明跳了哪几份——比整次失败有用。
+    const parsed = []
+    const skipped = []
+    for (const f of loaded){
+      try {
+        parsed.push(buildData([f.text], [f.name]))
+      } catch {
+        skipped.push(f.name)
+      }
+    }
+    if (parsed.length === 0){
+      showErr(tr('errParse')(e.message ?? e))
+      resetView()
+      return
+    }
+    data = mergeParsed(parsed)
+    if (skipped.length > 0) showErr(tr('errSkipped')(skipped.length, skipped.join('、')))
   }
   renderData(data, { follow: false })
 }
@@ -3959,6 +3993,20 @@ function mazeSignature(data){
   }
   return parts.join('|')
 }
+
+// 本机会话库（诊断层第 7 项）：宿主半从 /api/maze.log 取回完整日志文本后推进来，
+// 走与手动上传完全相同的入口（loaded → apply），所以两条路的解析与渲染不可能分叉。
+window.addEventListener('message', e => {
+  if (!e.data || e.data.kind !== 'maze-load') return
+  const files = Array.isArray(e.data.files) ? e.data.files : []
+  if (files.length === 0) return
+  loaded.length = 0
+  for (const f of files){
+    loaded.push({ name: String(f?.name ?? 'session.jsonl'), text: String(f?.text ?? '') })
+  }
+  renderDrop()
+  apply()
+})
 
 window.addEventListener('message', e => {
   if (!e.data || e.data.kind !== 'trace-maze') return
