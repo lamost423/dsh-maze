@@ -7,6 +7,7 @@ import { postLocaleTo } from './locale-sync.ts'
 import { MAZE_PAGE_HTML } from './maze-html.ts'
 import { postThemeTo, themedMazeHtml, watchHostTheme } from './theme-sync.ts'
 import { fetchLocalSessions, fetchSessionLog, rowLabel, rowTime, type LocalSessionRow } from './session-library.ts'
+import { askModel } from './model-opinion.ts'
 import css from './TraceCompareSurface.module.css'
 
 /**
@@ -48,8 +49,23 @@ export function TraceCompareSurface({ useStore, actions, useSessions, locale, t 
     }
     const onMessage = (event: MessageEvent): void => {
       if (event.source !== iframeRef.current?.contentWindow) return
-      const msg = event.data as { kind?: string } | null
-      if (msg !== null && msg.kind === 'trace-esc') actions.close()
+      const msg = event.data as { kind?: string; prompt?: unknown; provider?: unknown; model?: unknown } | null
+      if (msg === null) return
+      if (msg.kind === 'trace-esc') { actions.close(); return }
+      // 模型解读（诊断层第 8 项）：页面把已经给用户看过、确认过的提示词交上来，这里只负责
+      // 调宿主路由并把回答原样送回——外壳不加工内容，也不把它混进任何确定性数据。
+      if (msg.kind === 'maze-ask-model') {
+        const target = iframeRef.current?.contentWindow
+        void askModel({
+          prompt: String(msg.prompt ?? ''),
+          provider: typeof msg.provider === 'string' ? msg.provider : undefined,
+          model: typeof msg.model === 'string' ? msg.model : undefined,
+        }).then((res) => {
+          target?.postMessage(res.ok
+            ? { kind: 'maze-model-opinion', text: res.opinion.text, provider: res.opinion.provider, model: res.opinion.model }
+            : { kind: 'maze-model-opinion', error: res.error, detail: res.detail ?? '' }, '*')
+        })
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('message', onMessage)

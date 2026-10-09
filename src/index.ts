@@ -27,9 +27,42 @@ export const inject = ['connection']
 export const SESSIONS_PATH = '/api/maze.sessions'
 /** Complete raw log of one session, as newline-delimited JSON events. */
 export const LOG_PATH = '/api/maze.log'
+/** Model review of one deterministic analysis (diagnosis item 8). POST, JSON in/out. */
+export const REVIEW_PATH = '/api/maze.review'
 
 /** Refuse absurd logs rather than trying to serialize them into one response. */
 const MAX_LOG_BYTES = 96 * 1024 * 1024
+/** Prompts are built from one session's analysis; this bounds what a page can send. */
+const MAX_PROMPT_CHARS = 200_000
+
+/**
+ * The reviewer's standing instruction. Deliberately narrow: the model gets the
+ * deterministic numbers the page already computed and answers in prose — it never
+ * produces numbers of its own that the UI would treat as data.
+ */
+const REVIEW_SYSTEM = [
+  '你是 DSH（DeepSeek Harness）会话的审阅者。用户会给你一场（或两场）会话的确定性分析结果，',
+  '包括摘要卡、结果与证据、行为信号、上下文构成，以及失败调用的原文摘录。',
+  '请直接给出判断：这场跑得怎么样、问题出在哪、下一步具体改什么。',
+  '不要复述数据，不要编造没有给出的数字；不确定就说不确定。',
+  '回答用中文，控制在 300 字以内（对比打分的 JSON 除外）。',
+].join('')
+
+interface StreamChunkLike {
+  type?: string
+  text?: string
+  usage?: unknown
+  reason?: { kind?: string; failure?: { message?: string } }
+}
+
+interface LlmLike {
+  stream?: (options: Record<string, unknown>) => AsyncIterable<StreamChunkLike>
+}
+
+interface ReviewRoute {
+  provider: string
+  model: string
+}
 
 interface MinimalRequest {
   url: string
@@ -143,6 +176,53 @@ export function logText(events: unknown[]): string {
   return lines.join('\n')
 }
 
+/**
+ * Resolve the route for one review: the page's own numbers (the model that ran the
+ * session) win, the host default is the fallback. Nothing is guessed: without either,
+ * the route answers 409 so the UI can say "no model route" instead of failing late.
+ */
+export function resolveRoute(ctx: Context, body: { provider?: unknown; model?: unknown }): ReviewRoute | null {
+  const provider = typeof body.provider === 'string' ? body.provider.trim() : ''
+  const model = typeof body.model === 'string' ? body.model.trim() : ''
+  if (provider !== '' && model !== '') return { provider, model }
+  const fallback = serviceOf(ctx, 'agentDefaultModel') as
+    | { currentSelection?: () => { provider?: string; model?: string } | undefined }
+    | undefined
+  const selection = fallback?.currentSelection?.()
+  if (selection?.provider !== undefined && selection?.model !== undefined && selection.provider !== '' && selection.model !== '') {
+    return { provider: selection.provider, model: selection.model }
+  }
+  return null
+}
+
+/**
+ * Read one assistant stream to completion: text deltas in, plus the terminal finish.
+ * Rules copied from the host's own experimental-auto-review reviewer — data after the
+ * finish is an error, a non-stop finish is an error, and empty text is an error, so a
+ * truncated or failed call can never be shown as an opinion.
+ */
+export async function readStream(stream: AsyncIterable<StreamChunkLike>): Promise<{ text: string; usage: unknown }> {
+  let text = ''
+  let usage: unknown = null
+  let finished = false
+  for await (const chunk of stream) {
+    if (finished) throw new Error('model emitted data after its terminal finish')
+    if (chunk?.type === 'text-delta') text += String(chunk.text ?? '')
+    else if (chunk?.type === 'usage') usage = chunk.usage ?? null
+    else if (chunk?.type === 'finish') {
+      finished = true
+      const kind = chunk.reason?.kind
+      if (kind === 'error' || kind === 'aborted') {
+        throw new Error(`model ended with ${kind}: ${chunk.reason?.failure?.message ?? 'no message'}`)
+      }
+      if (kind !== 'stop') throw new Error(`model ended with ${String(kind)}`)
+    }
+  }
+  if (!finished) throw new Error('model emitted no terminal finish')
+  if (text.trim() === '') throw new Error('model returned no text')
+  return { text, usage }
+}
+
 export function apply(ctx: Context): void {
   const connection = connectionOf(ctx)
   if (connection?.fetch?.register === undefined) return
@@ -159,6 +239,40 @@ export function apply(ctx: Context): void {
       const url = new URL(request.url, 'http://localhost')
       const records = await query.listSessions()
       return json({ sessions: rowsOf(records, url.searchParams.get('children') === 'true') })
+    },
+  })
+
+  connection.fetch.register({
+    path: REVIEW_PATH,
+    methods: ['POST'],
+    requestBody: 'buffered',
+    fetch: async (request: MinimalRequest & { json?: () => Promise<unknown> }) => {
+      const llm = serviceOf(ctx, 'llm') as LlmLike | undefined
+      if (llm?.stream === undefined) {
+        return json({ error: 'llm-unavailable', detail: 'this host exposes no llm service' }, 503)
+      }
+      let body: { prompt?: unknown; provider?: unknown; model?: unknown }
+      try {
+        body = (await request.json?.()) as typeof body
+      } catch {
+        return json({ error: 'bad-json' }, 400)
+      }
+      const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, MAX_PROMPT_CHARS) : ''
+      if (prompt === '') return json({ error: 'empty-prompt' }, 400)
+      const route = resolveRoute(ctx, body ?? {})
+      if (route === null) return json({ error: 'no-model-route' }, 409)
+      try {
+        const result = await readStream(llm.stream({
+          provider: route.provider,
+          model: route.model,
+          system: REVIEW_SYSTEM,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+          temperature: 0,
+        }))
+        return json({ ok: true, provider: route.provider, model: route.model, text: result.text, usage: result.usage })
+      } catch (error) {
+        return json({ error: 'model-call-failed', detail: String(error) }, 502)
+      }
     },
   })
 

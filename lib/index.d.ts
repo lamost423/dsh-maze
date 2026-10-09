@@ -25,6 +25,23 @@ export declare const inject: string[];
 export declare const SESSIONS_PATH = "/api/maze.sessions";
 /** Complete raw log of one session, as newline-delimited JSON events. */
 export declare const LOG_PATH = "/api/maze.log";
+/** Model review of one deterministic analysis (diagnosis item 8). POST, JSON in/out. */
+export declare const REVIEW_PATH = "/api/maze.review";
+interface StreamChunkLike {
+    type?: string;
+    text?: string;
+    usage?: unknown;
+    reason?: {
+        kind?: string;
+        failure?: {
+            message?: string;
+        };
+    };
+}
+interface ReviewRoute {
+    provider: string;
+    model: string;
+}
 /** One row of the Host's session corpus, as this plugin reports it. */
 export interface MazeSessionRow {
     id: string;
@@ -57,6 +74,25 @@ export declare function rowsOf(records: SessionRecordLike[], includeChildren?: b
 export declare function byteLength(text: string): number;
 /** Serialize a logical log back to the on-disk JSONL shape the page's parser reads. */
 export declare function logText(events: unknown[]): string;
+/**
+ * Resolve the route for one review: the page's own numbers (the model that ran the
+ * session) win, the host default is the fallback. Nothing is guessed: without either,
+ * the route answers 409 so the UI can say "no model route" instead of failing late.
+ */
+export declare function resolveRoute(ctx: Context, body: {
+    provider?: unknown;
+    model?: unknown;
+}): ReviewRoute | null;
+/**
+ * Read one assistant stream to completion: text deltas in, plus the terminal finish.
+ * Rules copied from the host's own experimental-auto-review reviewer — data after the
+ * finish is an error, a non-stop finish is an error, and empty text is an error, so a
+ * truncated or failed call can never be shown as an opinion.
+ */
+export declare function readStream(stream: AsyncIterable<StreamChunkLike>): Promise<{
+    text: string;
+    usage: unknown;
+}>;
 export declare function apply(ctx: Context): void;
 export {};
 //# sourceMappingURL=index.d.ts.map

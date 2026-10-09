@@ -128,3 +128,41 @@ describe('page apply: 多份日志里有的解析不出来时跳过并说明', (
     expect(data.Tmax).toBeGreaterThan(0)
   })
 })
+
+/** 取页面里的 Judge 段（buildJudgePrompt + judgeScores + stripFence）跑替身。 */
+function judgeHarness() {
+  const a = html.indexOf('function stripFence(')
+  const b = html.indexOf('function modelOpinionBlockHtml(')
+  const fn = new Function('tr', 'outcomeEvidence', 'behaviorSignals', 'wallClock', 'fmtT',
+    `${html.slice(a, b)}\nreturn { judgeScores, stripFence }`) as (...args: unknown[]) => {
+      judgeScores: (t: string) => { rows: { lane: number; scores: (number | null)[]; reason: string }[]; summary: string } | null
+      stripFence: (t: string) => string
+    }
+  return fn((k: string) => k, () => ({ task: {}, test: {}, build: {}, lint: {}, artifacts: {} }), () => [], (t: number) => t, (t: number) => `${t}s`)
+}
+
+describe('对比 Judge：严格 JSON 协议 + 宽松解析', () => {
+  it('规范 JSON 解析出四维分数与理由', () => {
+    const h = judgeHarness()
+    const out = h.judgeScores('{"scores":[{"lane":1,"正确性":8,"完整性":7,"指令遵循":9,"证据充分性":6,"理由":"稳"},{"lane":2,"正确性":5,"完整性":4,"指令遵循":6,"证据充分性":3,"理由":"漏了验证"}],"总结":"第一次更好"}')
+    expect(out?.rows).toHaveLength(2)
+    expect(out?.rows[0]?.scores).toEqual([8, 7, 9, 6])
+    expect(out?.rows[1]?.reason).toBe('漏了验证')
+    expect(out?.summary).toBe('第一次更好')
+  })
+
+  it('带 ```json 围栏也认（剥壳后再解析）', () => {
+    const h = judgeHarness()
+    const out = h.judgeScores('```json\n{"scores":[{"lane":1,"正确性":7}]}\n```')
+    expect(out?.rows[0]?.scores[0]).toBe(7)
+    expect(out?.rows[0]?.scores[1]).toBeNull()   // 缺的维度如实标未给
+  })
+
+  it('没按协议输出：返回 null（页面改展示原文，不假装有分数）', () => {
+    const h = judgeHarness()
+    expect(h.judgeScores('第一次跑得更好，第二次漏了验证。')).toBeNull()
+    expect(h.judgeScores('{"判决":"a"}')).toBeNull()
+    expect(h.judgeScores('{"scores":[]}')).toBeNull()
+    expect(h.judgeScores('')).toBeNull()
+  })
+})

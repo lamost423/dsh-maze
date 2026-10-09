@@ -247,6 +247,20 @@
   .ccnum{color:var(--txt); font-variant-numeric:tabular-nums}
   .ccpct{opacity:.75}
   .ccnote{margin-top:7px; font-size:10.5px; color:var(--dim)}
+  /* 模型解读（诊断层第 8 项）：与确定性数据分开的独立块，自带「模型意见」标识 */
+  .moact{display:flex; align-items:center; gap:10px; margin:6px 0}
+  .moact button{padding:5px 11px; border:1px solid var(--seam-edge); border-radius:8px; background:var(--panel); color:var(--txt); font:inherit; font-size:11.5px; font-weight:600; cursor:pointer}
+  .moact button:hover{border-color:var(--main)}
+  .moact button.ghost{background:transparent; color:var(--dim)}
+  .mohint{color:var(--dim); font-size:10.5px; line-height:1.5}
+  .moprompt{width:100%; min-height:150px; max-height:300px; resize:vertical; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); color:var(--txt); font:11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre}
+  .moopinion{display:flex; align-items:center; gap:8px; margin:2px 0 6px}
+  .mobadge{display:inline-block; padding:1px 7px; border-radius:999px; background:rgba(109,85,163,.14); border:1px solid rgba(109,85,163,.4); color:#6d55a3; font-size:10.5px; font-weight:700}
+  .moroute{color:var(--dim); font-size:10.5px}
+  .motext{font-size:12px; line-height:1.7; color:var(--txt); border-left:3px solid rgba(109,85,163,.45); padding-left:10px}
+  .moerr{color:#c0453f; font-size:11.5px; line-height:1.6; margin:4px 0}
+  .mojudge td.mogood{color:#3f7d55; font-weight:700} .mojudge td.mobad{color:#c0453f; font-weight:700}
+  .mojudge td.mowhy{max-width:420px; white-space:normal; line-height:1.5}
   /* 对比变量表（诊断层第 5 项） */
   .cvverdict{margin:2px 0 8px; padding:7px 10px; border-radius:8px; font-size:11.5px; line-height:1.5}
   .cv-ok{background:rgba(63,125,85,.12); border:1px solid rgba(63,125,85,.35)}
@@ -483,6 +497,15 @@ const I18N = {
     ccLiveNote: '实时页签只统计已加载窗口内的部分',
     cvTitle: '对比变量表', cvHint: '受控对比 = 除模型外全部相同',
     errSkipped: (n, names) => `⚠︎ 有 ${n} 份日志没有可解析的步骤，已跳过：${names}（其余照常对比）`,
+    moJudgeAsk: '让模型按四维打分', moJudgeBefore: '同任务对比：给模型各次的数字与最终回答，按正确性/完整性/指令遵循/证据充分性打分（0~10）',
+    moJudgeLane: '第几次', moJudgeWhy: '理由', moJudgeNote: '分数由模型给出，不参与上面的确定性对比，也不改变任何统计。', moJudgeParse: '模型没有按约定的 JSON 输出，下面是它的原文。',
+    moTitle: '模型解读', moHint: '模型意见——不是确定性数据，不参与任何统计',
+    moAsk: '让模型点评这场', moBefore: '先给你看要发出去的内容，你点发送它才走。',
+    moPreviewHint: '下面是即将发给模型的内容（只含本场已算出的数字与失败摘录，不含完整日志）：',
+    moSend: '发送', moCancel: '取消', moPending: '模型正在读…（整个回答一次返回，不做逐字流式）',
+    moBadge: '模型意见', moAgain: '重新点评',
+    moDisclaimer: '这段文字由模型生成，可能与上面的确定性数据不一致；请以数据为准。',
+    moError: (code, detail) => `模型没能作答：${code === 'host-has-no-llm' ? '这个宿主没有可用的模型服务' : code === 'no-model-route' ? '没找到可用的模型路由（本场日志没记模型，宿主也没设默认模型）' : code === 'model-call-failed' ? '调用失败' : code}${detail ? '——' + String(detail).slice(0, 200) : ''}`,
     sugTitle: '优化建议', sugHint: '每条都写着本场实测的数字；点一条定位到相关调用',
     sugNone: '本场没有触发任何建议模板（阈值按本机 240 场会话校准，只挑少数会话才会亮的问题）。',
     sugNote: '建议由确定性规则从本场日志算出，不调用模型；阈值与依据见 README「优化建议」一节。',
@@ -698,6 +721,15 @@ const I18N = {
     ccLiveNote: 'The live tab counts only the loaded event window',
     cvTitle: 'Comparison variables', cvHint: 'controlled = everything but the model matches',
     errSkipped: (n, names) => `⚠︎ ${n} log${n > 1 ? 's have' : ' has'} no parsable steps and ${n > 1 ? 'were' : 'was'} skipped: ${names} (the rest are compared as usual)`,
+    moJudgeAsk: 'Ask the model to score both runs', moJudgeBefore: 'Same-task comparison: the model gets each run\u2019s numbers and final answer, and scores correctness / completeness / instruction-following / evidence (0\u201310)',
+    moJudgeLane: 'Run', moJudgeWhy: 'Why', moJudgeNote: 'These scores come from a model: they are not part of the deterministic comparison above and change no statistic.', moJudgeParse: 'The model did not follow the JSON contract; its raw text is shown instead.',
+    moTitle: 'Model review', moHint: 'a model opinion — not deterministic data, never counted',
+    moAsk: 'Ask a model to review this run', moBefore: 'You see exactly what will be sent; nothing leaves until you press Send.',
+    moPreviewHint: 'This is what the model will receive (only the numbers this run already produced, plus failure excerpts — not the full log):',
+    moSend: 'Send', moCancel: 'Cancel', moPending: 'The model is reading… (the reply arrives as one piece; no token streaming yet)',
+    moBadge: 'model opinion', moAgain: 'Ask again',
+    moDisclaimer: 'Written by a model; it can contradict the deterministic data above — trust the data.',
+    moError: (code, detail) => `The model could not answer: ${code === 'host-has-no-llm' ? 'this host has no LLM service' : code === 'no-model-route' ? 'no model route (the log records no model and the host has no default)' : code === 'model-call-failed' ? 'the call failed' : code}${detail ? ' — ' + String(detail).slice(0, 200) : ''}`,
     sugTitle: 'Suggestions', sugHint: 'each cites numbers measured in this session; click one to locate the calls',
     sugNone: 'No suggestion template fired for this session (thresholds are calibrated on 240 local sessions — only the minority that stand out light up).',
     sugNote: 'Suggestions come from deterministic rules over this session\u2019s log — no model call; thresholds and rationale in the README.',
@@ -1065,6 +1097,7 @@ function buildLane(text){
   // 系统提示来自 request/header.header.system；指令文件只有路径与摘要（大小日志不记）；
   // 技能目录取 catalog 条目的 name+description；插件注入按来源名分组；工具返回/用户/模型输出按文本长度累计。
   const composition = { sysChars: 0, instrFiles: 0, skillCount: 0, skillChars: 0, plugin: new Map(), toolChars: 0, userChars: 0, assistantChars: 0, loaded: new Set() }
+  let lastAnswer = ''   // 最后一条模型回答原文（截 1200 字）：对比 Judge 拿它当最终回答
   // 对比件的变量表（诊断层第 5 项）：从日志元数据取「除任务外的条件」。缺失一律留 null——
   // 不把「日志没记」当成「两边相同」，判定里会把它单列为未记录。
   const meta = { provider: null, reasoningEffort: null, agentPreset: null, permission: null, sandbox: null, approval: null, instructions: null, skills: null, cwd: null, model: null }
@@ -1148,7 +1181,9 @@ function buildLane(text){
         if (typeof d.usage.cacheReadTokens === 'number') row.cacheTok = d.usage.cacheReadTokens
         if (curWin != null) row.ctxWin = curWin
       }
-      composition.assistantChars += resultText(d).length
+      const answerText = resultText(d)
+      composition.assistantChars += answerText.length
+      if (answerText.trim() !== '') lastAnswer = answerText.slice(0, 1200)
     } else if (t === 'step/end' && cur !== null){
       cur.e = tm
     } else if (t === 'reasoning-chunks' && cur !== null){
@@ -1245,7 +1280,7 @@ function buildLane(text){
     assistant: composition.assistantChars || null,
     loaded: [...composition.loaded],
   }
-  return { rows, model, firstUser: firstUserText, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta, title: model ?? (rows.length ? 'Session' : '?') }
+  return { rows, model, firstUser: firstUserText, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta, answer: lastAnswer || null, title: model ?? (rows.length ? 'Session' : '?') }
 }
 
 /* 判定逻辑（toolVerdict/stepVerdict/markRetryClusters/VERDICT_RULES/SEV）构建期
@@ -1258,7 +1293,7 @@ function buildLane(text){
 
 function buildData(fileTexts, fileNames){
   const lanes = fileTexts.map((text, i) => {
-    const { rows, model, firstUser, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta } = buildLane(text)
+    const { rows, model, firstUser, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta, answer } = buildLane(text)
     const fname = fileNames?.[i] ?? null
     // 工具级判定已在 buildLane 的全文上完成；这里做跨步骤盲目重试簇标注（会改工具判定），再步级聚合
     const allEvs = []
@@ -1289,7 +1324,7 @@ function buildData(fileTexts, fileNames){
     const rzTok = rows.some(r => r.rzTok != null) ? rows.reduce((n, r) => n + (r.rzTok ?? 0), 0) : null
     const outTok = rows.some(r => r.outTok != null) ? rows.reduce((n, r) => n + (r.outTok ?? 0), 0) : null
     const T = Math.round(Math.max(...rows.map(r => r.e)) * 10) / 10
-    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
+    return { key: 'l' + (i + 1), model, fname, firstUser, rows, main, detours, turnEnds, userMsgs, compaction, todoReminders, ctxWindow, context, meta, answer, preWindow: 0, stats: { steps: rows.length, tools, rz, rzTok, outTok, T, main: main.length, detours: detours.length } }
   })
   // 轴跨度贴合内容：短会话不再被 460s 固定下限压扁在左侧（×1.04 给右缘旗标留呼吸位）。
   const Tmax = Math.round(Math.max(...lanes.map(l => l.stats.T), 10) * 1.04 * 10) / 10
@@ -2870,6 +2905,160 @@ function signalsBlockHtml(lane){
   return h + `</div><div class="anahint">${esc(tr('sigHint'))}</div>`
 }
 
+/* ==================== 模型解读（诊断层第 8 项） ==================== */
+/*
+ * 硬约束（吴昊 2026-09-06 定）：发给模型的内容先给用户预览、可脱敏；模型输出与确定性数据
+ * 分开显示并标明「模型意见」；密钥不经过插件（宿主适配器自己解析凭据）。这里只做三件事：
+ * 从本场确定性结果拼提示词、把提示词原样交给用户确认、把回答原样贴进独立的一块。
+ */
+let MODEL_REVIEW = new Map()   // laneKey → { state: 'preview'|'pending'|'done'|'error', prompt, text?, provider?, model?, error?, detail? }
+
+/** 这场会话用的模型（拼进提示词与请求路由：让点评它的模型和跑它的模型一致）。 */
+function laneRoute(lane){
+  const model = lane.model ?? null
+  const meta = lane.meta ?? {}
+  return { provider: meta.provider ?? null, model }
+}
+
+/**
+ * 拼提示词：只用本场已经算出来的确定性结果（摘要、结果与证据、行为信号、上下文构成、
+ * 失败调用摘录），不做任何补充推断；截断长度写在明面上。
+ */
+function buildReviewPrompt(lane){
+  const sigs = behaviorSignals(lane, wallClock)
+  const oc = outcomeEvidence(lane, wallClock)
+  const c = lane.context ?? {}
+  const calls = settledLaneCalls(lane)
+  const fails = calls.filter(x => x.tl.v === 'error').slice(0, 12)
+  const lines = []
+  lines.push('【本场概要】')
+  lines.push(`模型 ${lane.model ?? '未记录'}；${lane.stats.steps} 步、${lane.stats.tools} 次工具调用、输出 ${lane.stats.outTok ?? '未记录'} tok、总耗时 ${fmtT(lane.stats.T)}`)
+  lines.push('')
+  lines.push('【结果与证据】')
+  const tk = oc.task
+  lines.push(`任务完成：${tk.state}${tk.reason ? '（' + tk.reason + '）' : ''}；测试 ${oc.test.runs} 次运行/${oc.test.passed === true ? '通过' : oc.test.passed === false ? '最后一次失败' : '未跑'}；构建 ${oc.build.runs} 次；Lint ${oc.lint.runs} 次；产物 ${oc.artifacts?.paths?.length ?? 0} 个文件`)
+  lines.push('')
+  lines.push('【行为信号】')
+  lines.push(sigs.length === 0 ? '（无）' : sigs.map(x => `- ${x.type}（${x.severity}）：${whyText(x.why)}`).join('\n'))
+  lines.push('')
+  if (c.sys != null || c.tool != null){
+    lines.push('【上下文构成（字符估算，非 token）】')
+    lines.push(`系统提示 ${c.sys ?? 0}；技能目录 ${c.skills ? c.skills.n + ' 条/' + c.skills.chars + ' 字' : '无'}；插件注入 ${(c.plugin ?? []).reduce((n, x) => n + x.chars, 0)}；工具返回 ${c.tool ?? 0}；用户消息 ${c.user ?? 0}；模型输出 ${c.assistant ?? 0}（本场加载技能 ${(c.loaded ?? []).length} 个）`)
+    lines.push('')
+  }
+  lines.push('【失败调用摘录（最多 12 条）】')
+  lines.push(fails.length === 0 ? '（无）' : fails.map(f => `- ${f.tl.name}：${String(f.tl.args ?? '').replace(/\s+/g, ' ').slice(0, 160)} → ${String(f.tl.res ?? '').replace(/\s+/g, ' ').slice(0, 200)}`).join('\n'))
+  lines.push('')
+  lines.push('请按上面给的这些数字回答：这场跑得怎么样、问题出在哪、下一步具体改什么。')
+  return lines.join('\n')
+}
+
+/** 把模型回答里可能带出来的 ```json 包裹剥掉，尽量给出好读的正文。 */
+function stripFence(text){
+  const t = String(text ?? '').trim()
+  const m = /^```[a-zA-Z]*\n([\s\S]*?)\n```$/.exec(t)
+  return m ? m[1] : t
+}
+
+/**
+ * 对比 Judge 的提示词：给模型两场（或更多）各自的确定性数字与最终回答原文，要求按四个固定维度
+ * 打分并说明理由，严格 JSON。数字仍然只来自本场分析，模型不产生新数据；解析失败就原样展示文本。
+ */
+function buildJudgePrompt(lanes){
+  const lines = []
+  lines.push('你在做一次「同任务多次跑」的对比评审。下面是各次跑的确定性结果与最终回答原文。')
+  lines.push('请只依据这些材料，按四个维度各打 0~10 分（10 最好）并说明理由：正确性、完整性、指令遵循、证据充分性。')
+  lines.push('输出严格 JSON，形如 {"scores":[{"lane":1,"正确性":8,"完整性":7,"指令遵循":9,"证据充分性":6,"理由":"…"}],"总结":"…"}，不要加任何解释文字或代码块围栏。')
+  lanes.forEach((lane, i) => {
+    const oc = outcomeEvidence(lane, wallClock)
+    const sigs = behaviorSignals(lane, wallClock)
+    lines.push('')
+    lines.push(`【第 ${i + 1} 次】模型 ${lane.model ?? '未记录'}；${lane.stats.steps} 步、${lane.stats.tools} 次工具调用、输出 ${lane.stats.outTok ?? '未记录'} tok、总耗时 ${fmtT(lane.stats.T)}`)
+    lines.push(`结果与证据：任务 ${oc.task.state}${oc.task.reason ? '（' + oc.task.reason + '）' : ''}；测试 ${oc.test.runs} 次${oc.test.passed === true ? '（通过）' : oc.test.passed === false ? '（最后一次失败）' : ''}；构建 ${oc.build.runs} 次；Lint ${oc.lint.runs} 次；产物 ${oc.artifacts?.paths?.length ?? 0} 个文件`)
+    lines.push(sigs.length === 0 ? '行为信号：（无）' : '行为信号：' + sigs.map(x => `${x.type}(${x.severity})`).join('、'))
+    lines.push(`最终回答原文（截断）：${lane.answer ? String(lane.answer).slice(0, 900) : '（日志未记录）'}`)
+  })
+  return lines.join('\n')
+}
+
+/** 宽松解析 Judge 的 JSON：只认四维分数与理由，缺项就如实标「未给」。 */
+function judgeScores(text){
+  const raw = stripFence(text)
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  let parsed
+  try {
+    parsed = JSON.parse(raw.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  const rows = Array.isArray(parsed?.scores) ? parsed.scores : null
+  if (!rows || rows.length === 0) return null
+  const dims = ['正确性', '完整性', '指令遵循', '证据充分性']
+  return {
+    rows: rows.map((r, i) => ({
+      lane: Number(r?.lane ?? i + 1),
+      scores: dims.map(d => (typeof r?.[d] === 'number' ? r[d] : null)),
+      reason: typeof r?.['理由'] === 'string' ? r['理由'] : '',
+    })),
+    summary: typeof parsed?.['总结'] === 'string' ? parsed['总结'] : '',
+  }
+}
+
+function judgeTableHtml(scores){
+  const dims = ['正确性', '完整性', '指令遵循', '证据充分性']
+  let h = '<table class="anatbl mojudge"><thead><tr><th>' + tr('moJudgeLane') + '</th>'
+  for (const d of dims) h += `<th>${esc(d)}</th>`
+  h += `<th>${tr('moJudgeWhy')}</th></tr></thead><tbody>`
+  for (const r of scores.rows){
+    h += `<tr><td>#${r.lane}</td>`
+    for (const s of r.scores) h += `<td class="mo${s !== null && s >= 7 ? 'good' : s !== null && s <= 4 ? 'bad' : ''}">${s === null ? '—' : s}</td>`
+    h += `<td class="mowhy">${esc(String(r.reason).slice(0, 300))}</td></tr>`
+  }
+  h += '</tbody></table>'
+  if (scores.summary) h += `<div class="motext" style="margin-top:8px">${esc(scores.summary)}</div>`
+  return h
+}
+
+function modelOpinionBlockHtml(lane){
+  const isJudgeHost = cmpOn() && DATA.lanes[0]?.key === lane.key
+  const key = isJudgeHost ? '__judge__' : lane.key
+  const st = MODEL_REVIEW.get(key)
+  const head = `<div class="bt">${tr('moTitle')}<span class="cchint">${tr('moHint')}</span></div>`
+  const judgeAsk = isJudgeHost
+    ? `<div class="moact"><button type="button" data-maze-act="mo-judge" data-lane="${lane.key}" data-key="__judge__">${tr('moJudgeAsk')}</button><span class="mohint">${tr('moJudgeBefore')}</span></div>`
+    : ''
+  if (!st){
+    return `<div class="anablock">${head}${judgeAsk}<div class="moact">${isJudgeHost ? '' : `<button type="button" data-maze-act="mo-start" data-lane="${esc(key)}" data-key="${esc(key)}">${tr('moAsk')}</button>`}`
+      + `<span class="mohint">${isJudgeHost ? tr('moJudgeBefore') : tr('moBefore')}</span></div></div>`
+  }
+  if (st.state === 'preview'){
+    return `<div class="anablock">${head}${judgeAsk}<div class="moact"><span class="mohint">${tr('moPreviewHint')}</span></div>`
+      + `<textarea class="moprompt" readonly>${esc(st.prompt ?? '')}</textarea>`
+      + `<div class="moact"><button type="button" data-maze-act="mo-send" data-lane="${esc(key)}" data-key="${esc(key)}">${tr('moSend')}</button>`
+      + `<button type="button" class="ghost" data-maze-act="mo-cancel" data-lane="${esc(key)}">${tr('moCancel')}</button></div></div>`
+  }
+  if (st.state === 'pending'){
+    return `<div class="anablock">${head}${judgeAsk}<div class="mohint">${tr('moPending')}</div></div>`
+  }
+  const route = st.provider && st.model ? `${st.provider} / ${st.model}` : (st.model ?? '')
+  if (st.state === 'error'){
+    return `<div class="anablock">${head}${judgeAsk}<div class="moerr">${esc(tr('moError')(st.error ?? '', st.detail ?? ''))}</div>`
+      + `<div class="moact"><button type="button" data-maze-act="mo-start" data-lane="${esc(key)}" data-key="${esc(key)}">${tr('moRetry')}</button></div></div>`
+  }
+  const scores = key === '__judge__' ? judgeScores(st.text ?? '') : null
+  const body = scores
+    ? judgeTableHtml(scores) + (scores.rows.length === 0 ? '' : `<div class="mohint">${tr('moJudgeNote')}</div>`)
+    : `<div class="motext">${esc(stripFence(st.text)).replace(/\n/g, '<br>')}</div>`
+      + (key === '__judge__' ? `<div class="mohint">${tr('moJudgeParse')}</div>` : '')
+  return `<div class="anablock">${head}${judgeAsk}`
+    + `<div class="moopinion"><span class="mobadge">${tr('moBadge')}</span>${route ? `<span class="moroute">${esc(route)}</span>` : ''}</div>`
+    + body
+    + `<div class="mohint">${tr('moDisclaimer')}</div>`
+    + `<div class="moact"><button type="button" class="ghost" data-maze-act="mo-start" data-lane="${esc(key)}" data-key="${esc(key)}">${tr('moAgain')}</button></div></div>`
+}
+
 /**
  * 优化建议块（诊断层第 6 项）：分析区末尾。每条建议都是 verdict.js 的 suggestions 里按校准阈值挑出来的，
  * 文案自带本场实测数字；有涉及调用的可点，复用行为信号的淡化+定位机制。
@@ -3082,6 +3271,8 @@ function renderAnalysis(){
     if (agSvg) h += `<div class="anablock" style="margin-bottom:10px"><div class="bt">${tr('agHeader')}</div>${agSvg}<div class="anahint">${tr('agHint')}</div></div>`
     // 优化建议放最末：前面几块给证据，这一块给「下一步改什么」
     h += suggestionsBlockHtml(lane)
+    // 模型解读再往后：它是意见，不是证据（块里自带「模型意见」标识与免责行）
+    h += modelOpinionBlockHtml(lane)
   })
   anaSecEl.innerHTML = h
 }
@@ -3098,6 +3289,38 @@ function zoomToNode(ref){
 }
 
 anaSecEl.addEventListener('click', ev => {
+  const act = ev.target.closest('[data-maze-act]')
+  if (act){
+    const what = act.getAttribute('data-maze-act')
+    const key = act.getAttribute('data-key') ?? act.getAttribute('data-lane') ?? ''
+    const lane = DATA?.lanes.find(l => l.key === key) ?? DATA?.lanes[0]
+    if (!lane) return
+    const route = laneRoute(DATA.lanes[0] ?? lane)
+    if (what === 'mo-start'){
+      MODEL_REVIEW.set(key, { state: 'preview', prompt: buildReviewPrompt(lane) })
+      renderAnalysis()
+      return
+    }
+    if (what === 'mo-judge'){
+      MODEL_REVIEW.set(key, { state: 'preview', prompt: buildJudgePrompt(DATA.lanes) })
+      renderAnalysis()
+      return
+    }
+    if (what === 'mo-cancel'){
+      MODEL_REVIEW.delete(key)
+      renderAnalysis()
+      return
+    }
+    if (what === 'mo-send'){
+      const st = MODEL_REVIEW.get(key)
+      if (!st || st.state !== 'preview') return
+      MODEL_REVIEW.set(key, { ...st, state: 'pending' })
+      renderAnalysis()
+      parent.postMessage({ kind: 'maze-ask-model', prompt: st.prompt, provider: route.provider ?? '', model: route.model ?? '' }, '*')
+      return
+    }
+    return
+  }
   const sigRow = ev.target.closest('[data-sig]')
   if (sigRow){
     // 行为信号：再点同一条取消；否则淡化其他节点、缩放到该段第一个调用并打开详情
@@ -3781,6 +4004,7 @@ function renderData(data, opts){
   // activity segments — the window stays approximate.
   if (!opts.follow){
     VIEW = null
+    MODEL_REVIEW = new Map()   // 换了数据，旧意见不再适用（模型产物绝不跟着新数据走）
     ANCHORS = []
     if (anchorPick) stopAnchorPick()
     invSel = null
@@ -4006,6 +4230,21 @@ window.addEventListener('message', e => {
   }
   renderDrop()
   apply()
+})
+
+// 模型回答回来：只认当前那一条 pending 的解读（同一时间只允许一次调用）。
+window.addEventListener('message', e => {
+  if (!e.data || e.data.kind !== 'maze-model-opinion') return
+  for (const [key, st] of MODEL_REVIEW){
+    if (st.state !== 'pending') continue
+    if (typeof e.data.error === 'string' && e.data.error !== ''){
+      MODEL_REVIEW.set(key, { ...st, state: 'error', error: e.data.error, detail: String(e.data.detail ?? '') })
+    } else {
+      MODEL_REVIEW.set(key, { ...st, state: 'done', text: String(e.data.text ?? ''), provider: String(e.data.provider ?? ''), model: String(e.data.model ?? '') })
+    }
+    renderAnalysis()
+    break
+  }
 })
 
 window.addEventListener('message', e => {

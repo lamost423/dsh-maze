@@ -4,6 +4,16 @@
 
 ## 未发布
 
+**诊断层第 8 项：模型解读 + 对比 Judge——插件从「只算不评」变成「先给证据、再按你确认发一次模型」。**
+
+- **单场解读**：分析区最末新增「模型解读」块，`让模型点评这场`把本场确定性结果（摘要、结果与证据、行为信号、上下文构成、失败调用摘录 ≤12 条）拼成提示词，**先整段给你看，你点发送才走**。回答显示在独立块里，带「模型意见」标识与免责行；不参与任何统计、不进缓存，换数据即清空。
+- **对比 Judge**：同任务对比时多一个`让模型按四维打分`（正确性/完整性/指令遵循/证据充分性，0~10）。提示词里给各次的确定性数字与**最终回答原文**（解析层新保留 `lane.answer`，截 1200 字）；要求严格 JSON，页面宽松解析——模型不按协议输出就原样展示文本，绝不假装有分数。
+- **宿主半只多一个路由**：`POST /api/maze.review`。路由按你日志里的 provider/model 解析（缺则退到宿主默认模型，两者都没有就明确 409，不猜）；`ctx.llm.stream` 一次、温度 0；**密钥不经过插件**（宿主 provider 适配器自己解析凭据）。收流口径照官方 experimental-auto-review：收尾后还有数据、非 stop 收尾、空回答一律判失败并说明原因。
+- **验收（真机真调用）**：独立 0.2.0-rc.2 宿主 + 本机凭据（验完即删），上传真实 23 步会话 → 预览 302 字（就是本场数字）→ 发送 → 34 秒后拿到回答，标识「模型意见」、路由 `deepseek-official / deepseek-flash`，回答引用的正是我们算出的数字（119 条技能目录 0 加载、工具返回 91,648 字符 vs 模型输出 1,199）。对比 Judge：提示词 489 字含四维与最终回答原文，模型按协议返回，页面渲染成评分表。两次实测均零控制台报错。
+- 测试 199 → 210 全绿（新增 8 个：路由解析三态、收流四种失败、客户端错误映射、空回答、Judge JSON 宽松解析三例）。
+
+_EN: Diagnosis item 8 — **model review and comparison judge**: the plugin goes from "measures only" to "shows the evidence, then sends one model call you approved". The single-run review builds a prompt from this run's deterministic results (summary, outcome evidence, behaviour signals, context composition, up to 12 failure excerpts) and shows the whole thing before sending; the reply lives in its own block with a *model opinion* badge and a disclaimer, counts in no statistic and is cleared when the data changes. In a same-task comparison a second button asks the model to score correctness / completeness / instruction-following / evidence (0–10) under a strict JSON contract, with each run's numbers and its final answer text (the parser now keeps `lane.answer`, truncated to 1 200 characters); if the contract is ignored the raw text is shown and no scores are invented. One host route is added, `POST /api/maze.review`: it resolves the route from the model recorded in your log (falling back to the host default, and answering 409 rather than guessing when neither exists), calls `ctx.llm.stream` once at temperature 0, and **credentials never pass through the plugin**. Stream reading follows the host's own experimental-auto-review rules — data after the finish, a non-stop finish, or an empty reply are all failures with a stated reason. Verified with a real call on a standalone 0.2.0-rc.2 host (local credentials copied in, deleted right after): a real 23-step session produced a 302-character preview, the reply arrived in 34 s tagged `deepseek-official / deepseek-flash` and cited exactly the numbers we computed (119-entry skill catalog with 0 loaded, 91 648 characters of tool output against 1 199 characters of model output); the judge's 489-character prompt carried the four dimensions and the final answers, and its JSON reply rendered as a score table. Zero console errors in both runs. 199 → 210 tests green._
+
 **诊断层第 7 项：本机会话库——迷宫页左上角「本机会话」直接列本机会话，勾 2~5 场即对比，不用先导出再上传。同时插件首次有了宿主半（性质变化，见下）。**
 
 - **为什么需要宿主半**：客户端能列会话、能 retain，但宿主对一场会话的可读消息有分页上限，长会话不保证一次给全；完整日志只有进程内可取——宿主的 `sessionQuery.readSession()` 已经正确读多帧 `.jsonl.zstd`（Node 自带的 `zstdDecompressSync` 只解第一帧且**静默截断**）。所以宿主半注册两个**只读**路由：`GET /api/maze.sessions`（`listSessions()` → id/cwd/createdAt/live，新到旧，默认只列顶层会话）与 `GET /api/maze.log?sessionId=…`（完整逻辑日志，NDJSON；id 必须来自宿主自己的列表，无路径输入）。
