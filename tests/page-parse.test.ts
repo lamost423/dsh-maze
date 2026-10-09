@@ -115,3 +115,47 @@ describe('page parse: 上下文构成（诊断层第 4 项）', () => {
     expect(ctx.loaded).toEqual(['digest-qa-verify'])
   })
 })
+
+describe('page parse: 对比变量表元数据（诊断层第 5 项）', () => {
+  it('取到提供方/推理强度/权限/沙箱/审批/指令摘要/技能目录指纹与工作目录；缺失的留 null', () => {
+    const t0 = 1_787_000_000_000
+    const lines = [
+      ev('session', { cwd: '/w', agentPreset: 'default' }, t0),
+      ev('permission/preset', { preset: 'workspace-write' }, t0 + 10),
+      ev('sandbox/mode', { mode: 'workspace-write' }, t0 + 20),
+      ev('approval/policy', { policy: 'ask' }, t0 + 30),
+      ev('request/header', { header: { system: 'S', config: { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'high' } } }, t0 + 40),
+      ev('user/message', { content: [{ type: 'text', text: 'go' }], source: { kind: 'agent-instructions', changes: [{ path: 'AGENTS.md', digest: 'aaa' }] } }, t0 + 50),
+      ev('user/message', { content: [{ type: 'text', text: 'c' }], source: { kind: 'skill-catalog', entries: [{ name: 'a', description: 'dd' }] } }, t0 + 60),
+      ev('turn/start', { turn: 1 }, t0 + 100),
+      ev('step/start', { turn: 1, step: 1 }, t0 + 200),
+      ev('assistant/message', { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'z' }] }, usage: { inputTokens: 10, cacheReadTokens: 0, outputTokens: 5 } }, t0 + 300),
+      ev('step/end', { turn: 1, step: 1 }, t0 + 400),
+      ev('turn/end', { turn: 1, reason: { kind: 'completed' } }, t0 + 500),
+    ].join('\n')
+    const lane = page.buildData([lines], ['x.jsonl']).lanes[0]!
+    const meta = (lane as { meta: Record<string, string | null> }).meta
+    expect(meta).toEqual({
+      provider: 'deepseek-official', reasoningEffort: 'high', agentPreset: 'default',
+      permission: 'workspace-write', sandbox: 'workspace-write', approval: 'ask',
+      instructions: 'AGENTS.md:aaa', skills: 'a:2', cwd: '/w', model: 'deepseek-flash',
+    })
+  })
+
+  it('日志没记录的项留 null（判定端据此说「未记录」，不当作相同）', () => {
+    const t0 = 1_787_000_000_000
+    const lines = [
+      ev('turn/start', { turn: 1 }, t0),
+      ev('step/start', { turn: 1, step: 1 }, t0 + 100),
+      ev('assistant/message', { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'z' }] }, usage: { inputTokens: 1, cacheReadTokens: 0, outputTokens: 1 } }, t0 + 200),
+      ev('step/end', { turn: 1, step: 1 }, t0 + 300),
+      ev('turn/end', { turn: 1, reason: { kind: 'completed' } }, t0 + 400),
+    ].join('\n')
+    const lane = page.buildData([lines], ['x.jsonl']).lanes[0]!
+    const meta = (lane as { meta: Record<string, string | null> }).meta
+    expect(meta.agentPreset).toBeNull()
+    expect(meta.cwd).toBeNull()
+    expect(meta.instructions).toBeNull()
+    expect(meta.skills).toBeNull()
+  })
+})

@@ -1,7 +1,7 @@
 /** 分析层（v0.7）：失败恢复链分类、模型上下文窗口解析，与下沉的聚合逻辑。 */
 import { describe, expect, it } from 'vitest'
 import {
-  ANALYSIS_RULES, analyzeFailureChains, contextWindowFor,
+  ANALYSIS_RULES, analyzeFailureChains, comparisonVariables, contextWindowFor, controlledVerdict,
   countRequestFailures, mergeIntervalsTotal, percentile, settledLaneCalls, taskComparability, toolMatrix,
 } from '../src/client/verdict.js'
 
@@ -145,5 +145,51 @@ describe('toolMatrix', () => {
     ])
     expect(m.get('bash')).toEqual({ calls: 3, ok: 1, error: 1, deadend: 0, retry: 1, durs: [1, 5, 2] })
     expect(m.get('grep')!.deadend).toBe(1)
+  })
+})
+
+describe('comparisonVariables / controlledVerdict（诊断层第 5 项）', () => {
+  const lane = (meta: Record<string, string | null>) => ({ meta })
+
+  it('只换模型 → 受控对比，差额可归因于模型', () => {
+    const base = { provider: 'deepseek-official', reasoningEffort: 'high', agentPreset: 'default', permission: 'workspace-write', sandbox: 'workspace-write', approval: 'ask', instructions: 'AGENTS.md:aaa', skills: 'a:10,b:20', cwd: '/w' }
+    const vars = comparisonVariables([lane({ ...base, model: 'deepseek-flash' }), lane({ ...base, model: 'deepseek-v4-pro' })])
+    const v = controlledVerdict(vars)
+    expect(v.kind).toBe('controlled')
+    expect(v.diffKeys).toEqual([])        // 模型是「要比较的条件」，不进干扰变量清单
+    expect(v.unknownKeys).toEqual([])
+    expect(v.modelChanged).toBe(true)
+  })
+
+  it('换了 agentPreset → 探索性对比，并点名这个变量', () => {
+    const base = { provider: 'deepseek-official', reasoningEffort: 'high', permission: 'ask', sandbox: 'workspace-write', approval: 'ask', instructions: 'AGENTS.md:aaa', skills: 'a:10', cwd: '/w' }
+    const vars = comparisonVariables([
+      lane({ ...base, agentPreset: 'default', model: 'm1' }),
+      lane({ ...base, agentPreset: 'plan-first', model: 'm2' }),
+    ])
+    const v = controlledVerdict(vars)
+    expect(v.kind).toBe('exploratory')
+    expect(v.diffKeys).toEqual(['agentPreset'])
+    const ap = vars.find(x => x.key === 'agentPreset')!
+    expect(ap.state).toBe('diff')
+  })
+
+  it('某个变量日志没记录 → 不当作相同：判定为「疑似受控」并列出未记录项', () => {
+    const base = { provider: 'deepseek-official', reasoningEffort: 'high', permission: 'ask', sandbox: 'workspace-write', approval: 'ask', instructions: 'AGENTS.md:aaa', skills: 'a:10' }
+    const vars = comparisonVariables([
+      lane({ ...base, cwd: '/w', model: 'm1' }),
+      lane({ ...base, cwd: null, model: 'm2' }),
+    ])
+    const v = controlledVerdict(vars)
+    expect(v.kind).toBe('likely')
+    expect(v.unknownKeys).toEqual(['agentPreset', 'cwd'])   // 两份 meta 都没写 agentPreset
+    expect(vars.find(x => x.key === 'cwd')!.state).toBe('unknown')
+  })
+
+  it('两边都没记录也算未记录（不能凭缺失说「相同」）', () => {
+    const vars = comparisonVariables([lane({ model: 'm1' }), lane({ model: 'm2' })])
+    const v = controlledVerdict(vars)
+    expect(v.kind).toBe('likely')
+    expect(v.unknownKeys.length).toBe(9)   // 除模型外的九项
   })
 })

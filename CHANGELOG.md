@@ -4,6 +4,14 @@
 
 ## 未发布
 
+**诊断层第 5 项：同任务对比先列「对比变量表」，并给出「受控 / 疑似受控 / 探索性」判定——只有除模型外全部相同（且都有记录）时，才算受控对比、差额才可以归因于模型。**
+
+- 变量十项：提供方、推理强度、Agent 预设、权限预设、沙箱模式、审批策略、指令文件（按「路径:摘要」指纹比）、技能目录（名字+描述长度指纹）、工作目录、模型。前九项任一不同 → 探索性并点名；日志没记录的项**不算相同**，全部相同但有未记录项时标「疑似受控」。
+- 口径：全部来自日志元数据（`session` / `agent-preset/selected` / `permission/preset` / `sandbox/mode` / `approval/policy` / `request/header.config` / `user/message` 的指令与技能目录来源），缺失留空；判定逻辑在 `verdict.js`（`comparisonVariables` / `controlledVerdict`），两条链路共用。
+- 验收：合成日志对（只换模型）显示「受控对比：除模型外全部相同（模型：deepseek-flash vs deepseek-v4-pro）」；换 `agentPreset` 的对显示「探索性对比：除模型外还有 1 项不同（Agent 预设）」。新增 6 个单元测试（四种判定分支 + 元数据解析两例），171 → 177 全绿。
+
+_EN: Diagnosis item 5 — same-task comparisons now open with a **comparison variable table** and a controlled / probably-controlled / exploratory verdict: only when everything except the model matches (and every variable is actually recorded) may the difference be attributed to the model. The ten variables are provider, reasoning effort, agent preset, permission preset, sandbox, approval policy, instruction files (fingerprinted by path:digest), skill catalog (name + description-length fingerprint), working directory and model; any mismatch among the first nine makes it exploratory and is named, and variables missing from the log never count as "same" (they yield "probably controlled"). All values come from log metadata; the logic lives in `verdict.js` (`comparisonVariables` / `controlledVerdict`), shared by both render paths. Verified with two synthetic pairs: the model-only pair reports a controlled comparison naming both models, the agentPreset pair reports an exploratory comparison naming the agent preset. 6 new unit tests, 171 → 177._
+
 **诊断层第 4 项：分析区新增「上下文里装了什么」——系统提示、技能目录、插件注入、工具返回、用户消息、模型输出按字符数估算画堆叠条，并列「技能目录 N 个、本场加载 M 个」。**
 
 - 口径（一律标注是**字符估算，不是 token 真值**）：系统提示取 `request/header.header.system` 最长的一份；技能目录取 catalog 条目 name+description；插件注入按来源名分组（日志格式 v4 的 `plugin:<名>` 与旧格式都认）；工具返回、用户消息、模型输出按日志原文长度累计；指令文件只有路径与摘要，只报文件数并注明「正文大小未记录」。技能加载 = `skill` 工具调用参数里的名字（去重）。

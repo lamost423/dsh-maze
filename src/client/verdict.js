@@ -898,3 +898,47 @@ export function contextOccupancy(lane){
   if (!valid){ peakRatio = 0; peakWin = null; peakNode = own.reduce((b, n) => (b === null || tokOf(n) > tokOf(b)) ? n : b, null) }
   return { samples, valid, peakTok, peakRatio, peakWin, peakNode, windows, skipped }
 }
+
+/* ==================== 对比件：变量表与「受控 / 探索」判定（诊断层第 5 项） ==================== */
+
+/** 变量表的项：模型单独看（那是要比较的条件），其余是必须相同的干扰变量。 */
+export const COMPARE_VARS = ['provider', 'reasoningEffort', 'agentPreset', 'permission', 'sandbox', 'approval', 'instructions', 'skills', 'cwd', 'model']
+
+/**
+ * 逐项比较各泳道的元数据。
+ * 每项状态：`same`（各泳道都有记录且相同）/ `diff`（都有记录但有不同）/ `unknown`（至少一条没记录，
+ * 日志里没有这一项时绝不当作「相同」——那会把没验证过的东西说成受控）。
+ * @param lanes 泳道数组，读 `lane.meta[key]`
+ * @returns [{ key, values, state }]
+ */
+export function comparisonVariables(lanes){
+  const pick = (l, k) => {
+    const v = l && l.meta ? l.meta[k] : null
+    return v === undefined || v === null || v === '' ? null : String(v)
+  }
+  return COMPARE_VARS.map(k => {
+    const values = lanes.map(l => pick(l, k))
+    const known = values.filter(v => v !== null)
+    const state = known.length < values.length ? 'unknown' : (values.every(v => v === values[0]) ? 'same' : 'diff')
+    return { key: k, values, state }
+  })
+}
+
+/**
+ * 「受控 / 探索」判定：除模型外全部相同且都有记录 → 受控；有变量不同 → 探索性；只差在未记录项 → 疑似受控。
+ * 只有受控时，两次跑的差额才可以算到模型头上。
+ * @param vars comparisonVariables 的结果
+ * @returns { kind: 'controlled'|'likely'|'exploratory', diffKeys, unknownKeys, modelChanged }
+ */
+export function controlledVerdict(vars){
+  const others = vars.filter(v => v.key !== 'model')
+  const diffKeys = others.filter(v => v.state === 'diff').map(v => v.key)
+  const unknownKeys = others.filter(v => v.state === 'unknown').map(v => v.key)
+  const model = vars.find(v => v.key === 'model')
+  return {
+    kind: diffKeys.length > 0 ? 'exploratory' : unknownKeys.length > 0 ? 'likely' : 'controlled',
+    diffKeys,
+    unknownKeys,
+    modelChanged: model ? model.state === 'diff' : false,
+  }
+}

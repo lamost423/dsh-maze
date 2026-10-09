@@ -307,3 +307,33 @@ export declare const CONTEXT_WINDOWS: [RegExp, number][]
 export declare function contextWindowFor(model: string | null | undefined): number | null
 /** Whether an injected context message is a todo-freshness-guard reminder (log formats v0–v3 and v4). */
 export declare function isTodoReminderSource(source: unknown): boolean
+
+/** 变量表的项（模型单独看，其余是必须相同的干扰变量）。 */
+export declare const COMPARE_VARS: string[]
+
+/** 对比件的变量表项。 */
+export interface CompareVar {
+  key: string
+  values: (string | null)[]
+  state: 'same' | 'diff' | 'unknown'
+}
+
+/**
+ * 逐项比较各泳道的元数据；至少一条没记录时状态是 unknown（不当作相同）。
+ * @param lanes 泳道数组，读 `lane.meta[key]`
+ */
+export declare function comparisonVariables(lanes: unknown[]): CompareVar[]
+
+/** 「受控 / 探索」判定结果。 */
+export interface ControlledVerdict {
+  kind: 'controlled' | 'likely' | 'exploratory'
+  diffKeys: string[]
+  unknownKeys: string[]
+  modelChanged: boolean
+}
+
+/**
+ * 除模型外全部相同且都有记录 → 受控；有变量不同 → 探索性；只差在未记录项 → 疑似受控。
+ * @param vars comparisonVariables 的结果
+ */
+export declare function controlledVerdict(vars: CompareVar[]): ControlledVerdict
