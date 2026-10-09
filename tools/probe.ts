@@ -3,7 +3,13 @@
  * 回答调研里标了「必须实机确认」的几个问题：客户端能拿到多少会话行、冷会话 retain 会不会
  * 把 Agent 唤醒（=产生模型调用）、读到的历史是完整还是尾部窗口。
  *
- * 只在 __mazeProbe 被显式调用时工作；验证完从入口摘掉并删除本文件。
+ * 只在 __mazeProbe 被显式调用时工作。放在 tools/ 下是刻意的：它不参与 tsconfig 的编译，
+ * 所以 lib/ 里不会多出它的产物（曾经打进过发布包）。要用的步骤：
+ *   1) cp tools/probe.ts src/client/probe.ts
+ *   2) 在 src/client/index.ts 的 apply() 里加：installProbe(ctx as unknown as Record<string, any>)
+ *      （记得同时加 import）
+ *   3) pnpm build && 重新安装插件，然后在页面里调 window.__mazeProbe.*
+ *   4) 验证完把这两处改动撤掉、删掉 src/client/probe.ts
  */
 export function installProbe(ctx: Record<string, any>): void {
   const g = globalThis as unknown as Record<string, any>

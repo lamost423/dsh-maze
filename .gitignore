@@ -10,10 +10,5 @@ coverage/
 # 构建产物时才能用；只留源码会让装出来的包里没有 `lib/index.js`，插件整个
 # 加载不了（2026-10-05 桌面版事故）。改动源码后请跑 `pnpm build` 并一起提交。
 
-# 探针（src/client/probe.ts）是本地诊断工具，不进插件产物；tsc 会为它生成这些文件
-lib/client/probe.js
-lib/client/probe.js.map
-lib/client/probe.d.ts
-lib/client/probe.d.ts.map
-lib/probe-*.cjs
-lib/probe-*.cjs.map
+# 探针（tools/probe.ts）不参与编译，lib/ 里不该出现它的产物；这条是防复发
+lib/**/probe.*
