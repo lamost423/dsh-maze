@@ -942,3 +942,108 @@ export function controlledVerdict(vars){
     modelChanged: model ? model.state === 'diff' : false,
   }
 }
+
+/* ==================== 优化建议（诊断层第 6 项） ==================== */
+
+/**
+ * 阈值按本机 240 场会话校准（2026-10-09）：每条模板的命中率落在 1.7%~20%，
+ * 都是"少数会话才会亮"的尾部条件——否则建议就成了每场都有的噪音。
+ * 括号里是实测命中率：unrecovered ≥3 处（本次未单测，与 toolFail 同量级）、
+ * 原样重试 16.7%、循环 13.8%、同轮重复 18.3%、写文件没验证 12.1%、
+ * 上下文峰值 ≥70% 5.0%、压缩 4.2%、工具返回占比 ≥95% 15.4%、待办陈旧 10.0%、技能目录≥50 且 0 加载 1.7%。
+ */
+export const SUGGESTION_RULES = {
+  /** 未恢复的失败链达到几条才值得提 */
+  UNRECOVERED_MIN: 3,
+  /** 工具返回占上下文（按字符估）达到此比例才算"偏高"（本机 P90=95.8%） */
+  TOOL_SHARE: 0.95,
+  /** 占比建议的最少调用数：太少时占比没有统计意义 */
+  TOOL_SHARE_MIN_CALLS: 10,
+  /** 上下文峰值占用达到此比例提醒接近上限 */
+  CTX_PEAK: 0.7,
+  /** 技能目录条目数达到此值且一条没加载才提 */
+  SKILL_UNUSED_MIN: 50,
+  /** 一次最多给几条建议（按价值排序取前几条） */
+  MAX: 5,
+}
+
+/**
+ * 优化建议（诊断层第 6 项）：每条都引用本场实测的数字，并带涉及调用（点击可定位）。
+ * 口径：只从已校准的尾部条件里挑，最多 `SUGGESTION_RULES.MAX` 条；没有就返回空数组（页面明说没有）。
+ * @param lane 泳道（与行为信号同一形状，另读 `lane.context`）
+ * @param wall 折叠坐标 → 墙钟秒（与页面同一函数）
+ * @returns [{ key, severity, why: { k, p }, refs, count }]
+ */
+export function suggestions(lane, wall){
+  const out = []
+  const sigs = behaviorSignals(lane, wall)
+  const sigOf = t => sigs.find(x => x.type === t) ?? null
+  const calls = settledLaneCalls(lane)
+  const tools = calls.length
+  const oc = outcomeEvidence(lane, wall)
+  const chains = analyzeFailureChains(calls.map(c => ({ name: c.tl.name, args: c.tl.args ?? '', v: c.tl.v, s: c.tl.s, e: c.tl.e ?? null })))
+  const unrecovered = chains.filter(x => !x.recovered)
+
+  // 1) 失败后再没换策略：最有行动价值的一条（改法明确：要么换参数、要么承认失败）
+  if (unrecovered.length >= SUGGESTION_RULES.UNRECOVERED_MIN){
+    out.push({ key: 'unrecovered', severity: 'high',
+      why: { k: 'sugUnrecovered', p: [unrecovered.length, chains.length] },
+      refs: unrecovered.slice(0, 40).map(x => ({ n: calls[x.i].n, tl: calls[x.i].tl })), count: unrecovered.length })
+  }
+
+  // 2) 失败后原样重试（校准 16.7%）
+  const retry = sigOf('mechanicalRetry')
+  if (retry) out.push({ key: 'identicalRetry', severity: retry.severity, why: { k: 'sugIdenticalRetry', p: [retry.count] }, refs: retry.refs.slice(0, 40), count: retry.count })
+
+  // 3) 卡在循环里（13.8%）
+  const loop = sigOf('loop')
+  if (loop) out.push({ key: 'loop', severity: loop.severity, why: { k: 'sugLoop', p: [loop.count] }, refs: loop.refs.slice(0, 40), count: loop.count })
+
+  // 4) 写了文件但整场没有验证类命令（12.1%）
+  const anyVerify = !(oc.test.runs === 0 && oc.build.runs === 0 && oc.lint.runs === 0)
+  const wrote = oc.artifacts?.paths?.length ?? 0
+  if (!anyVerify && wrote > 0){
+    out.push({ key: 'wroteNoVerify', severity: 'high',
+      why: { k: 'sugWroteNoVerify', p: [wrote] },
+      refs: calls.filter(c => /write|edit|apply_patch/i.test(c.tl.name)).slice(0, 40).map(c => ({ n: c.n, tl: c.tl })), count: wrote })
+  }
+
+  // 5) 上下文接近窗口上限（5.0%）
+  const occ = contextOccupancy(lane)
+  if (occ.valid && occ.peakRatio >= SUGGESTION_RULES.CTX_PEAK){
+    out.push({ key: 'ctxPeak', severity: occ.peakRatio >= 0.9 ? 'high' : 'medium',
+      why: { k: 'sugCtxPeak', p: [Math.round(occ.peakRatio * 1000) / 10, occ.peakWin] },
+      refs: occ.peakNode ? [{ n: occ.peakNode, tl: null }] : [], count: 1 })
+  }
+
+  // 6) 上下文压缩（4.2%）：单场塞太多，或该把中间产物落盘
+  const comp = sigOf('compaction')
+  if (comp) out.push({ key: 'compaction', severity: comp.severity, why: { k: 'sugCompaction', p: [lane.compaction?.starts?.length ?? 0, lane.compaction?.prunes ?? 0] }, refs: comp.refs.slice(0, 40), count: comp.count })
+
+  // 7) 工具返回占上下文偏高（≥95%，15.4%）
+  const c = lane.context ?? {}
+  const compTotal = (c.tool ?? 0) + (c.user ?? 0) + (c.assistant ?? 0) + (c.sys ?? 0)
+  const toolShare = compTotal > 0 ? (c.tool ?? 0) / compTotal : 0
+  if (tools >= SUGGESTION_RULES.TOOL_SHARE_MIN_CALLS && toolShare >= SUGGESTION_RULES.TOOL_SHARE){
+    out.push({ key: 'toolHeavy', severity: 'info',
+      why: { k: 'sugToolHeavy', p: [Math.round(toolShare * 100), Math.round((c.tool ?? 0) / 1000)] },
+      refs: [], count: tools })
+  }
+
+  // 8) 同轮重复调用（18.3%）
+  const rep = sigOf('repeat')
+  if (rep) out.push({ key: 'sameTurnRepeats', severity: rep.severity, why: { k: 'sugSameTurnRepeats', p: [rep.count, tools > 0 ? Math.round(rep.count / tools * 100) : 0] }, refs: rep.refs.slice(0, 40), count: rep.count })
+
+  // 9) 待办陈旧（10.0%）
+  const todo = sigOf('todoStale')
+  if (todo) out.push({ key: 'todoStale', severity: todo.severity, why: { k: 'sugTodoStale', p: [lane.todoReminders ?? 0] }, refs: [], count: lane.todoReminders ?? 0 })
+
+  // 10) 技能目录大但一条没加载（1.7%）
+  if ((c.skills?.n ?? 0) >= SUGGESTION_RULES.SKILL_UNUSED_MIN && (c.loaded ?? []).length === 0){
+    out.push({ key: 'skillsUnused', severity: 'info',
+      why: { k: 'sugSkillsUnused', p: [c.skills.n, Math.round((c.skills.chars ?? 0) / 1000)] },
+      refs: [], count: 0 })
+  }
+
+  return out.slice(0, SUGGESTION_RULES.MAX)
+}

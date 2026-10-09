@@ -337,3 +337,29 @@ export interface ControlledVerdict {
  * @param vars comparisonVariables 的结果
  */
 export declare function controlledVerdict(vars: CompareVar[]): ControlledVerdict
+
+/** 优化建议（诊断层第 6 项）阈值：按本机 240 场会话校准（2026-10-09）。 */
+export declare const SUGGESTION_RULES: {
+  UNRECOVERED_MIN: number
+  TOOL_SHARE: number
+  TOOL_SHARE_MIN_CALLS: number
+  CTX_PEAK: number
+  SKILL_UNUSED_MIN: number
+  MAX: number
+}
+
+/** 一条优化建议：文案是结构化 why（展示端按语言渲染），refs 是涉及调用（点击定位）。 */
+export interface Suggestion {
+  key: string
+  severity: 'high' | 'medium' | 'low' | 'info'
+  why: VerdictWhy
+  refs: { n: unknown; tl: unknown }[]
+  count: number
+}
+
+/**
+ * 从校准过的尾部条件里挑出本场的优化建议（最多 SUGGESTION_RULES.MAX 条）。
+ * @param lane 泳道（与行为信号同一形状，另读 lane.context）
+ * @param wall 折叠坐标 → 墙钟秒
+ */
+export declare function suggestions(lane: unknown, wall: (t: number) => number): Suggestion[]

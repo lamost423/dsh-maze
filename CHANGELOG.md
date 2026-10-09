@@ -4,6 +4,15 @@
 
 ## 未发布
 
+**诊断层第 6 项：分析区末尾新增「优化建议」——每条都引用本场实测数字、涉及调用可点击定位；模板与阈值先按本机 240 场会话跑出真实分布再定。**
+
+- 十类模板（括号里是本机 240 场的命中率，都落在尾部）：失败后没换策略（未恢复失败链 ≥3，2.5%）、失败后原样重试（16.7%）、疑似卡在循环（13.8%）、改了文件但没验证（12.1%）、上下文接近窗口上限（峰值 ≥70%，5.0%）、本场发生上下文压缩（4.2%）、工具返回占上下文偏高（≥95% 且调用 ≥10，15.4%）、同轮重复调用（18.3%）、待办清单陈旧（10.0%）、技能目录 ≥50 条且一条没加载（1.7%）。最多给 5 条，按行动价值排序（未恢复的失败排最前）。
+- **建议条数分布（实测）**：0 条 55.4%、1 条 18.8%、2 条 11.7%、3 条 4.6%、4 条 5.4%、5 条 4.2%——超过一半的会话一条都不给，块里明说「没有触发任何建议模板」，不做无话找话。
+- 全部由确定性规则算出，不调用模型；常量在 `verdict.js` 的 `SUGGESTION_RULES`，README 中英各补一节说明模板与阈值。
+- 验收：typecheck 零错误；177 → 182 测试全绿（新增 5 个：未恢复失败、技能目录、工具返回占比两种边界、空态、上限与去重）；真实日志实测——119 条目录的会话给出「技能目录有 119 条（约 17k 字符」，另一份 574 步会话给出 3 条（循环 9 步 / 写了 1 个文件未验证 / 压缩 6 次裁剪 15 次），点击后选中该行并淡化其他节点（淡化元素 0 → 7），零控制台报错。
+
+_EN: Diagnosis item 6 — the analysis area ends with **Suggestions**: each row cites numbers measured in that session, and rows with calls involved are clickable to locate them; the templates and thresholds were fixed only after measuring the real distribution over 240 local sessions. Ten templates (hit rate in brackets): failure not followed by a new approach (≥3 unrecovered chains, 2.5%), identical retry after failure (16.7%), looks stuck in a loop (13.8%), files changed without verification (12.1%), context near the ceiling (peak ≥70%, 5.0%), context compacted (4.2%), tool results dominating (≥95% with ≥10 calls, 15.4%), same-turn repeats (18.3%), stale todo list (10.0%), skill catalog ≥50 with none loaded (1.7%). At most five, ordered by actionability. Measured distribution: 0 suggestions 55.4%, 1 18.8%, 2 11.7%, 3 4.6%, 4 5.4%, 5 4.2% — the majority get none and the block says so. All deterministic, no model call; constants in `SUGGESTION_RULES`, documented in both READMEs. 177 → 182 tests green, plus live verification: a 119-entry catalog session reports it with the character estimate, a 574-step session yields three suggestions whose click selects the row and dims the rest (dimmed elements 0 → 7), zero console errors._
+
 **诊断层第 5 项：同任务对比先列「对比变量表」，并给出「受控 / 疑似受控 / 探索性」判定——只有除模型外全部相同（且都有记录）时，才算受控对比、差额才可以归因于模型。**
 
 - 变量十项：提供方、推理强度、Agent 预设、权限预设、沙箱模式、审批策略、指令文件（按「路径:摘要」指纹比）、技能目录（名字+描述长度指纹）、工作目录、模型。前九项任一不同 → 探索性并点名；日志没记录的项**不算相同**，全部相同但有未记录项时标「疑似受控」。

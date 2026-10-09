@@ -482,6 +482,10 @@ const I18N = {
     ccPlugins: n => `插件注入来自 ${n} 个插件`,
     ccLiveNote: '实时页签只统计已加载窗口内的部分',
     cvTitle: '对比变量表', cvHint: '受控对比 = 除模型外全部相同',
+    sugTitle: '优化建议', sugHint: '每条都写着本场实测的数字；点一条定位到相关调用',
+    sugNone: '本场没有触发任何建议模板（阈值按本机 240 场会话校准，只挑少数会话才会亮的问题）。',
+    sugNote: '建议由确定性规则从本场日志算出，不调用模型；阈值与依据见 README「优化建议」一节。',
+    sugName: { unrecovered: '失败后没换策略', identicalRetry: '失败后原样重试', loop: '疑似卡在循环', wroteNoVerify: '改了文件但没验证', ctxPeak: '上下文接近窗口上限', compaction: '本场发生上下文压缩', toolHeavy: '工具返回占上下文偏高', sameTurnRepeats: '同轮重复调用', todoStale: '待办清单陈旧', skillsUnused: '技能目录大且未加载' },
     cvVar: '变量', cvState: '状态', cvLane: i => `第 ${i} 次`, cvNoRecord: '日志未记录',
     cvSame: '相同', cvDiff: '不同', cvUnknown: '未记录',
     cvName: { provider: '提供方', reasoningEffort: '推理强度', agentPreset: 'Agent 预设', permission: '权限预设', sandbox: '沙箱模式', approval: '审批策略', instructions: '指令文件', skills: '技能目录', cwd: '工作目录', model: '模型' },
@@ -612,6 +616,16 @@ const I18N = {
     errUrl: (p, m) => `URL 加载失败：${p}（${m}）`,
     errPngCanvas: 'PNG 导出失败：canvas 编码为空', errPngRaster: 'PNG 导出失败：SVG 栅格化未成功',
     why: {
+      sugUnrecovered: p => `${p[0]} 处失败之后没有换参数也没有换工具，那一步就停在那里（本场共 ${p[1]} 条失败链）`,
+      sugIdenticalRetry: p => `失败后用同一条命令原样重试了 ${p[0]} 次——先看清错误信息再改参数，比重跑一次便宜`,
+      sugLoop: p => `有 ${p[0]} 步在重复同一个调用序列，像是卡在循环里：把目标拆小或换个入口`,
+      sugWroteNoVerify: p => `本场写了 ${p[0]} 个文件，但没有跑过任何测试/构建/Lint——改完至少跑一次能挡回归`,
+      sugCtxPeak: p => `上下文峰值占到窗口的 ${p[0]}%（窗口 ${p[1]?.toLocaleString?.() ?? p[1]} tok），接近上限；换大窗口或先把中间产物落盘`,
+      sugCompaction: p => `本场触发上下文压缩 ${p[0]} 次、工具结果被裁剪 ${p[1]} 次：单场任务偏大，拆段或落盘能少丢上下文`,
+      sugToolHeavy: p => `工具返回占了上下文的 ${p[0]}%（约 ${p[1]}k 字符）：大输出建议落盘后只读需要的段`,
+      sugSameTurnRepeats: p => `同一轮里同参数调用了 ${p[0]} 次（占本场调用 ${p[1]}%）：同一份内容读一次就够`,
+      sugTodoStale: p => `待办清单被提醒了 ${p[0]} 次（清单与实际进度脱节）：把已完成项划掉再往下走`,
+      sugSkillsUnused: p => `技能目录有 ${p[0]} 条（约 ${p[1]}k 字符），本场一条都没加载：目录也是每次请求的成本，可按需精简`,
       errFlag: () => '工具返回错误标志（isError）',
       errStrong: p => `输出命中失败特征「${p[0]}」`,
       errWeak: p => `输出开头命中失败特征「${p[0]}」`,
@@ -682,6 +696,10 @@ const I18N = {
     ccPlugins: n => `Plugin injections came from ${n} plugin${n > 1 ? 's' : ''}`,
     ccLiveNote: 'The live tab counts only the loaded event window',
     cvTitle: 'Comparison variables', cvHint: 'controlled = everything but the model matches',
+    sugTitle: 'Suggestions', sugHint: 'each cites numbers measured in this session; click one to locate the calls',
+    sugNone: 'No suggestion template fired for this session (thresholds are calibrated on 240 local sessions — only the minority that stand out light up).',
+    sugNote: 'Suggestions come from deterministic rules over this session\u2019s log — no model call; thresholds and rationale in the README.',
+    sugName: { unrecovered: 'Failure not followed by a new approach', identicalRetry: 'Identical retry after failure', loop: 'Looks stuck in a loop', wroteNoVerify: 'Files changed without verification', ctxPeak: 'Context near the window ceiling', compaction: 'Context was compacted', toolHeavy: 'Tool results dominate the context', sameTurnRepeats: 'Repeated calls in one turn', todoStale: 'Stale todo list', skillsUnused: 'Large skill catalog, none loaded' },
     cvVar: 'Variable', cvState: 'State', cvLane: i => `Run ${i}`, cvNoRecord: 'not in log',
     cvSame: 'same', cvDiff: 'differs', cvUnknown: 'unrecorded',
     cvName: { provider: 'Provider', reasoningEffort: 'Reasoning effort', agentPreset: 'Agent preset', permission: 'Permission preset', sandbox: 'Sandbox', approval: 'Approval policy', instructions: 'Instruction files', skills: 'Skill catalog', cwd: 'Working directory', model: 'Model' },
@@ -812,6 +830,16 @@ const I18N = {
     errUrl: (p, m) => `URL load failed: ${p} (${m})`,
     errPngCanvas: 'PNG export failed: canvas produced no data', errPngRaster: 'PNG export failed: SVG rasterization failed',
     why: {
+      sugUnrecovered: p => `${p[0]} failure${p[0] > 1 ? 's' : ''} ended without changing arguments or tools — that step simply stopped there (${p[1]} failure chains in this session)`,
+      sugIdenticalRetry: p => `The same command was retried identically ${p[0]} time${p[0] > 1 ? 's' : ''} after failing — reading the error before changing the arguments is cheaper than another run`,
+      sugLoop: p => `${p[0]} steps repeat the same call sequence; the session looks stuck in a loop — narrow the goal or change the entry point`,
+      sugWroteNoVerify: p => `${p[0]} file${p[0] > 1 ? 's were' : ' was'} written, yet no test/build/lint command ran — one run would catch regressions`,
+      sugCtxPeak: p => `Context peaked at ${p[0]}% of the window (${p[1]?.toLocaleString?.() ?? p[1]} tok), close to the ceiling; use a larger window or offload intermediates to disk`,
+      sugCompaction: p => `Context compacted ${p[0]} time${p[0] > 1 ? 's' : ''} and tool results were pruned ${p[1]} time${p[1] > 1 ? 's' : ''}: the session carries too much for one run — split it or offload to disk`,
+      sugToolHeavy: p => `Tool results fill ${p[0]}% of the context (~${p[1]}k characters): offload large outputs to disk and read only the needed part`,
+      sugSameTurnRepeats: p => `The same arguments were called ${p[0]} times within one turn (${p[1]}% of all calls): reading the same thing once is enough`,
+      sugTodoStale: p => `The todo list was nudged ${p[0]} times (it drifts from actual progress): tick off finished items before moving on`,
+      sugSkillsUnused: p => `The skill catalog holds ${p[0]} entries (~${p[1]}k characters) and this session loaded none: the catalog rides every request, so trim it as needed`,
       errFlag: () => 'Tool returned an error flag (isError)',
       errStrong: p => `Output matches failure signature “${p[0]}”`,
       errWeak: p => `Output head matches failure signature “${p[0]}”`,
@@ -2841,6 +2869,31 @@ function signalsBlockHtml(lane){
 }
 
 /**
+ * 优化建议块（诊断层第 6 项）：分析区末尾。每条建议都是 verdict.js 的 suggestions 里按校准阈值挑出来的，
+ * 文案自带本场实测数字；有涉及调用的可点，复用行为信号的淡化+定位机制。
+ */
+function suggestionsBlockHtml(lane){
+  const sugs = suggestions(lane, wallClock)
+  const head = `<div class="bt">${tr('sugTitle')}<span class="cchint">${tr('sugHint')}</span></div>`
+  if (sugs.length === 0) return `<div class="anablock">${head}<div class="anahint">${esc(tr('sugNone'))}</div></div>`
+  let h = `<div class="anablock">${head}<div class="sigwrap">`
+  for (const sg of sugs){
+    const nodes = new Set((sg.refs ?? []).map(r => r.n).filter(Boolean))
+    const first = (sg.refs ?? [])[0] ?? null
+    const type = 'sug:' + sg.key
+    const idx = sigRows.push({ laneKey: lane.key, type, nodes, first }) - 1
+    const clickable = nodes.size > 0
+    const selected = sigSel !== null && sigSel.laneKey === lane.key && sigSel.type === type
+    h += `<div class="sig${selected ? ' sel' : ''}"${clickable ? ` data-sig="${idx}"` : ''}>`
+      + `<span class="sigsev ${sg.severity}">${esc(tr('sigSev')[sg.severity])}</span>`
+      + `<span class="sname">${esc(tr('sugName')[sg.key] ?? sg.key)}</span>`
+      + `<span class="swhy">${esc(whyText(sg.why))}</span>`
+      + `</div>`
+  }
+  return h + `</div><div class="anahint">${esc(tr('sugNote'))}</div></div>`
+}
+
+/**
  * 上下文构成块（诊断层第 4 项）：把「上下文里装了什么」按**字符数**估出来画一条堆叠条。
  * 诚实边界：日志没有分段 token，这里一律是字符估算，不换算成 token；指令文件只有路径与摘要，
  * 只报文件数；实时页签只有已加载窗口，注明部分是窗口内统计。
@@ -3025,6 +3078,8 @@ function renderAnalysis(){
       + `</div>`
     const agSvg = agentGraphSvg(lane, li)
     if (agSvg) h += `<div class="anablock" style="margin-bottom:10px"><div class="bt">${tr('agHeader')}</div>${agSvg}<div class="anahint">${tr('agHint')}</div></div>`
+    // 优化建议放最末：前面几块给证据，这一块给「下一步改什么」
+    h += suggestionsBlockHtml(lane)
   })
   anaSecEl.innerHTML = h
 }
