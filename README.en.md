@@ -12,6 +12,8 @@
 [![dshbase](https://dshbase.com/badges/dsh-maze.svg)](https://dshbase.com/plugins/dsh-maze/)
 [![Listed in awesome-deepseek-harness (Dominic789654)](https://img.shields.io/badge/listed-awesome--deepseek--harness-blue)](https://github.com/Dominic789654/awesome-deepseek-harness)
 [![Listed in awesome-deepseek-harness (0xsline)](https://img.shields.io/badge/listed-awesome--deepseek--harness%20catalog-blue)](https://github.com/0xsline/awesome-deepseek-harness)
+[![Listed in awesome-deepseek-harness-plugins (walkinglabs)](https://img.shields.io/badge/listed-awesome--deepseek--harness--plugins%20(walkinglabs)-blue)](https://github.com/walkinglabs/awesome-deepseek-harness-plugins)
+[![Listed in awesome-dsh-plugin (beancookie)](https://img.shields.io/badge/listed-awesome--dsh--plugin%20(beancookie)-blue)](https://github.com/beancookie/awesome-dsh-plugin)
 
 [![Listed in dsh-plugin-registry](https://img.shields.io/badge/registry-dsh--plugin--registry-2d6a8f)](https://github.com/XingLingQAQ/dsh-plugin-registry)
 [![Listed on dshfind](https://dshfind.com/api/badge/lamost423/dsh-maze?lang=zh)](https://dshfind.com/zh/plugins/lamost423/dsh-maze?ref=badge)
